@@ -2,52 +2,56 @@ const { expect } = require("chai");
 const { ethers } = require("hardhat");
 
 describe("DAOVoting Contract", function () {
-  let daoVoting;
-  let admin;
-  let voter1;
-  let voter2;
-  let nonVoter;
+  let daoVoting; // Instance of the deployed contract
+  let admin, voter1, voter2, nonVoter; // Test accounts/signers
 
-  const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
+  const ZERO_ADDRESS = ethers.constants.AddressZero;
 
+  // Deploy a fresh contract before each test
   beforeEach(async function () {
-    // Get signers
+    // Get multiple test accounts
     [admin, voter1, voter2, nonVoter] = await ethers.getSigners();
-    
-    // Deploy contract - HARDHAT v2 SYNTAX
+
+    // Deploy a new DAOVoting contract
     const DAOVoting = await ethers.getContractFactory("DAOVoting");
     daoVoting = await DAOVoting.deploy();
-    await daoVoting.deployed(); // Use deployed() instead of waitForDeployment()
+    await daoVoting.deployed(); // Wait for deployment to complete
   });
 
   describe("Deployment", function () {
+    // Test that deployer becomes admin
     it("Should set the deployer as admin", async function () {
       expect(await daoVoting.admin()).to.equal(admin.address);
     });
 
+    // Test that initially there are no proposals
     it("Should start with zero proposals", async function () {
       expect(await daoVoting.proposalCount()).to.equal(0);
     });
   });
 
   describe("Voter Registration", function () {
+    // Test admin can register a voter
     it("Should allow admin to register voters", async function () {
       await daoVoting.connect(admin).registerVoter(voter1.address);
       expect(await daoVoting.voters(voter1.address)).to.be.true;
     });
 
+    // Test that non-admin cannot register voters
     it("Should not allow non-admin to register voters", async function () {
       await expect(
         daoVoting.connect(voter1).registerVoter(voter2.address)
       ).to.be.revertedWith("Only admin can perform this action");
     });
 
+    // Test that ZERO_ADDRESS cannot be registered
     it("Should not allow registering zero address", async function () {
       await expect(
         daoVoting.connect(admin).registerVoter(ZERO_ADDRESS)
       ).to.be.revertedWith("Invalid voter address");
     });
 
+    // Test double registration fails
     it("Should not allow double registration", async function () {
       await daoVoting.connect(admin).registerVoter(voter1.address);
       await expect(
@@ -57,10 +61,13 @@ describe("DAOVoting Contract", function () {
   });
 
   describe("Proposal Creation", function () {
+    // Test admin can create proposals
     it("Should allow admin to create proposals", async function () {
-      await daoVoting.connect(admin).createProposal("Test Proposal", "This is a test");
+      await daoVoting
+        .connect(admin)
+        .createProposal("Test Proposal", "This is a test");
       expect(await daoVoting.proposalCount()).to.equal(1);
-      
+
       const proposal = await daoVoting.proposals(1);
       expect(proposal.title).to.equal("Test Proposal");
       expect(proposal.description).to.equal("This is a test");
@@ -69,12 +76,14 @@ describe("DAOVoting Contract", function () {
       expect(proposal.noVotes).to.equal(0);
     });
 
+    // Non-admin cannot create proposals
     it("Should not allow non-admin to create proposals", async function () {
       await expect(
         daoVoting.connect(voter1).createProposal("Test", "Test")
       ).to.be.revertedWith("Only admin can perform this action");
     });
 
+    // Title and description must not be empty
     it("Should not allow empty title", async function () {
       await expect(
         daoVoting.connect(admin).createProposal("", "Test description")
@@ -89,12 +98,16 @@ describe("DAOVoting Contract", function () {
   });
 
   describe("Voting", function () {
+    // Register voters and create proposal before voting tests
     beforeEach(async function () {
       await daoVoting.connect(admin).registerVoter(voter1.address);
       await daoVoting.connect(admin).registerVoter(voter2.address);
-      await daoVoting.connect(admin).createProposal("Test Proposal", "Testing voting");
+      await daoVoting
+        .connect(admin)
+        .createProposal("Test Proposal", "Testing voting");
     });
 
+    // Registered voters can vote YES
     it("Should allow registered voters to vote YES", async function () {
       await daoVoting.connect(voter1).vote(1, true);
       const proposal = await daoVoting.proposals(1);
@@ -102,6 +115,7 @@ describe("DAOVoting Contract", function () {
       expect(proposal.noVotes).to.equal(0);
     });
 
+    // Registered voters can vote NO
     it("Should allow registered voters to vote NO", async function () {
       await daoVoting.connect(voter1).vote(1, false);
       const proposal = await daoVoting.proposals(1);
@@ -109,38 +123,44 @@ describe("DAOVoting Contract", function () {
       expect(proposal.noVotes).to.equal(1);
     });
 
+    // Non-registered users cannot vote
     it("Should not allow non-registered users to vote", async function () {
       await expect(
         daoVoting.connect(nonVoter).vote(1, true)
       ).to.be.revertedWith("Only registered voters can vote");
     });
 
+    // Prevent double voting
     it("Should not allow double voting", async function () {
       await daoVoting.connect(voter1).vote(1, true);
-      await expect(
-        daoVoting.connect(voter1).vote(1, false)
-      ).to.be.revertedWith("You have already voted on this proposal");
+      await expect(daoVoting.connect(voter1).vote(1, false)).to.be.revertedWith(
+        "You have already voted on this proposal"
+      );
     });
 
+    // Voting on invalid proposal ID fails
     it("Should not allow voting on invalid proposal", async function () {
       await expect(
         daoVoting.connect(voter1).vote(999, true)
       ).to.be.revertedWith("Invalid proposal ID");
     });
 
+    // Voting on inactive proposals fails
     it("Should not allow voting on inactive proposals", async function () {
-      await daoVoting.connect(admin).tallyVotes(1);
-      await expect(
-        daoVoting.connect(voter1).vote(1, true)
-      ).to.be.revertedWith("Proposal is not active");
+      await daoVoting.connect(admin).tallyVotes(1); // Close proposal
+      await expect(daoVoting.connect(voter1).vote(1, true)).to.be.revertedWith(
+        "Proposal is not active"
+      );
     });
 
+    // Ensure VoteCast event is emitted correctly
     it("Should emit VoteCast event", async function () {
       await expect(daoVoting.connect(voter1).vote(1, true))
         .to.emit(daoVoting, "VoteCast")
         .withArgs(1, voter1.address, true);
     });
 
+    // Check voting status tracking
     it("Should track voting status correctly", async function () {
       expect(await daoVoting.hasUserVoted(1, voter1.address)).to.be.false;
       await daoVoting.connect(voter1).vote(1, true);
@@ -150,9 +170,12 @@ describe("DAOVoting Contract", function () {
 
   describe("Vote Tallying", function () {
     beforeEach(async function () {
-      await daoVoting.connect(admin).createProposal("Tally Test", "Testing vote tallying");
+      await daoVoting
+        .connect(admin)
+        .createProposal("Tally Test", "Testing vote tallying");
     });
 
+    // Admin can tally votes and close proposal
     it("Should allow admin to tally votes and close proposal", async function () {
       const proposalId = await daoVoting.proposalCount();
       await expect(daoVoting.connect(admin).tallyVotes(proposalId))
@@ -162,6 +185,7 @@ describe("DAOVoting Contract", function () {
       expect(proposal.isActive).to.be.false;
     });
 
+    // Non-admin cannot tally votes
     it("Should not allow non-admin to tally votes", async function () {
       const proposalId = await daoVoting.proposalCount();
       await expect(
@@ -169,6 +193,7 @@ describe("DAOVoting Contract", function () {
       ).to.be.revertedWith("Only admin can perform this action");
     });
 
+    // Cannot tally already closed proposals
     it("Should not allow tallying already closed proposals", async function () {
       const proposalId = await daoVoting.proposalCount();
       await daoVoting.connect(admin).tallyVotes(proposalId);
@@ -181,9 +206,12 @@ describe("DAOVoting Contract", function () {
   describe("View Functions", function () {
     beforeEach(async function () {
       await daoVoting.connect(admin).registerVoter(voter1.address);
-      await daoVoting.connect(admin).createProposal("View Test", "Testing view functions");
+      await daoVoting
+        .connect(admin)
+        .createProposal("View Test", "Testing view functions");
     });
 
+    // Check getProposal returns correct details
     it("Should return proposal details correctly", async function () {
       const [id, title, description, yesVotes, noVotes, isActive, createdAt] =
         await daoVoting.getProposal(1);
@@ -196,6 +224,7 @@ describe("DAOVoting Contract", function () {
       expect(createdAt).to.be.gt(0);
     });
 
+    // Check voter registration status
     it("Should check voter registration status", async function () {
       expect(await daoVoting.isVoterRegistered(voter1.address)).to.be.true;
       expect(await daoVoting.isVoterRegistered(voter2.address)).to.be.false;
@@ -203,10 +232,14 @@ describe("DAOVoting Contract", function () {
   });
 
   describe("Integration Tests", function () {
+    // Test a full voting flow from registration to tally
     it("Should handle complete voting flow", async function () {
       await daoVoting.connect(admin).registerVoter(voter1.address);
       await daoVoting.connect(admin).registerVoter(voter2.address);
-      await daoVoting.connect(admin).createProposal("Integration Test", "Full flow test");
+      await daoVoting
+        .connect(admin)
+        .createProposal("Integration Test", "Full flow test");
+
       await daoVoting.connect(voter1).vote(1, true);
       await daoVoting.connect(voter2).vote(1, false);
 
@@ -217,6 +250,8 @@ describe("DAOVoting Contract", function () {
 
       await daoVoting.connect(admin).tallyVotes(1);
       proposal = await daoVoting.proposals(1);
+
+      // After tallying, proposal should be inactive but vote counts remain
       expect(proposal.isActive).to.be.false;
       expect(proposal.yesVotes).to.equal(1);
       expect(proposal.noVotes).to.equal(1);
