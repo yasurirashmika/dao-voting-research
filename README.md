@@ -1,57 +1,123 @@
-# Sample Hardhat 3 Beta Project (`mocha` and `ethers`)
 
-This project showcases a Hardhat 3 Beta project using `mocha` for tests and the `ethers` library for Ethereum interactions.
+# DAO Voting Hardhat Project
 
-To learn more about the Hardhat 3 Beta, please visit the [Getting Started guide](https://hardhat.org/docs/getting-started#getting-started-with-hardhat-3). To share your feedback, join our [Hardhat 3 Beta](https://hardhat.org/hardhat3-beta-telegram-group) Telegram group or [open an issue](https://github.com/NomicFoundation/hardhat/issues/new) in our GitHub issue tracker.
+This project implements a **DAO Voting smart contract** deployed and tested using **Hardhat 3**, with `mocha` for tests and `ethers.js` for Ethereum interactions.
 
 ## Project Overview
 
-This example project includes:
+This project includes:
 
-- A simple Hardhat configuration file.
-- Foundry-compatible Solidity unit tests.
-- TypeScript integration tests using `mocha` and ethers.js
-- Examples demonstrating how to connect to different types of networks, including locally simulating OP mainnet.
+- Solidity smart contract for DAO Voting.
+- Hardhat configuration for **local**, **localhost**, and **Sepolia** networks.
+- Integration tests using `mocha` and `ethers.js`.
+- Deployment scripts for local and Sepolia networks.
+- Voting functionality including voter registration, proposal creation, voting, and vote tallying.
+
+## Prerequisites
+
+- Node.js v18+  
+- npm or yarn  
+- Sepolia ETH account (for Sepolia deployment)  
+
+## Installation
+
+```bash
+git clone <your-repo-url>
+cd dao_voting
+npm install
+````
 
 ## Usage
 
 ### Running Tests
 
-To run all the tests in the project, execute the following command:
+Run all tests (Solidity + Mocha):
 
-```shell
+```bash
 npx hardhat test
 ```
 
-You can also selectively run the Solidity or `mocha` tests:
+Run only Mocha tests (JavaScript):
 
-```shell
-npx hardhat test solidity
+```bash
 npx hardhat test mocha
 ```
 
-### Make a deployment to Sepolia
+### Deploying the DAO Voting Contract
 
-This project includes an example Ignition module to deploy the contract. You can deploy this module to a locally simulated chain or to Sepolia.
+#### Deploy to Localhost
 
-To run the deployment to a local chain:
-
-```shell
-npx hardhat ignition deploy ignition/modules/Counter.ts
+```bash
+npx hardhat run scripts/deployDAO.js --network localhost
 ```
 
-To run the deployment to Sepolia, you need an account with funds to send the transaction. The provided Hardhat configuration includes a Configuration Variable called `SEPOLIA_PRIVATE_KEY`, which you can use to set the private key of the account you want to use.
+#### Deploy to Sepolia
 
-You can set the `SEPOLIA_PRIVATE_KEY` variable using the `hardhat-keystore` plugin or by setting it as an environment variable.
+1. Make sure your account has some ETH on Sepolia.
+2. Set your private key as an environment variable:
 
-To set the `SEPOLIA_PRIVATE_KEY` config variable using `hardhat-keystore`:
+**Linux / macOS:**
 
-```shell
-npx hardhat keystore set SEPOLIA_PRIVATE_KEY
+```bash
+export SEPOLIA_PRIVATE_KEY="your_private_key_here"
 ```
 
-After setting the variable, you can run the deployment with the Sepolia network:
+**Windows PowerShell:**
 
-```shell
-npx hardhat ignition deploy --network sepolia ignition/modules/Counter.ts
+```powershell
+setx SEPOLIA_PRIVATE_KEY "your_private_key_here"
 ```
+
+3. Run the deployment:
+
+```bash
+npx hardhat run scripts/deployDAO.js --network sepolia
+```
+
+After deployment, you will see the contract address and instructions for **Etherscan verification** (if API key is set).
+
+## Features
+
+* **Admin Functions:**
+
+  * Register voters
+  * Create proposals
+  * Tally votes
+
+* **Voter Functions:**
+
+  * Vote YES/NO on proposals
+  * View proposal details
+
+* **Smart Contract Safety:**
+
+  * Only admin can perform administrative actions.
+  * Prevents double voting.
+  * Validates voter addresses and proposal details.
+
+## Environment Variables
+
+Create a `.env` file in the root directory with:
+
+```env
+SEPOLIA_PRIVATE_KEY=<your-private-key>
+ETHERSCAN_API_KEY=<your-etherscan-api-key>
+SEPOLIA_RPC_URL=<your-sepolia-rpc-url>
+```
+
+## Hardhat Configuration
+
+* Solidity version: `0.8.28`
+* Optimizer: enabled, 200 runs
+* Networks: `hardhat`, `localhost`, `sepolia`
+
+## Notes
+
+* Always deploy to `localhost` for testing before using Sepolia.
+* Use separate branches for development (e.g., `voting-contract-dev`) to avoid conflicts on `main`.
+
+## References
+
+* [Hardhat Documentation](https://hardhat.org/docs)
+* [Ethers.js Documentation](https://docs.ethers.io/)
+* [Mocha Documentation](https://mochajs.org/)
