@@ -8,11 +8,12 @@
     "esModuleInterop": true,
     "skipLibCheck": true,
     "moduleResolution": "node16",
+    "allowJs": true,
     "outDir": "dist"
   },
   "include": [
-    "./hardhat.config.ts",
-    "./scripts",
-    "./test"
+    "./hardhat.config.cjs",
+    "./scripts/**/*.js",
+    "./test/**/*.js"
   ]
 }
