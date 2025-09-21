@@ -27,11 +27,21 @@ async function main() {
   const contractAddress = daoVoting.address;
   console.log(`DAO Voting Contract deployed to: ${contractAddress}`);
 
+  // Optional: Verify the admin is correctly set
+  const adminAddress = await daoVoting.admin();
+  console.log(`Admin address: ${adminAddress}`);
+
+  // Optional: Check initial proposal count
+  const initialProposalCount = await daoVoting.proposalCount();
+  console.log(`Initial proposal count: ${initialProposalCount}`);
+
   // Optional: Instructions for Etherscan verification if not local network
   if (network.name !== "hardhat" && network.name !== "localhost") {
-    console.log("\n Contract deployed successfully!");
-    console.log(" Verify on Etherscan with:");
-    console.log(`npx hardhat verify --network ${network.name} ${contractAddress}`);
+    console.log("\nContract deployed successfully!");
+    console.log("Verify on Etherscan with:");
+    console.log(
+      `npx hardhat verify --network ${network.name} ${contractAddress}`
+    );
   }
 
   return contractAddress;
