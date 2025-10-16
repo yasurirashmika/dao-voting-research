@@ -4,11 +4,27 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "compile": "hardhat compile",
-    "test": "hardhat test test/daoVoting.test.cjs",
-    "deploy": "hardhat run scripts/deployDAO.cjs --network localhost"
+    "compile": "npx hardhat compile",
+    "test": "npx hardhat test",
+    "test:unit": "npx hardhat test test/unit/",
+    "test:integration": "npx hardhat test test/integration/",
+    "test:gas": "REPORT_GAS=true npx hardhat test",
+    "coverage": "npx hardhat coverage",
+    "deploy:local": "npx hardhat run scripts/deploy-full-system.js --network localhost",
+    "deploy:sepolia": "npx hardhat run scripts/deploy-full-system.js --network sepolia",
+    "verify:sepolia": "node scripts/verify-contracts.js",
+    "node:local": "npx hardhat node",
+    "clean": "npx hardhat clean",
+    "size": "npx hardhat size-contracts"
   },
-  "keywords": [],
+  "keywords": [
+    "DAO",
+    "governance",
+    "blockchain",
+    "zero-knowledge",
+    "privacy",
+    "voting"
+  ],
   "author": "",
   "license": "ISC",
   "devDependencies": {
@@ -20,6 +36,12 @@
     "dotenv": "^17.2.2",
     "ethers": "^5.7.2",
     "hardhat": "^2.19.0",
+    "hardhat-contract-sizer": "^2.10.1",
+    "hardhat-gas-reporter": "^2.3.0",
+    "solidity-coverage": "^0.8.16",
     "typescript": "~5.8.0"
+  },
+  "dependencies": {
+    "@openzeppelin/contracts": "^5.4.0"
   }
 }
