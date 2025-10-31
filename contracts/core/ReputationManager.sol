@@ -173,10 +173,12 @@ contract ReputationManager is Ownable {
         if (!reputations[user].isActive) {
             return 0;
         }
-        
+
         // Convert reputation (1-1000) to weight (100-10000 basis points)
         // Min reputation (1) = 100 basis points (1%)
         // Max reputation (1000) = 10000 basis points (100%)
-        return 100 + (reputations[user].score - 1) * 99;
+        // Formula: 100 + ((score - 1) * 9900) / 999
+        // For score = 50: 100 + ((50-1) * 9900) / 999 = 100 + (49 * 9900) / 999 = 100 + 485100 / 999 = 100 + 485 = 585
+        return 100 + ((reputations[user].score - 1) * 9900) / 999;
     }
 }

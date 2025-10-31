@@ -46,7 +46,7 @@ describe("ReputationManager Unit Tests", function () {
     it("Should not allow non-owner to add updater", async function () {
       await expect(
         reputationManager.connect(user1).addReputationUpdater(updater1.address)
-      ).to.be.revertedWith("Ownable: caller is not the owner");
+      ).to.be.revertedWithCustomError(reputationManager, "OwnableUnauthorizedAccount");
     });
 
     it("Should not allow adding zero address as updater", async function () {
@@ -79,11 +79,12 @@ describe("ReputationManager Unit Tests", function () {
     });
 
     it("Should emit UserActivated and ReputationUpdated events", async function () {
+      const timestamp = await getCurrentTimestamp();
       await expect(reputationManager.connect(updater1).initializeReputation(user1.address))
         .to.emit(reputationManager, "UserActivated")
         .withArgs(user1.address)
         .and.to.emit(reputationManager, "ReputationUpdated")
-        .withArgs(user1.address, 50, await getCurrentTimestamp());
+        .withArgs(user1.address, 50, timestamp + 1);
     });
 
     it("Should not allow non-updater to initialize", async function () {
@@ -259,8 +260,8 @@ describe("ReputationManager Unit Tests", function () {
       await reputationManager.connect(updater1).initializeReputation(user1.address);
 
       const weight = await reputationManager.getReputationWeight(user1.address);
-      // Default reputation is 50, so weight = 100 + (50-1) * 99 = 100 + 4851 = 4951
-      expect(weight).to.equal(4951);
+      // Default reputation is 50, so weight = 100 + ((50-1) * 9900) / 999 = 100 + (49 * 9900) / 999 = 100 + 485100 / 999 = 100 + 485 = 585
+      expect(weight).to.equal(585);
     });
 
     it("Should return zero weight for inactive user", async function () {

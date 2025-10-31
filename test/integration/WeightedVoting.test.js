@@ -102,7 +102,7 @@ describe("Weighted Voting Mechanism Tests", function () {
     it("Should not allow non-owner to update parameters", async function () {
       await expect(
         daoVoting.connect(voter1).updateWeightParameters(8000, 2000)
-      ).to.be.revertedWith("Ownable: caller is not the owner");
+      ).to.be.revertedWithCustomError(daoVoting, "OwnableUnauthorizedAccount");
     });
   });
 

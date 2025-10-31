@@ -81,7 +81,7 @@ describe("GovernanceToken Unit Tests", function () {
     it("Should not allow non-owner to add minters", async function () {
       await expect(
         governanceToken.connect(addr1).addMinter(addr2.address)
-      ).to.be.revertedWith("Ownable: caller is not the owner");
+      ).to.be.revertedWithCustomError(governanceToken, "OwnableUnauthorizedAccount");
     });
   });
 
