@@ -53,22 +53,22 @@ describe("DAOVoting Unit Tests", function () {
 
   describe("Voter Registration", function () {
     it("Should register voters and initialize reputation", async function () {
-      await daoVoting.registerVoter(voter1.address);
-      
+      // voter1 is already registered in beforeEach, so check existing registration
       expect(await daoVoting.isVoterRegistered(voter1.address)).to.be.true;
       expect(await reputationManager.hasActiveReputation(voter1.address)).to.be.true;
     });
 
     it("Should emit VoterRegistered event", async function () {
-      await expect(daoVoting.registerVoter(voter1.address))
+      // Register a new voter to test event emission
+      await expect(daoVoting.registerVoter(nonVoter.address))
         .to.emit(daoVoting, "VoterRegistered")
-        .withArgs(voter1.address);
+        .withArgs(nonVoter.address);
     });
 
     it("Should not allow non-owner to register voters", async function () {
       await expect(
-        daoVoting.connect(voter1).registerVoter(voter2.address)
-      ).to.be.revertedWith("Ownable: caller is not the owner");
+        daoVoting.connect(voter1).registerVoter(nonVoter.address)
+      ).to.be.revertedWithCustomError(daoVoting, "OwnableUnauthorizedAccount");
     });
 
     it("Should not allow registering zero address", async function () {
@@ -78,7 +78,6 @@ describe("DAOVoting Unit Tests", function () {
     });
 
     it("Should not allow double registration", async function () {
-      await daoVoting.registerVoter(voter1.address);
       await expect(
         daoVoting.registerVoter(voter1.address)
       ).to.be.revertedWith("Voter already registered");
@@ -86,9 +85,7 @@ describe("DAOVoting Unit Tests", function () {
   });
 
   describe("Proposal Submission", function () {
-    beforeEach(async function () {
-      await daoVoting.registerVoter(voter1.address);
-    });
+    // voter1 is already registered in global beforeEach
 
     it("Should create proposal with correct parameters", async function () {
       await daoVoting.connect(voter1).submitProposal(
@@ -155,8 +152,7 @@ describe("DAOVoting Unit Tests", function () {
     let proposalId;
 
     beforeEach(async function () {
-      await daoVoting.registerVoter(voter1.address);
-      await daoVoting.registerVoter(voter2.address);
+      // voter1 and voter2 are already registered in global beforeEach
 
       await daoVoting.connect(voter1).submitProposal("Test", "Description", 0, 0);
       proposalId = 1;
@@ -237,9 +233,7 @@ describe("DAOVoting Unit Tests", function () {
     let proposalId;
 
     beforeEach(async function () {
-      await daoVoting.registerVoter(voter1.address);
-      await daoVoting.registerVoter(voter2.address);
-      await daoVoting.registerVoter(voter3.address);
+      // voter1, voter2, voter3 are already registered in global beforeEach
 
       await daoVoting.connect(voter1).submitProposal("Test", "Description", 0, 0);
       proposalId = 1;
@@ -288,7 +282,7 @@ describe("DAOVoting Unit Tests", function () {
     let proposalId;
 
     beforeEach(async function () {
-      await daoVoting.registerVoter(voter1.address);
+      // voter1 is already registered in global beforeEach
       await daoVoting.connect(voter1).submitProposal("Test", "Description", 0, 0);
       proposalId = 1;
     });
@@ -346,7 +340,7 @@ describe("DAOVoting Unit Tests", function () {
     it("Should not allow non-owner to update parameters", async function () {
       await expect(
         daoVoting.connect(voter1).updateVotingParameters(3600, 86400, 1000, 30)
-      ).to.be.revertedWith("Ownable: caller is not the owner");
+      ).to.be.revertedWithCustomError(daoVoting, "OwnableUnauthorizedAccount");
     });
 
     it("Should reject invalid parameter ranges", async function () {
@@ -382,7 +376,7 @@ describe("DAOVoting Unit Tests", function () {
 
   describe("View Functions", function () {
     beforeEach(async function () {
-      await daoVoting.registerVoter(voter1.address);
+      // voter1 is already registered in global beforeEach
       await daoVoting.connect(voter1).submitProposal("Test", "Description", 0, 0);
     });
 
