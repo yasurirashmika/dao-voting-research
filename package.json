@@ -1,0 +1,23 @@
+{
+  "name": "implementation-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+  "dev": "npm run start -w frontend",
+  "dev:frontend": "npm run start -w frontend",
+  "dev:backend": "npm run dev -w backend",
+  "test:contracts": "npm test -w dao_voting",
+  "compile:contracts": "npm run compile -w dao_voting"
+},
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox-mocha-ethers": "^3.0.0",
+    "concurrently": "^8.2.2",
+    "ethers": "^6.15.0",
+    "hardhat": "^3.0.0",
+    "ts-node": "^10.9.2",
+    "typechain": "^8.3.2"
+  }
+}
