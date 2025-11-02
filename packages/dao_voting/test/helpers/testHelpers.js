@@ -28,23 +28,23 @@ const timeHelpers = {
   HOUR: 3600,
   DAY: 24 * 3600,
   WEEK: 7 * 24 * 3600,
-  MONTH: 30 * 24 * 3600
+  MONTH: 30 * 24 * 3600,
 };
 
 // Token helpers
 const tokenHelpers = {
   parseTokens(amount) {
-    return ethers.utils.parseEther(amount.toString());
+    return ethers.parseEther(amount.toString());
   },
 
   formatTokens(amount) {
-    return ethers.utils.formatEther(amount);
+    return ethers.formatEther(amount);
   },
 
   // Standard test amounts
-  THOUSAND: ethers.utils.parseEther("1000"),
-  TEN_THOUSAND: ethers.utils.parseEther("10000"),
-  HUNDRED_THOUSAND: ethers.utils.parseEther("100000")
+  THOUSAND: ethers.parseEther("1000"),
+  TEN_THOUSAND: ethers.parseEther("10000"),
+  HUNDRED_THOUSAND: ethers.parseEther("100000"),
 };
 
 // Deployment helpers
@@ -57,76 +57,83 @@ const deploymentHelpers = {
       "TDT",
       deployer.address
     );
-    await governanceToken.deployed();
+    await governanceToken.waitForDeployment(); // v6 syntax
 
     // Deploy Reputation Manager
-    const ReputationManager = await ethers.getContractFactory("ReputationManager");
+    const ReputationManager = await ethers.getContractFactory(
+      "ReputationManager"
+    );
     const reputationManager = await ReputationManager.deploy(deployer.address);
-    await reputationManager.deployed();
+    await reputationManager.waitForDeployment(); // v6 syntax
 
     // Deploy DAO Voting
     const DAOVoting = await ethers.getContractFactory("DAOVoting");
     const daoVoting = await DAOVoting.deploy(
-      governanceToken.address,
-      reputationManager.address,
+      await governanceToken.getAddress(), // v6 syntax
+      await reputationManager.getAddress(), // v6 syntax
       deployer.address
     );
-    await daoVoting.deployed();
+    await daoVoting.waitForDeployment(); // v6 syntax
 
     // Setup permissions
-    await governanceToken.addMinter(daoVoting.address);
-    await reputationManager.addReputationUpdater(daoVoting.address);
+    await governanceToken.addMinter(await daoVoting.getAddress()); // v6 syntax
+    await reputationManager.addReputationUpdater(await daoVoting.getAddress()); // v6 syntax
 
     return {
       governanceToken,
       reputationManager,
-      daoVoting
+      daoVoting,
     };
   },
 
   async setupVoters(contracts, voters, tokenAmount = tokenHelpers.THOUSAND) {
     const { governanceToken, daoVoting } = contracts;
-    
+
     for (const voter of voters) {
       await governanceToken.mint(voter.address, tokenAmount);
       await daoVoting.registerVoter(voter.address);
     }
-  }
+  },
 };
 
 // Proposal helpers
 const proposalHelpers = {
-  async createAndStartProposal(daoVoting, proposer, title = "Test Proposal", description = "Test Description") {
+  async createAndStartProposal(
+    daoVoting,
+    proposer,
+    title = "Test Proposal",
+    description = "Test Description"
+  ) {
     await daoVoting.connect(proposer).submitProposal(title, description, 0, 0);
-    
+
     // Wait for voting delay
     await timeHelpers.increaseTime(timeHelpers.HOUR + 1);
-    
+
     // Start voting
     const proposalCount = await daoVoting.proposalCount();
     await daoVoting.startVoting(proposalCount);
-    
+
     return proposalCount;
   },
 
   async endVotingPeriod(daoVoting, proposalId) {
     await timeHelpers.increaseTime(timeHelpers.WEEK + 1);
     await daoVoting.finalizeProposal(proposalId);
-  }
+  },
 };
 
 // Expectation helpers
 const expectHelpers = {
   async expectRevert(promise, errorMessage) {
-    const { expect } = require("chai");
+    const { expect } = await import("chai");
     await expect(promise).to.be.revertedWith(errorMessage);
   },
 
   async expectEvent(transaction, eventName, args = {}) {
-    const { expect } = require("chai");
+    const { expect } = await import("chai");
     const receipt = await transaction.wait();
-    const event = receipt.events?.find(e => e.event === eventName);
-    
+    const event = receipt.logs?.find((e) => e.eventName === eventName); // v6 uses logs
+
     if (!event) {
       throw new Error(`Event ${eventName} not found in transaction`);
     }
@@ -134,7 +141,7 @@ const expectHelpers = {
     for (const [key, value] of Object.entries(args)) {
       expect(event.args[key]).to.equal(value);
     }
-  }
+  },
 };
 
 // Gas measurement helpers
@@ -148,7 +155,7 @@ const gasHelpers = {
     const gasUsed = await this.measureGas(transaction);
     console.log(`${label}: ${gasUsed.toString()} gas`);
     return gasUsed;
-  }
+  },
 };
 
 // Reputation helpers
@@ -163,9 +170,9 @@ const reputationHelpers = {
 
   async setReputations(reputationManager, users, scores) {
     for (let i = 0; i < users.length; i++) {
-      await this.setReputation(reputationManager, users[i], scores[i]);
+      await reputationManager.updateReputation(users[i], scores[i]);
     }
-  }
+  },
 };
 
 module.exports = {
@@ -175,5 +182,5 @@ module.exports = {
   proposalHelpers,
   expectHelpers,
   gasHelpers,
-  reputationHelpers
+  reputationHelpers,
 };

@@ -5,8 +5,8 @@ describe("GovernanceToken Unit Tests", function () {
   let governanceToken;
   let owner, addr1, addr2;
   
-  const INITIAL_SUPPLY = ethers.utils.parseEther("100000"); // 100k tokens
-  const MAX_SUPPLY = ethers.utils.parseEther("1000000"); // 1M tokens
+  const INITIAL_SUPPLY = ethers.parseEther("100000"); // 100k tokens
+  const MAX_SUPPLY = ethers.parseEther("1000000"); // 1M tokens
 
   beforeEach(async function () {
     [owner, addr1, addr2] = await ethers.getSigners();
@@ -17,7 +17,7 @@ describe("GovernanceToken Unit Tests", function () {
       "TGT",
       owner.address
     );
-    await governanceToken.deployed();
+    await governanceToken.waitForDeployment();
   });
 
   describe("Deployment", function () {
@@ -39,14 +39,14 @@ describe("GovernanceToken Unit Tests", function () {
 
   describe("Minting", function () {
     it("Should allow owner to mint tokens", async function () {
-      const mintAmount = ethers.utils.parseEther("1000");
+      const mintAmount = ethers.parseEther("1000");
       await governanceToken.mint(addr1.address, mintAmount);
-      
+
       expect(await governanceToken.balanceOf(addr1.address)).to.equal(mintAmount);
     });
 
     it("Should not allow minting beyond max supply", async function () {
-      const excessAmount = MAX_SUPPLY.add(1);
+      const excessAmount = MAX_SUPPLY + 1n;
       
       await expect(
         governanceToken.mint(addr1.address, excessAmount)
@@ -81,7 +81,7 @@ describe("GovernanceToken Unit Tests", function () {
     it("Should not allow non-owner to add minters", async function () {
       await expect(
         governanceToken.connect(addr1).addMinter(addr2.address)
-      ).to.be.revertedWith("Ownable: caller is not the owner");
+      ).to.be.revertedWithCustomError(governanceToken, "OwnableUnauthorizedAccount");
     });
   });
 
@@ -108,9 +108,9 @@ describe("GovernanceToken Unit Tests", function () {
 
   describe("Voting Power", function () {
     it("Should return correct voting power", async function () {
-      const mintAmount = ethers.utils.parseEther("5000");
+      const mintAmount = ethers.parseEther("5000");
       await governanceToken.mint(addr1.address, mintAmount);
-      
+
       const votingPower = await governanceToken.getVotingPower(addr1.address);
       expect(votingPower).to.equal(mintAmount);
     });
@@ -118,14 +118,14 @@ describe("GovernanceToken Unit Tests", function () {
 
   describe("Token Burns", function () {
     it("Should allow token holders to burn their tokens", async function () {
-      const mintAmount = ethers.utils.parseEther("1000");
+      const mintAmount = ethers.parseEther("1000");
       await governanceToken.mint(addr1.address, mintAmount);
-      
-      const burnAmount = ethers.utils.parseEther("500");
+
+      const burnAmount = ethers.parseEther("500");
       await governanceToken.connect(addr1).burn(burnAmount);
-      
+
       expect(await governanceToken.balanceOf(addr1.address)).to.equal(
-        mintAmount.sub(burnAmount)
+        mintAmount - burnAmount
       );
     });
   });

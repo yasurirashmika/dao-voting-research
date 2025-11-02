@@ -7,9 +7,9 @@ describe("Full DAO System Integration Tests", function () {
   let daoVoting;
   let owner, voter1, voter2, voter3, nonVoter;
 
-  const INITIAL_SUPPLY = ethers.utils.parseEther("100000");
-  const TEST_TOKENS = ethers.utils.parseEther("1000");
-  const PROPOSAL_THRESHOLD = ethers.utils.parseEther("1000");
+  const INITIAL_SUPPLY = ethers.parseEther("100000");
+  const TEST_TOKENS = ethers.parseEther("1000");
+  const PROPOSAL_THRESHOLD = ethers.parseEther("1000");
 
   beforeEach(async function () {
     [owner, voter1, voter2, voter3, nonVoter] = await ethers.getSigners();
@@ -21,25 +21,25 @@ describe("Full DAO System Integration Tests", function () {
       "TDT",
       owner.address
     );
-    await governanceToken.deployed();
+    await governanceToken.waitForDeployment();
 
     // Deploy Reputation Manager
     const ReputationManager = await ethers.getContractFactory("ReputationManager");
     reputationManager = await ReputationManager.deploy(owner.address);
-    await reputationManager.deployed();
+    await reputationManager.waitForDeployment();
 
     // Deploy DAO Voting
     const DAOVoting = await ethers.getContractFactory("DAOVoting");
     daoVoting = await DAOVoting.deploy(
-      governanceToken.address,
-      reputationManager.address,
+      await governanceToken.getAddress(),
+      await reputationManager.getAddress(),
       owner.address
     );
-    await daoVoting.deployed();
+    await daoVoting.waitForDeployment();
 
     // Setup permissions
-    await governanceToken.addMinter(daoVoting.address);
-    await reputationManager.addReputationUpdater(daoVoting.address);
+    await governanceToken.addMinter(await daoVoting.getAddress());
+    await reputationManager.addReputationUpdater(await daoVoting.getAddress());
 
     // Distribute tokens and register voters
     await governanceToken.mint(voter1.address, TEST_TOKENS);
@@ -60,15 +60,15 @@ describe("Full DAO System Integration Tests", function () {
     it("Should deploy all contracts with correct initial state", async function () {
       expect(await governanceToken.name()).to.equal("Test DAO Token");
       expect(await governanceToken.symbol()).to.equal("TDT");
-      expect(await governanceToken.totalSupply()).to.equal(INITIAL_SUPPLY.add(TEST_TOKENS.mul(3)));
+      expect(await governanceToken.totalSupply()).to.equal(INITIAL_SUPPLY + (TEST_TOKENS * 3n));
       
       expect(await reputationManager.owner()).to.equal(owner.address);
       expect(await daoVoting.owner()).to.equal(owner.address);
     });
 
     it("Should have correct permissions setup", async function () {
-      expect(await governanceToken.canMint(daoVoting.address)).to.be.true;
-      expect(await reputationManager.reputationUpdaters(daoVoting.address)).to.be.true;
+      expect(await governanceToken.canMint(await daoVoting.getAddress())).to.be.true;
+      expect(await reputationManager.reputationUpdaters(await daoVoting.getAddress())).to.be.true;
     });
   });
 
@@ -111,7 +111,7 @@ describe("Full DAO System Integration Tests", function () {
       
       expect(proposal.yesVotes).to.be.gt(0);
       expect(proposal.noVotes).to.be.gt(0);
-      expect(proposal.totalVotingWeight).to.equal(proposal.yesVotes.add(proposal.noVotes));
+      expect(proposal.totalVotingWeight).to.equal(proposal.yesVotes + proposal.noVotes);
     });
 
     it("Should prevent double voting", async function () {
@@ -158,7 +158,7 @@ describe("Full DAO System Integration Tests", function () {
       proposal = await daoVoting.proposals(1);
       
       // Should be either succeeded or defeated based on vote weights
-      expect(proposal.state).to.be.oneOf([2, 3]); // Succeeded or Defeated
+      expect(proposal.state).to.be.oneOf([2n, 3n]); // Succeeded or Defeated
     });
 
     it("Should handle proposal cancellation", async function () {
@@ -198,7 +198,7 @@ describe("Full DAO System Integration Tests", function () {
       await daoVoting.connect(voter1).submitProposal(
         "High Requirements",
         "Testing high voting requirements",
-        ethers.utils.parseEther("2000"), // More tokens than any voter has
+        ethers.parseEther("2000"), // More tokens than any voter has
         1000 // Maximum reputation
       );
 
@@ -212,7 +212,7 @@ describe("Full DAO System Integration Tests", function () {
       ).to.be.revertedWith("Insufficient tokens to vote");
 
       // Give voter1 enough tokens but they still lack reputation
-      await governanceToken.mint(voter1.address, ethers.utils.parseEther("2000"));
+      await governanceToken.mint(voter1.address, ethers.parseEther("2000"));
       
       await expect(
         daoVoting.connect(voter1).castVote(1, true)
@@ -258,13 +258,13 @@ describe("Full DAO System Integration Tests", function () {
       await daoVoting.updateVotingParameters(
         7200, // 2 hours voting delay
         86400, // 1 day voting period
-        ethers.utils.parseEther("500"), // Lower proposal threshold
+        ethers.parseEther("500"), // Lower proposal threshold
         30 // 30% quorum
       );
 
       expect(await daoVoting.votingDelay()).to.equal(7200);
       expect(await daoVoting.votingPeriod()).to.equal(86400);
-      expect(await daoVoting.proposalThreshold()).to.equal(ethers.utils.parseEther("500"));
+      expect(await daoVoting.proposalThreshold()).to.equal(ethers.parseEther("500"));
       expect(await daoVoting.quorumPercentage()).to.equal(30);
     });
 

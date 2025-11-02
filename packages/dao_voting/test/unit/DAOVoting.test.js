@@ -1,16 +1,15 @@
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
-const { deploymentHelpers, tokenHelpers, timeHelpers } = require("../helpers/testHelpers");
+const { deploymentHelpers, tokenHelpers, timeHelpers} = require("../helpers/testHelpers");
 
 describe("DAOVoting Unit Tests", function () {
   let governanceToken, reputationManager, daoVoting;
   let owner, voter1, voter2, voter3, nonVoter;
 
-  const PROPOSAL_THRESHOLD = tokenHelpers.parseTokens("1000");
-
   beforeEach(async function () {
     [owner, voter1, voter2, voter3, nonVoter] = await ethers.getSigners();
 
+    PROPOSAL_THRESHOLD = tokenHelpers.parseTokens("1000"); 
     // Deploy system
     const contracts = await deploymentHelpers.deployFullSystem(owner);
     governanceToken = contracts.governanceToken;
@@ -24,8 +23,8 @@ describe("DAOVoting Unit Tests", function () {
   describe("Deployment and Initialization", function () {
     it("Should deploy with correct initial parameters", async function () {
       expect(await daoVoting.owner()).to.equal(owner.address);
-      expect(await daoVoting.governanceToken()).to.equal(governanceToken.address);
-      expect(await daoVoting.reputationManager()).to.equal(reputationManager.address);
+      expect(await daoVoting.governanceToken()).to.equal(await governanceToken.getAddress());
+      expect(await daoVoting.reputationManager()).to.equal(await reputationManager.getAddress());
       expect(await daoVoting.proposalCount()).to.equal(0);
     });
 
@@ -42,11 +41,11 @@ describe("DAOVoting Unit Tests", function () {
       const DAOVoting = await ethers.getContractFactory("DAOVoting");
       
       await expect(
-        DAOVoting.deploy(ethers.constants.AddressZero, reputationManager.address, owner.address)
+        DAOVoting.deploy(ethers.ZeroAddress, await reputationManager.getAddress(), owner.address)
       ).to.be.revertedWith("Invalid governance token address");
 
       await expect(
-        DAOVoting.deploy(governanceToken.address, ethers.constants.AddressZero, owner.address)
+        DAOVoting.deploy(await governanceToken.getAddress(), ethers.ZeroAddress, owner.address)
       ).to.be.revertedWith("Invalid reputation manager address");
     });
   });
@@ -73,7 +72,7 @@ describe("DAOVoting Unit Tests", function () {
 
     it("Should not allow registering zero address", async function () {
       await expect(
-        daoVoting.registerVoter(ethers.constants.AddressZero)
+        daoVoting.registerVoter(ethers.ZeroAddress)
       ).to.be.revertedWith("Invalid voter address");
     });
 
@@ -85,8 +84,6 @@ describe("DAOVoting Unit Tests", function () {
   });
 
   describe("Proposal Submission", function () {
-    // voter1 is already registered in global beforeEach
-
     it("Should create proposal with correct parameters", async function () {
       await daoVoting.connect(voter1).submitProposal(
         "Test Proposal",
@@ -152,8 +149,6 @@ describe("DAOVoting Unit Tests", function () {
     let proposalId;
 
     beforeEach(async function () {
-      // voter1 and voter2 are already registered in global beforeEach
-
       await daoVoting.connect(voter1).submitProposal("Test", "Description", 0, 0);
       proposalId = 1;
 
@@ -233,8 +228,6 @@ describe("DAOVoting Unit Tests", function () {
     let proposalId;
 
     beforeEach(async function () {
-      // voter1, voter2, voter3 are already registered in global beforeEach
-
       await daoVoting.connect(voter1).submitProposal("Test", "Description", 0, 0);
       proposalId = 1;
 
@@ -252,7 +245,7 @@ describe("DAOVoting Unit Tests", function () {
       await daoVoting.finalizeProposal(proposalId);
 
       const proposal = await daoVoting.proposals(proposalId);
-      expect(proposal.state).to.be.oneOf([2, 3]); // Succeeded or Defeated
+      expect(proposal.state).to.be.oneOf([2n, 3n]); // Succeeded or Defeated
     });
 
     it("Should not finalize before voting ends", async function () {
@@ -282,7 +275,6 @@ describe("DAOVoting Unit Tests", function () {
     let proposalId;
 
     beforeEach(async function () {
-      // voter1 is already registered in global beforeEach
       await daoVoting.connect(voter1).submitProposal("Test", "Description", 0, 0);
       proposalId = 1;
     });
@@ -302,8 +294,6 @@ describe("DAOVoting Unit Tests", function () {
     });
 
     it("Should not allow others to cancel proposal", async function () {
-      await daoVoting.registerVoter(voter2.address);
-      
       await expect(
         daoVoting.connect(voter2).cancelProposal(proposalId)
       ).to.be.revertedWith("Only proposer or owner can cancel");
@@ -376,7 +366,6 @@ describe("DAOVoting Unit Tests", function () {
 
   describe("View Functions", function () {
     beforeEach(async function () {
-      // voter1 is already registered in global beforeEach
       await daoVoting.connect(voter1).submitProposal("Test", "Description", 0, 0);
     });
 
@@ -417,8 +406,6 @@ describe("DAOVoting Unit Tests", function () {
 
   describe("Edge Cases and Error Handling", function () {
     it("Should handle zero voting power gracefully", async function () {
-      await daoVoting.registerVoter(voter1.address);
-      
       // Remove all tokens and deactivate reputation
       const balance = await governanceToken.balanceOf(voter1.address);
       await governanceToken.connect(voter1).transfer(owner.address, balance);

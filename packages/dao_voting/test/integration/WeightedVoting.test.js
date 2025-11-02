@@ -102,7 +102,7 @@ describe("Weighted Voting Mechanism Tests", function () {
     it("Should not allow non-owner to update parameters", async function () {
       await expect(
         daoVoting.connect(voter1).updateWeightParameters(8000, 2000)
-      ).to.be.revertedWith("Ownable: caller is not the owner");
+      ).to.be.revertedWithCustomError(daoVoting, "OwnableUnauthorizedAccount");
     });
   });
 
@@ -147,7 +147,7 @@ describe("Weighted Voting Mechanism Tests", function () {
       console.log(`Voter3 weight: ${weight3}`);
 
       expect(proposal.noVotes).to.equal(weight3);
-      expect(proposal.totalVotingWeight).to.equal(proposal.yesVotes.add(proposal.noVotes));
+      expect(proposal.totalVotingWeight).to.equal(proposal.yesVotes + proposal.noVotes);
     });
 
     it("Should track individual vote weights", async function () {
@@ -186,7 +186,7 @@ describe("Weighted Voting Mechanism Tests", function () {
       console.log(`YES: ${proposal.yesVotes}, NO: ${proposal.noVotes}`);
 
       // Outcome depends on whether voter3's high weight overcomes voter1+voter2
-      expect(proposal.state).to.be.oneOf([2, 3]); // Succeeded or Defeated
+      expect(proposal.state).to.be.oneOf([2n, 3n]); // Succeeded or Defeated
     });
   });
 

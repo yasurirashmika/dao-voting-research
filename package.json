@@ -6,12 +6,12 @@
     "packages/*"
   ],
   "scripts": {
-  "dev": "npm run start -w frontend",
-  "dev:frontend": "npm run start -w frontend",
-  "dev:backend": "npm run dev -w backend",
-  "test:contracts": "npm test -w dao_voting",
-  "compile:contracts": "npm run compile -w dao_voting"
-},
+    "dev": "npm run start -w frontend",
+    "dev:frontend": "npm run start -w frontend",
+    "dev:backend": "npm run dev -w backend",
+    "test:contracts": "npm test -w dao_voting",
+    "compile:contracts": "npm run compile -w dao_voting"
+  },
   "devDependencies": {
     "@nomicfoundation/hardhat-toolbox-mocha-ethers": "^3.0.0",
     "concurrently": "^8.2.2",
