@@ -1,0 +1,16 @@
+.wallet-connect {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Custom styling for RainbowKit button */
+.wallet-connect button {
+  font-family: inherit;
+  transition: all var(--transition-fast);
+}
+
+.wallet-connect button:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
+}

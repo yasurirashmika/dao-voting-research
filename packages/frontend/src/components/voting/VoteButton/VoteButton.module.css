@@ -1,0 +1,10 @@
+.vote-button {
+  font-size: 1.125rem;
+  padding: 1rem 2rem;
+  transition: all var(--transition-fast);
+}
+
+.vote-button:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lg);
+}

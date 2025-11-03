@@ -2,30 +2,69 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
 
-// 1. Import all the wagmi/rainbowkit stuff
+// Import styles
+import './assets/styles/variables.css';
+import './assets/styles/global.css';
+
+// Import RainbowKit styles
 import '@rainbow-me/rainbowkit/styles.css';
+
+// Import wagmi and RainbowKit
 import { getDefaultConfig, RainbowKitProvider } from '@rainbow-me/rainbowkit';
 import { WagmiProvider } from 'wagmi';
-import { mainnet, sepolia } from 'wagmi/chains';
+import { mainnet, sepolia, polygon, arbitrum } from 'wagmi/chains';
 import { QueryClientProvider, QueryClient } from "@tanstack/react-query";
 
-// 2. Set up your config
+// Import context providers
+import { WalletProvider } from './context/WalletContext';
+import { DAOProvider } from './context/DAOContext';
+import { ThemeProvider } from './context/ThemeContext';
+
+// Get WalletConnect project ID from environment variables
+const projectId = process.env.REACT_APP_WALLETCONNECT_PROJECT_ID || 'YOUR_PROJECT_ID';
+
+// Configure wagmi with chains
 const config = getDefaultConfig({
-  appName: 'DAO Voting App',
-  projectId: 'YOUR_PROJECT_ID', // You get this from WalletConnect
-  chains: [mainnet, sepolia],
+  appName: 'DAO Voting Platform',
+  projectId: projectId,
+  chains: [
+    mainnet, 
+    sepolia,    // Ethereum testnet
+    polygon,    // Polygon mainnet
+    arbitrum    // Arbitrum mainnet
+  ],
+  ssr: false, // If using Next.js, set to true
 });
 
-const queryClient = new QueryClient();
+// Create React Query client
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      refetchOnWindowFocus: false,
+      retry: 1,
+      staleTime: 5 * 60 * 1000, // 5 minutes
+    },
+  },
+});
 
-// 3. Wrap your App
+// Render the app
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(
   <React.StrictMode>
     <WagmiProvider config={config}>
       <QueryClientProvider client={queryClient}>
-        <RainbowKitProvider>
-          <App />
+        <RainbowKitProvider
+          coolMode
+          theme={null}
+          showRecentTransactions={true}
+        >
+          <ThemeProvider>
+            <WalletProvider>
+              <DAOProvider>
+                <App />
+              </DAOProvider>
+            </WalletProvider>
+          </ThemeProvider>
         </RainbowKitProvider>
       </QueryClientProvider>
     </WagmiProvider>
