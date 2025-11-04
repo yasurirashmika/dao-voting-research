@@ -1,0 +1,85 @@
+.card {
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  transition: all var(--transition-base);
+}
+
+/* Padding Variants */
+.card-padding-none {
+  padding: 0;
+}
+
+.card-padding-small {
+  padding: 1rem;
+}
+
+.card-padding-medium {
+  padding: 1.5rem;
+}
+
+.card-padding-large {
+  padding: 2rem;
+}
+
+/* Hoverable */
+.card-hoverable:hover {
+  box-shadow: var(--shadow-md);
+  transform: translateY(-2px);
+}
+
+/* Clickable */
+.card-clickable {
+  cursor: pointer;
+}
+
+/* Header */
+.card-header,
+.card-header-custom {
+  margin-bottom: 1rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.card-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  margin: 0;
+}
+
+.card-subtitle {
+  font-size: 0.875rem;
+  color: var(--color-text-secondary);
+  margin: 0.5rem 0 0 0;
+}
+
+/* Body */
+.card-body {
+  flex: 1;
+}
+
+/* Footer */
+.card-footer {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--color-border);
+}
+
+/* Special Card Types */
+.card-transparent {
+  background-color: transparent;
+  border: none;
+  box-shadow: none;
+}
+
+.card-outlined {
+  border: 2px solid var(--color-border);
+  box-shadow: none;
+}
+
+.card-elevated {
+  box-shadow: var(--shadow-lg);
+  border: none;
+}

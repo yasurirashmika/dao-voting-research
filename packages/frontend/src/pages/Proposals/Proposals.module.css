@@ -1,0 +1,289 @@
+.proposals-page {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+/* Header */
+.proposals-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 2rem;
+  flex-wrap: wrap;
+}
+
+.proposals-title {
+  font-size: 2.5rem;
+  font-weight: 700;
+  color: var(--color-text-primary);
+  margin: 0;
+}
+
+.proposals-subtitle {
+  color: var(--color-text-secondary);
+  margin: 0.5rem 0 0 0;
+  font-size: 1.125rem;
+}
+
+/* Filters */
+.proposals-filters {
+  position: sticky;
+  top: 80px;
+  z-index: 10;
+}
+
+.filter-row {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.search-input {
+  flex: 1;
+  min-width: 250px;
+}
+
+.filter-controls {
+  display: flex;
+  gap: 1rem;
+}
+
+.filter-select {
+  padding: 0.625rem 1rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background-color: var(--color-background);
+  color: var(--color-text-primary);
+  font-size: 0.9375rem;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.filter-select:hover {
+  border-color: var(--color-border-dark);
+}
+
+.filter-select:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+}
+
+/* Proposals List */
+.proposals-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.proposals-loading,
+.proposals-error {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 400px;
+}
+
+/* No Proposals */
+.no-proposals {
+  text-align: center;
+}
+
+.no-proposals-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  padding: 2rem;
+}
+
+.no-proposals-icon {
+  font-size: 4rem;
+  opacity: 0.5;
+}
+
+.no-proposals-content h3 {
+  font-size: 1.5rem;
+  color: var(--color-text-primary);
+  margin: 0;
+}
+
+.no-proposals-content p {
+  color: var(--color-text-secondary);
+  margin: 0;
+}
+
+/* Proposal Card */
+.proposal-card-link {
+  text-decoration: none;
+  color: inherit;
+  display: block;
+}
+
+.proposal-card {
+  transition: all var(--transition-base);
+}
+
+.proposal-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.proposal-info {
+  flex: 1;
+}
+
+.proposal-title {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  margin: 0 0 0.5rem 0;
+  line-height: 1.3;
+}
+
+.proposal-meta {
+  font-size: 0.875rem;
+  color: var(--color-text-tertiary);
+  margin: 0;
+}
+
+.proposal-status {
+  padding: 0.375rem 0.875rem;
+  border-radius: var(--radius-full);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: white;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.proposal-description {
+  color: var(--color-text-secondary);
+  line-height: 1.6;
+  margin: 0 0 1.5rem 0;
+}
+
+/* Vote Progress */
+.vote-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.vote-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+}
+
+.vote-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.vote-label {
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.vote-value {
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+.vote-for .vote-label {
+  color: var(--color-vote-for);
+}
+
+.vote-for .vote-value {
+  color: var(--color-vote-for);
+}
+
+.vote-against .vote-label {
+  color: var(--color-vote-against);
+}
+
+.vote-against .vote-value {
+  color: var(--color-vote-against);
+}
+
+.vote-abstain .vote-label {
+  color: var(--color-vote-abstain);
+}
+
+.vote-abstain .vote-value {
+  color: var(--color-vote-abstain);
+}
+
+/* Progress Bar */
+.progress-bar {
+  height: 8px;
+  background-color: var(--color-background-secondary);
+  border-radius: var(--radius-full);
+  overflow: hidden;
+  display: flex;
+}
+
+.progress-segment {
+  height: 100%;
+  transition: width var(--transition-slow);
+}
+
+.progress-for {
+  background-color: var(--color-vote-for);
+}
+
+.progress-against {
+  background-color: var(--color-vote-against);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .proposals-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .proposals-title {
+    font-size: 2rem;
+  }
+
+  .filter-row {
+    flex-direction: column;
+  }
+
+  .search-input {
+    width: 100%;
+  }
+
+  .filter-controls {
+    width: 100%;
+    flex-direction: column;
+  }
+
+  .filter-select {
+    width: 100%;
+  }
+
+  .proposal-card-header {
+    flex-direction: column;
+  }
+
+  .proposal-status {
+    align-self: flex-start;
+  }
+
+  .vote-stats {
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
+  }
+}
