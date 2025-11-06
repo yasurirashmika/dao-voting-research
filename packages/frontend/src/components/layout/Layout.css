@@ -1,0 +1,44 @@
+/* Change .layout-content to .main-content */
+.main-content {
+  flex: 1;
+  width: 100%;
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 2rem;
+  position: relative;
+  z-index: 1;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .main-content {
+    padding: 1rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .main-content {
+    padding: 0.75rem;
+  }
+}
+
+/* Update other references too */
+.layout,
+.main-content {
+  transition: all 0.3s ease;
+}
+
+.main-content > * + * {
+  margin-top: 2rem;
+}
+
+.main-content.centered {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.main-content.full-width {
+  max-width: 100%;
+  padding: 0;
+}

@@ -2,7 +2,7 @@ import React from 'react';
 import { useAccount, useBalance, useEnsName } from 'wagmi';
 import { formatAddress } from '../../../utils/formatters';
 import Card from '../../common/Card/Card';
-import './WalletInfo.module.css';
+import './WalletInfo.css';
 
 const WalletInfo = () => {
   const { address, isConnected } = useAccount();

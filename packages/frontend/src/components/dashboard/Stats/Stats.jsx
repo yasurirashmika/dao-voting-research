@@ -1,6 +1,6 @@
 import React from 'react';
 import Card from '../../common/Card/Card';
-import './Stats.module.css';
+import './Stats.css';
 
 const Stats = ({ stats }) => {
   const defaultStats = [

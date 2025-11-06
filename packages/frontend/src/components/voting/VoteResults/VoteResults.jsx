@@ -1,7 +1,7 @@
 import React from 'react';
 import Card from '../../common/Card/Card';
 import { formatLargeNumber, formatPercentage } from '../../../utils/formatters';
-import './VoteResults.module.css';
+import './VoteResults.css';
 
 const VoteResults = ({ forVotes, againstVotes, abstainVotes }) => {
   const totalVotes = forVotes + againstVotes + abstainVotes;

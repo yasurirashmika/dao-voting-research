@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import './Modal.module.css';
+import './Modal.css';
 
 const Modal = ({
   isOpen,

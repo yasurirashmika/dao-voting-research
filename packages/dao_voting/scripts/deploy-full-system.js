@@ -10,7 +10,7 @@ async function main() {
   console.log(`Deployer: ${deployer.address}`);
 
   const balance = await ethers.provider.getBalance(deployer.address);
-  console.log(`Balance: ${ethers.utils.formatEther(balance)} ETH`);
+  console.log(`Balance: ${ethers.formatEther(balance)} ETH`);
 
   // 1. Deploy Governance Token (IMPLEMENTATION)
   console.log("\n1. Deploying Governance Token Implementation...");
@@ -20,8 +20,9 @@ async function main() {
     "DGT",
     deployer.address
   );
-  await governanceToken.deployed();
-  console.log(`GovernanceToken deployed to: ${governanceToken.address}`);
+  await governanceToken.waitForDeployment();
+  // --- FIX --- (Changed .address to .target)
+  console.log(`GovernanceToken deployed to: ${governanceToken.target}`);
 
   // 2. Deploy Reputation Manager (IMPLEMENTATION)
   console.log("\n2. Deploying Reputation Manager Implementation...");
@@ -29,39 +30,44 @@ async function main() {
     "ReputationManager"
   );
   const reputationManager = await ReputationManager.deploy(deployer.address);
-  await reputationManager.deployed();
-  console.log(`ReputationManager deployed to: ${reputationManager.address}`);
+  await reputationManager.waitForDeployment();
+  // --- FIX --- (Changed .address to .target)
+  console.log(`ReputationManager deployed to: ${reputationManager.target}`);
 
   // 3. Deploy DAO Voting (USES INTERFACES BUT NEEDS IMPLEMENTATION ADDRESSES)
   console.log("\n3. Deploying DAO Voting Contract...");
   const DAOVoting = await ethers.getContractFactory("DAOVoting");
   const daoVoting = await DAOVoting.deploy(
-    governanceToken.address, // Address of implementation, but DAOVoting uses IGovernanceToken interface
-    reputationManager.address, // Address of implementation, but DAOVoting uses IReputationManager interface
+    // --- FIX --- (Changed .address to .target)
+    governanceToken.target, // Address of implementation
+    reputationManager.target, // Address of implementation
     deployer.address
   );
-  await daoVoting.deployed();
-  console.log(`DAOVoting deployed to: ${daoVoting.address}`);
+  await daoVoting.waitForDeployment();
+  // --- FIX --- (Changed .address to .target)
+  console.log(`DAOVoting deployed to: ${daoVoting.target}`);
 
   // 4. Setup permissions (IMPLEMENTATIONS GRANT PERMISSIONS TO MAIN CONTRACT)
   console.log("\n4. Setting up cross-contract permissions...");
 
   // Add DAO contract as minter for governance token
-  await governanceToken.addMinter(daoVoting.address);
+  // --- FIX --- (Changed .address to .target)
+  await governanceToken.addMinter(daoVoting.target);
   console.log("✅ Added DAO contract as governance token minter");
 
   // Add DAO contract as reputation updater
-  await reputationManager.addReputationUpdater(daoVoting.address);
+  // --- FIX --- (Changed .address to .target)
+  await reputationManager.addReputationUpdater(daoVoting.target);
   console.log("✅ Added DAO contract as reputation updater");
 
   // 5. Initial setup and testing
   console.log("\n5. Performing initial setup...");
 
   // Distribute some initial tokens to deployer for testing
-  const initialTokens = ethers.utils.parseEther("10000");
+  const initialTokens = ethers.parseEther("10000");
   await governanceToken.mint(deployer.address, initialTokens);
   console.log(
-    `✅ Minted ${ethers.utils.formatEther(initialTokens)} tokens to deployer`
+    `✅ Minted ${ethers.formatEther(initialTokens)} tokens to deployer`
   );
 
   // Register deployer as voter
@@ -87,10 +93,12 @@ async function main() {
   console.log("\n7. Architecture Summary:");
   console.log("=".repeat(50));
   console.log("📋 IMPLEMENTATIONS (Actual contracts):");
-  console.log(`   GovernanceToken: ${governanceToken.address}`);
-  console.log(`   ReputationManager: ${reputationManager.address}`);
+  // --- FIX --- (Changed .address to .target)
+  console.log(`   GovernanceToken: ${governanceToken.target}`);
+  console.log(`   ReputationManager: ${reputationManager.target}`);
   console.log("\n🔌 MAIN CONTRACT (Uses interfaces):");
-  console.log(`   DAOVoting: ${daoVoting.address}`);
+  // --- FIX --- (Changed .address to .target)
+  console.log(`   DAOVoting: ${daoVoting.target}`);
   console.log("\n💡 Interface Usage:");
   console.log("   DAOVoting imports IGovernanceToken & IReputationManager");
   console.log("   But connects to actual implementation addresses");
@@ -99,21 +107,23 @@ async function main() {
 
   if (network.name !== "hardhat" && network.name !== "localhost") {
     console.log("\n📝 To verify on Etherscan:");
+    // --- FIX --- (Changed .address to .target)
     console.log(
-      `npx hardhat verify --network ${network.name} ${governanceToken.address} "DAO Governance Token" "DGT" "${deployer.address}"`
+      `npx hardhat verify --network ${network.name} ${governanceToken.target} "DAO Governance Token" "DGT" "${deployer.address}"`
     );
     console.log(
-      `npx hardhat verify --network ${network.name} ${reputationManager.address} "${deployer.address}"`
+      `npx hardhat verify --network ${network.name} ${reputationManager.target} "${deployer.address}"`
     );
     console.log(
-      `npx hardhat verify --network ${network.name} ${daoVoting.address} "${governanceToken.address}" "${reputationManager.address}" "${deployer.address}"`
+      `npx hardhat verify --network ${network.name} ${daoVoting.target} "${governanceToken.target}" "${reputationManager.target}" "${deployer.address}"`
     );
   }
 
   return {
-    governanceToken: governanceToken.address,
-    reputationManager: reputationManager.address,
-    daoVoting: daoVoting.address,
+    // --- FIX --- (Changed .address to .target)
+    governanceToken: governanceToken.target,
+    reputationManager: reputationManager.target,
+    daoVoting: daoVoting.target,
   };
 }
 

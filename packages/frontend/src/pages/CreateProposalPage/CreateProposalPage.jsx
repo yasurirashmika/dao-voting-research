@@ -7,7 +7,7 @@ import Button from '../../components/common/Button/Button';
 import Input from '../../components/common/Input/Input';
 import { validateProposalTitle, validateProposalDescription } from '../../utils/validators';
 import { MAX_VALUES } from '../../utils/constants';
-import './CreateProposalPage.module.css';
+import './CreateProposalPage.css';
 
 const CreateProposalPage = () => {
   const navigate = useNavigate();

@@ -1,4 +1,4 @@
-import { ethers } from 'ethers';
+import { isAddress } from 'ethers';
 import { REGEX_PATTERNS, MAX_VALUES } from './constants';
 
 /**
@@ -8,7 +8,7 @@ import { REGEX_PATTERNS, MAX_VALUES } from './constants';
  */
 export const isValidAddress = (address) => {
   if (!address) return false;
-  return ethers.utils.isAddress(address);
+  return isAddress(address);
 };
 
 /**

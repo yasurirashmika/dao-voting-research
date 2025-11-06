@@ -9,7 +9,7 @@ import Loader from '../../components/common/Loader/Loader';
 import { formatAddress, formatDate, formatLargeNumber } from '../../utils/formatters';
 import { getProposalStateLabel, getProposalStateColor } from '../../utils/helpers';
 import { PROPOSAL_STATE } from '../../utils/constants';
-import './Proposals.module.css';
+import './Proposals.css';
 
 const Proposals = () => {
   const { proposals, loading, error, fetchProposals } = useProposals();

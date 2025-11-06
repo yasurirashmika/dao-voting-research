@@ -2,7 +2,7 @@ import React from 'react';
 import ProposalCard from '../ProposalCard/ProposalCard';
 import Loader from '../../common/Loader/Loader';
 import Card from '../../common/Card/Card';
-import './ProposalList.module.css';
+import './ProposalList.css';
 
 const ProposalList = ({ proposals, loading, error }) => {
   if (loading) {

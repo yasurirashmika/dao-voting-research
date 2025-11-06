@@ -1,7 +1,7 @@
 import React from 'react';
 import Button from '../../common/Button/Button';
 import { VOTE_TYPE } from '../../../utils/constants';
-import './VoteButton.module.css';
+import './VoteButton.css';
 
 const VoteButton = ({ voteType, onClick, disabled, loading }) => {
   const getButtonProps = () => {

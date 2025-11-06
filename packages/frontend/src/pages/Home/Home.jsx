@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { useAccount } from 'wagmi';
 import Button from '../../components/common/Button/Button';
 import Card from '../../components/common/Card/Card';
-import './Home.module.css';
+import './Home.css';
 
 const Home = () => {
   const { isConnected } = useAccount();

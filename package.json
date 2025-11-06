@@ -13,11 +13,10 @@
     "compile:contracts": "npm run compile -w dao_voting"
   },
   "devDependencies": {
-    "@nomicfoundation/hardhat-toolbox-mocha-ethers": "^3.0.0",
-    "concurrently": "^8.2.2",
-    "ethers": "^6.15.0",
-    "hardhat": "^3.0.0",
-    "ts-node": "^10.9.2",
-    "typechain": "^8.3.2"
+    "concurrently": "^8.2.2"
+  },
+  "dependencies": {
+    "@openzeppelin/contracts": "^5.4.0",
+    "ajv": "^8.17.1"
   }
 }

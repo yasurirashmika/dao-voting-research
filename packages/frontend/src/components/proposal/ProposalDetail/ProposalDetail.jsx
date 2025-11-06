@@ -2,7 +2,7 @@ import React from 'react';
 import Card from '../../common/Card/Card';
 import { formatAddress, formatDate, formatLargeNumber, formatPercentage } from '../../../utils/formatters';
 import { getProposalStateLabel, getProposalStateColor } from '../../../utils/helpers';
-import './ProposalDetail.module.css';
+import './ProposalDetail.css';
 
 const ProposalDetail = ({ proposal }) => {
   const totalVotes = proposal.forVotes + proposal.againstVotes + proposal.abstainVotes;

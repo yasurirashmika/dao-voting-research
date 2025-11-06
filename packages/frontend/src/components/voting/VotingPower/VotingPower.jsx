@@ -1,7 +1,7 @@
 import React from 'react';
 import Card from '../../common/Card/Card';
 import { formatLargeNumber } from '../../../utils/formatters';
-import './VotingPower.module.css';
+import './VotingPower.css';
 
 const VotingPower = ({ votingPower, delegatedTo, address }) => {
   const isDelegated = delegatedTo && delegatedTo !== address;

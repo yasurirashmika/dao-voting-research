@@ -1,7 +1,7 @@
 import React from 'react';
 import Card from '../../common/Card/Card';
 import { formatRelativeTime } from '../../../utils/formatters';
-import './Activity.module.css';
+import './Activity.css';
 
 const Activity = ({ activities }) => {
   const getActivityIcon = (type) => {

@@ -1,11 +1,11 @@
-import { ethers } from 'ethers';
+import { isAddress as ethersIsAddress, getAddress as ethersGetAddress, formatUnits, parseUnits, formatEther } from 'ethers';
 
 /**
  * Check if address is valid Ethereum address
  */
 export const isAddress = (address) => {
   try {
-    return ethers.utils.isAddress(address);
+    return ethersIsAddress(address);
   } catch {
     return false;
   }
@@ -16,7 +16,7 @@ export const isAddress = (address) => {
  */
 export const getAddress = (address) => {
   try {
-    return ethers.utils.getAddress(address);
+    return ethersGetAddress(address);
   } catch {
     return null;
   }
@@ -27,7 +27,7 @@ export const getAddress = (address) => {
  */
 export const fromWei = (value, decimals = 18) => {
   try {
-    return ethers.utils.formatUnits(value, decimals);
+    return formatUnits(value, decimals);
   } catch {
     return '0';
   }
@@ -38,9 +38,9 @@ export const fromWei = (value, decimals = 18) => {
  */
 export const toWei = (value, decimals = 18) => {
   try {
-    return ethers.utils.parseUnits(value.toString(), decimals);
+    return parseUnits(value.toString(), decimals);
   } catch {
-    return ethers.BigNumber.from(0);
+    return 0n;
   }
 };
 
@@ -79,8 +79,8 @@ export const isTransactionSuccessful = (receipt) => {
  */
 export const calculateGasCost = (gasUsed, gasPrice) => {
   try {
-    const cost = ethers.BigNumber.from(gasUsed).mul(gasPrice);
-    return ethers.utils.formatEther(cost);
+    const cost = BigInt(gasUsed) * BigInt(gasPrice);
+    return formatEther(cost);
   } catch {
     return '0';
   }

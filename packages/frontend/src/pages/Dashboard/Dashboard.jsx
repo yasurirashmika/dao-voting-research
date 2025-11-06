@@ -5,7 +5,7 @@ import { useWallet } from '../../context/WalletContext';
 import Card from '../../components/common/Card/Card';
 import Button from '../../components/common/Button/Button';
 import { formatAddress, formatTokenAmount } from '../../utils/formatters';
-import './Dashboard.module.css';
+import './Dashboard.css';
 
 const Dashboard = () => {
   const { address } = useAccount();

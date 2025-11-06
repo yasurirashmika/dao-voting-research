@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import Card from '../../common/Card/Card';
 import { formatAddress, formatDate, formatLargeNumber } from '../../../utils/formatters';
 import { getProposalStateLabel, getProposalStateColor } from '../../../utils/helpers';
-import './ProposalCard.module.css';
+import './ProposalCard.css';
 
 const ProposalCard = ({ proposal }) => {
   const totalVotes = proposal.forVotes + proposal.againstVotes + proposal.abstainVotes;

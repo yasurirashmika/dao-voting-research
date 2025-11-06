@@ -1,6 +1,6 @@
 import React from 'react';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
-import './WalletConnect.module.css';
+import './WalletConnect.css';
 
 const WalletConnect = ({ showBalance = true, showNetwork = true }) => {
   return (

@@ -4,7 +4,7 @@ import Button from '../../common/Button/Button';
 import Input from '../../common/Input/Input';
 import { validateProposalTitle, validateProposalDescription } from '../../../utils/validators';
 import { MAX_VALUES } from '../../../utils/constants';
-import './CreateProposal.module.css';
+import './CreateProposal.css';
 
 const CreateProposal = ({ onSubmit, loading }) => {
   const [formData, setFormData] = useState({

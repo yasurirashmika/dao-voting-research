@@ -1,5 +1,5 @@
 import React from 'react';
-import './Loader.module.css';
+import './Loader.css';
 
 const Loader = ({ 
   size = 'medium', 

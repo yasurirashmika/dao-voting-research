@@ -1,4 +1,4 @@
-import { ethers } from 'ethers';
+import { formatUnits, parseUnits } from 'ethers';
 
 /**
  * Format Ethereum address (shorten)
@@ -21,7 +21,7 @@ export const formatAddress = (address, chars = 4) => {
 export const formatTokenAmount = (amount, decimals = 18, displayDecimals = 4) => {
   if (!amount) return '0';
   try {
-    const formatted = ethers.utils.formatUnits(amount, decimals);
+    const formatted = formatUnits(amount, decimals);
     const number = parseFloat(formatted);
     return number.toLocaleString('en-US', {
       minimumFractionDigits: 0,
@@ -161,7 +161,7 @@ export const formatUSD = (amount) => {
  */
 export const parseTokenAmount = (amount, decimals = 18) => {
   try {
-    return ethers.utils.parseUnits(amount.toString(), decimals).toString();
+    return parseUnits(amount.toString(), decimals).toString();
   } catch (error) {
     console.error('Error parsing token amount:', error);
     return '0';

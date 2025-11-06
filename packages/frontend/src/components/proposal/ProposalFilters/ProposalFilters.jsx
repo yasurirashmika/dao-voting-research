@@ -2,7 +2,7 @@ import React from 'react';
 import Card from '../../common/Card/Card';
 import Input from '../../common/Input/Input';
 import { PROPOSAL_STATE } from '../../../utils/constants';
-import './ProposalFilters.module.css';
+import './ProposalFilters.css';
 
 const ProposalFilters = ({ 
   searchTerm, 

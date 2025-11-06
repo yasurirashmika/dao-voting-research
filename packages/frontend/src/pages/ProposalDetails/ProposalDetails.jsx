@@ -11,7 +11,7 @@ import Loader from '../../components/common/Loader/Loader';
 import { formatAddress, formatDate, formatLargeNumber, formatPercentage } from '../../utils/formatters';
 import { getProposalStateLabel, getProposalStateColor, canVoteOnProposal } from '../../utils/helpers';
 import { VOTE_TYPE } from '../../utils/constants';
-import './ProposalDetails.module.css';
+import './ProposalDetails.css';
 
 const ProposalDetails = () => {
   const { id } = useParams();

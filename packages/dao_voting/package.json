@@ -1,7 +1,7 @@
 {
   "name": "dao_voting",
   "version": "1.0.0",
-  "description": "",
+  "description": "DAO Voting Smart Contracts",
   "main": "index.js",
   "scripts": {
     "compile": "npx hardhat compile",
@@ -32,8 +32,23 @@
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-toolbox": "^5.0.0",
+    "@nomicfoundation/hardhat-chai-matchers": "^2.0.0",
+    "@nomicfoundation/hardhat-ethers": "^3.0.0",
+    "@nomicfoundation/hardhat-ignition-ethers": "^0.15.0",
+    "@nomicfoundation/hardhat-network-helpers": "^1.0.0",
+    "@nomicfoundation/hardhat-verify": "^2.0.0",
+    "@typechain/ethers-v6": "^0.5.1",
+    "@typechain/hardhat": "^9.0.0",
+    "@types/chai": "^4.3.0",
+    "@types/mocha": "^10.0.0",
     "chai": "^4.5.0",
     "dotenv": "^17.2.3",
-    "hardhat": "^2.26.5"
+    "ethers": "^6.15.0",
+    "hardhat": "^2.22.15",
+    "hardhat-gas-reporter": "^1.0.8",
+    "solidity-coverage": "^0.8.1",
+    "ts-node": "^10.9.2",
+    "typechain": "^8.3.2",
+    "typescript": "^5.3.3"
   }
 }
