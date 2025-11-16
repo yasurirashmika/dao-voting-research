@@ -13,6 +13,7 @@
     "compile:contracts": "npm run compile -w dao_voting"
   },
   "devDependencies": {
+    "@types/minimatch": "^5.1.2",
     "concurrently": "^8.2.2"
   },
   "dependencies": {

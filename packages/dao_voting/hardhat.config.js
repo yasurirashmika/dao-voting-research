@@ -1,5 +1,6 @@
 require("@nomicfoundation/hardhat-toolbox");
 require("dotenv/config");
+require("hardhat-gas-reporter");
 
 /** @type import('hardhat/config').HardhatUserConfig */
 module.exports = {
@@ -39,5 +40,11 @@ module.exports = {
 
   mocha: {
     timeout: 500000,
+  },
+
+  gasReporter: {
+    enabled: true,
+    currency: 'USD',
+    gasPrice: 21
   },
 };
