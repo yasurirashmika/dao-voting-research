@@ -37,23 +37,41 @@ describe("Full DAO System Integration Tests", function () {
     );
     await daoVoting.waitForDeployment();
 
-    // Setup permissions
-    await governanceToken.addMinter(await daoVoting.getAddress());
-    await reputationManager.addReputationUpdater(await daoVoting.getAddress());
+    // Setup permissions - WAIT FOR EACH TRANSACTION
+    const addMinterTx = await governanceToken.addMinter(await daoVoting.getAddress());
+    await addMinterTx.wait(); // ✅ Wait for confirmation
+    
+    const addReputationUpdaterTx = await reputationManager.addReputationUpdater(await daoVoting.getAddress());
+    await addReputationUpdaterTx.wait(); // ✅ Wait for confirmation
 
-    // Distribute tokens and register voters
-    await governanceToken.mint(voter1.address, TEST_TOKENS);
-    await governanceToken.mint(voter2.address, TEST_TOKENS);
-    await governanceToken.mint(voter3.address, TEST_TOKENS);
+    // Distribute tokens and register voters - WAIT FOR EACH
+    const mintVoter1Tx = await governanceToken.mint(voter1.address, TEST_TOKENS);
+    await mintVoter1Tx.wait();
+    
+    const mintVoter2Tx = await governanceToken.mint(voter2.address, TEST_TOKENS);
+    await mintVoter2Tx.wait();
+    
+    const mintVoter3Tx = await governanceToken.mint(voter3.address, TEST_TOKENS);
+    await mintVoter3Tx.wait();
 
-    await daoVoting.registerVoter(voter1.address);
-    await daoVoting.registerVoter(voter2.address);
-    await daoVoting.registerVoter(voter3.address);
+    const registerVoter1Tx = await daoVoting.registerVoter(voter1.address);
+    await registerVoter1Tx.wait();
+    
+    const registerVoter2Tx = await daoVoting.registerVoter(voter2.address);
+    await registerVoter2Tx.wait();
+    
+    const registerVoter3Tx = await daoVoting.registerVoter(voter3.address);
+    await registerVoter3Tx.wait();
 
     // Set different reputation scores for testing weighted voting
-    await reputationManager.updateReputation(voter1.address, 100); // Low reputation
-    await reputationManager.updateReputation(voter2.address, 500); // Medium reputation
-    await reputationManager.updateReputation(voter3.address, 900); // High reputation
+    const setVoter1ReputationTx = await reputationManager.updateReputation(voter1.address, 100);
+    await setVoter1ReputationTx.wait();
+    
+    const setVoter2ReputationTx = await reputationManager.updateReputation(voter2.address, 500);
+    await setVoter2ReputationTx.wait();
+    
+    const setVoter3ReputationTx = await reputationManager.updateReputation(voter3.address, 900);
+    await setVoter3ReputationTx.wait();
   });
 
   describe("System Integration", function () {
@@ -75,19 +93,21 @@ describe("Full DAO System Integration Tests", function () {
   describe("Weighted Voting System", function () {
     beforeEach(async function () {
       // Create a proposal
-      await daoVoting.connect(voter1).submitProposal(
+      const tx1 = await daoVoting.connect(voter1).submitProposal(
         "Test Weighted Voting",
         "Testing the weighted voting mechanism",
         0, // No minimum tokens required
         0  // No minimum reputation required
       );
+      await tx1.wait();
 
       // Move time forward to start voting
       await ethers.provider.send("evm_increaseTime", [3601]); // 1 hour + 1 second
       await ethers.provider.send("evm_mine", []);
 
       // Start voting
-      await daoVoting.startVoting(1);
+      const tx2 = await daoVoting.startVoting(1);
+      await tx2.wait();
     });
 
     it("Should calculate correct voting weights", async function () {
@@ -103,9 +123,14 @@ describe("Full DAO System Integration Tests", function () {
     });
 
     it("Should record weighted votes correctly", async function () {
-      await daoVoting.connect(voter1).castVote(1, true);  // Yes vote
-      await daoVoting.connect(voter2).castVote(1, true);  // Yes vote
-      await daoVoting.connect(voter3).castVote(1, false); // No vote
+      const tx1 = await daoVoting.connect(voter1).castVote(1, true);
+      await tx1.wait();
+      
+      const tx2 = await daoVoting.connect(voter2).castVote(1, true);
+      await tx2.wait();
+      
+      const tx3 = await daoVoting.connect(voter3).castVote(1, false);
+      await tx3.wait();
 
       const proposal = await daoVoting.proposals(1);
       
@@ -115,7 +140,8 @@ describe("Full DAO System Integration Tests", function () {
     });
 
     it("Should prevent double voting", async function () {
-      await daoVoting.connect(voter1).castVote(1, true);
+      const tx1 = await daoVoting.connect(voter1).castVote(1, true);
+      await tx1.wait();
       
       await expect(
         daoVoting.connect(voter1).castVote(1, false)
@@ -126,12 +152,13 @@ describe("Full DAO System Integration Tests", function () {
   describe("Proposal Lifecycle", function () {
     it("Should handle complete proposal lifecycle", async function () {
       // Create proposal
-      await daoVoting.connect(voter1).submitProposal(
+      const tx1 = await daoVoting.connect(voter1).submitProposal(
         "Lifecycle Test",
         "Testing proposal lifecycle",
         0,
         0
       );
+      await tx1.wait();
 
       let proposal = await daoVoting.proposals(1);
       expect(proposal.state).to.equal(0); // Pending
@@ -140,21 +167,30 @@ describe("Full DAO System Integration Tests", function () {
       await ethers.provider.send("evm_increaseTime", [3601]);
       await ethers.provider.send("evm_mine", []);
       
-      await daoVoting.startVoting(1);
+      const tx2 = await daoVoting.startVoting(1);
+      await tx2.wait();
+      
       proposal = await daoVoting.proposals(1);
       expect(proposal.state).to.equal(1); // Active
 
       // Cast votes
-      await daoVoting.connect(voter1).castVote(1, true);
-      await daoVoting.connect(voter2).castVote(1, true);
-      await daoVoting.connect(voter3).castVote(1, false);
+      const tx3 = await daoVoting.connect(voter1).castVote(1, true);
+      await tx3.wait();
+      
+      const tx4 = await daoVoting.connect(voter2).castVote(1, true);
+      await tx4.wait();
+      
+      const tx5 = await daoVoting.connect(voter3).castVote(1, false);
+      await tx5.wait();
 
       // End voting period
       await ethers.provider.send("evm_increaseTime", [604801]); // 7 days + 1 second
       await ethers.provider.send("evm_mine", []);
 
       // Finalize proposal
-      await daoVoting.finalizeProposal(1);
+      const tx6 = await daoVoting.finalizeProposal(1);
+      await tx6.wait();
+      
       proposal = await daoVoting.proposals(1);
       
       // Should be either succeeded or defeated based on vote weights
@@ -162,15 +198,17 @@ describe("Full DAO System Integration Tests", function () {
     });
 
     it("Should handle proposal cancellation", async function () {
-      await daoVoting.connect(voter1).submitProposal(
+      const tx1 = await daoVoting.connect(voter1).submitProposal(
         "Cancellation Test",
         "Testing proposal cancellation",
         0,
         0
       );
+      await tx1.wait();
 
       // Proposer can cancel their own proposal
-      await daoVoting.connect(voter1).cancelProposal(1);
+      const tx2 = await daoVoting.connect(voter1).cancelProposal(1);
+      await tx2.wait();
       
       const proposal = await daoVoting.proposals(1);
       expect(proposal.state).to.equal(5); // Cancelled
@@ -181,7 +219,8 @@ describe("Full DAO System Integration Tests", function () {
     it("Should enforce proposal threshold", async function () {
       // Remove all tokens from voter1
       const balance = await governanceToken.balanceOf(voter1.address);
-      await governanceToken.connect(voter1).transfer(owner.address, balance);
+      const tx1 = await governanceToken.connect(voter1).transfer(owner.address, balance);
+      await tx1.wait();
 
       await expect(
         daoVoting.connect(voter1).submitProposal(
@@ -195,16 +234,19 @@ describe("Full DAO System Integration Tests", function () {
 
     it("Should enforce voting requirements", async function () {
       // Create proposal with high requirements
-      await daoVoting.connect(voter1).submitProposal(
+      const tx1 = await daoVoting.connect(voter1).submitProposal(
         "High Requirements",
         "Testing high voting requirements",
         ethers.parseEther("2000"), // More tokens than any voter has
         1000 // Maximum reputation
       );
+      await tx1.wait();
 
       await ethers.provider.send("evm_increaseTime", [3601]);
       await ethers.provider.send("evm_mine", []);
-      await daoVoting.startVoting(1);
+      
+      const tx2 = await daoVoting.startVoting(1);
+      await tx2.wait();
 
       // Should fail due to insufficient tokens
       await expect(
@@ -212,7 +254,8 @@ describe("Full DAO System Integration Tests", function () {
       ).to.be.revertedWith("Insufficient tokens to vote");
 
       // Give voter1 enough tokens but they still lack reputation
-      await governanceToken.mint(voter1.address, ethers.parseEther("2000"));
+      const tx3 = await governanceToken.mint(voter1.address, ethers.parseEther("2000"));
+      await tx3.wait();
       
       await expect(
         daoVoting.connect(voter1).castVote(1, true)
@@ -233,7 +276,8 @@ describe("Full DAO System Integration Tests", function () {
 
   describe("Reputation System Integration", function () {
     it("Should automatically initialize reputation for new voters", async function () {
-      await daoVoting.registerVoter(nonVoter.address);
+      const tx1 = await daoVoting.registerVoter(nonVoter.address);
+      await tx1.wait();
       
       const hasReputation = await reputationManager.hasActiveReputation(nonVoter.address);
       const reputationScore = await reputationManager.getReputationScore(nonVoter.address);
@@ -246,7 +290,9 @@ describe("Full DAO System Integration Tests", function () {
       const initialWeight = await daoVoting.getVotingPowerOf(voter1.address);
       
       // Increase reputation
-      await reputationManager.updateReputation(voter1.address, 800);
+      const tx1 = await reputationManager.updateReputation(voter1.address, 800);
+      await tx1.wait();
+      
       const newWeight = await daoVoting.getVotingPowerOf(voter1.address);
       
       expect(newWeight).to.be.gt(initialWeight);
@@ -255,12 +301,13 @@ describe("Full DAO System Integration Tests", function () {
 
   describe("Parameter Updates", function () {
     it("Should allow owner to update voting parameters", async function () {
-      await daoVoting.updateVotingParameters(
+      const tx1 = await daoVoting.updateVotingParameters(
         7200, // 2 hours voting delay
         86400, // 1 day voting period
         ethers.parseEther("500"), // Lower proposal threshold
         30 // 30% quorum
       );
+      await tx1.wait();
 
       expect(await daoVoting.votingDelay()).to.equal(7200);
       expect(await daoVoting.votingPeriod()).to.equal(86400);
@@ -269,10 +316,11 @@ describe("Full DAO System Integration Tests", function () {
     });
 
     it("Should allow owner to update weight parameters", async function () {
-      await daoVoting.updateWeightParameters(
+      const tx1 = await daoVoting.updateWeightParameters(
         8000, // 80% token weight
         2000  // 20% reputation weight
       );
+      await tx1.wait();
 
       expect(await daoVoting.tokenWeightPercentage()).to.equal(8000);
       expect(await daoVoting.reputationWeightPercentage()).to.equal(2000);
@@ -323,31 +371,39 @@ describe("Full DAO System Integration Tests", function () {
   describe("Edge Cases", function () {
     it("Should handle zero voting power gracefully", async function () {
       // Deactivate reputation and remove tokens
-      await reputationManager.deactivateUser(voter1.address);
+      const tx1 = await reputationManager.deactivateUser(voter1.address);
+      await tx1.wait();
+      
       const balance = await governanceToken.balanceOf(voter1.address);
-      await governanceToken.connect(voter1).transfer(owner.address, balance);
+      const tx2 = await governanceToken.connect(voter1).transfer(owner.address, balance);
+      await tx2.wait();
 
       const votingPower = await daoVoting.getVotingPowerOf(voter1.address);
       expect(votingPower).to.equal(0);
     });
 
     it("Should handle proposals with no votes", async function () {
-      await daoVoting.connect(voter1).submitProposal(
+      const tx1 = await daoVoting.connect(voter1).submitProposal(
         "No Votes Test",
         "Testing proposal with no votes",
         0,
         0
       );
+      await tx1.wait();
 
       await ethers.provider.send("evm_increaseTime", [3601]);
       await ethers.provider.send("evm_mine", []);
-      await daoVoting.startVoting(1);
+      
+      const tx2 = await daoVoting.startVoting(1);
+      await tx2.wait();
 
       // Fast forward past voting period without any votes
       await ethers.provider.send("evm_increaseTime", [604801]);
       await ethers.provider.send("evm_mine", []);
 
-      await daoVoting.finalizeProposal(1);
+      const tx3 = await daoVoting.finalizeProposal(1);
+      await tx3.wait();
+      
       const proposal = await daoVoting.proposals(1);
       
       expect(proposal.state).to.equal(3); // Defeated due to no votes/quorum

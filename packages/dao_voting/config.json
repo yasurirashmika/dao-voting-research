@@ -1,0 +1,10 @@
+{
+  "network": "sepolia",
+  "contracts": {
+    "GovernanceToken": "0xBc22DAA2b28237ee7709f323dD26d095a75CC6CA",
+    "DAOVoting": "0x85A2Ec8b430463E751EcaE1c0bD9Df11135c2Fd0",
+    "ReputationManager": "0xD56A205aaBA84f53e4B1F35C8F8B776FC85759aB"
+  },
+  "deploymentBlock": 12345678,
+  "deployerAddress": "0x..."
+}
