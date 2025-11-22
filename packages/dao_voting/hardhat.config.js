@@ -45,7 +45,11 @@ module.exports = {
   gasReporter: {
     enabled: true,
     currency: 'USD',
-    gasPrice: 20
+    // gasPrice: 20,  <-- REMOVED: Now fetches live network gas price
+    
+    // IMPORTANT: To get accurate USD costs, you need a CoinMarketCap key
+    // Get one here (free): https://coinmarketcap.com/api/
+    coinmarketcap: process.env.COINMARKETCAP_API_KEY || "",
   },
   
 };
