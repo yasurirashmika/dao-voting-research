@@ -17,14 +17,10 @@
     "concurrently": "^8.2.2"
   },
   "dependencies": {
-    "@metamask/sdk": "^0.34.0",
-    "@metamask/sdk-analytics": "^0.0.5",
-    "@openzeppelin/contracts": "^5.4.0",
-    "@rainbow-me/rainbowkit": "^2.2.9",
-    "@wagmi/connectors": "^2.7.0",
-    "lit": "^3.3.1",
-    "openapi-fetch": "^0.13.8",
-    "uint8arrays": "^5.1.0",
-    "wagmi": "^2.19.5"
+    "@openzeppelin/contracts": "^5.4.0"
+  },
+  "overrides": {
+    "uint8arrays": "3.1.1",
+    "openapi-fetch": "0.8.2"
   }
 }

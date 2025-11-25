@@ -1,6 +1,6 @@
 // Environment configuration
 export const ENV = {
-  WALLETCONNECT_PROJECT_ID: process.env.REACT_APP_WALLETCONNECT_PROJECT_ID || '',
+  WALLETCONNECT_PROJECT_ID: process.env.REACT_APP_WALLETCONNECT_PROJECT_ID || 'bb12a9390f7afd6748d4e48963e83782',
   CHAIN_ID: parseInt(process.env.REACT_APP_CHAIN_ID || '11155111'),
   RPC_URL: process.env.REACT_APP_RPC_URL || '',
   API_URL: process.env.REACT_APP_API_URL || '',
