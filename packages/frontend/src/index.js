@@ -19,25 +19,26 @@ import { QueryClientProvider, QueryClient } from "@tanstack/react-query";
 import { WalletProvider } from './context/WalletContext';
 import { DAOProvider } from './context/DAOContext';
 import { ThemeProvider } from './context/ThemeContext';
-// Get WalletConnect project ID from environment variables
-const projectId = process.env.REACT_APP_WALLETCONNECT_PROJECT_ID || 'bb12a9390f7afd6748d4e48963e83782';
-const alchemyKey = process.env.REACT_APP_ALCHEMY_KEY;
 
-// Configure wagmi with chains
+// Get project IDs from environment variables
+const projectId = process.env.REACT_APP_WALLETCONNECT_PROJECT_ID || 'bb12a9390f7afd6748d4e48963e83782';
+const infuraId = process.env.REACT_APP_INFURA_PROJECT_ID;
+
+// Configure wagmi with chains using Infura
 const config = getDefaultConfig({
   appName: 'DAO Voting Platform',
   projectId: projectId,
-  chains: [mainnet, sepolia, polygon, arbitrum],
+  chains: [sepolia, mainnet, polygon, arbitrum],
   transports: {
-    // Use Alchemy for Sepolia (Testnet) - This prevents CORB
-    [sepolia.id]: http(`https://eth-sepolia.g.alchemy.com/v2/PgSVSVYR69r51IkWzGP0h`),
+    // Use Infura for Sepolia and Mainnet
+    [sepolia.id]: http(`https://sepolia.infura.io/v3/${infuraId}`),
+    [mainnet.id]: http(`https://mainnet.infura.io/v3/${infuraId}`),
     
-    // You can keep these as public or get keys for them too if needed
-    [mainnet.id]: http('https://eth.llamarpc.com'),
+    // Public RPCs for other chains
     [polygon.id]: http('https://polygon-rpc.com'),
     [arbitrum.id]: http('https://arb1.arbitrum.io/rpc'),
   },
-  ssr: false, // If using Next.js, set to true
+  ssr: false,
 });
 
 // Create React Query client
@@ -54,7 +55,6 @@ const queryClient = new QueryClient({
 // Render the app
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(
-  <React.StrictMode>
   <WagmiProvider config={config}>
     <QueryClientProvider client={queryClient}>
       <RainbowKitProvider
@@ -72,5 +72,4 @@ root.render(
       </RainbowKitProvider>
     </QueryClientProvider>
   </WagmiProvider>
-  </React.StrictMode>
 );
