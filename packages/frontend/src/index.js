@@ -11,7 +11,8 @@ import '@rainbow-me/rainbowkit/styles.css';
 
 // Import wagmi and RainbowKit
 import { getDefaultConfig, RainbowKitProvider, lightTheme } from '@rainbow-me/rainbowkit';
-import { WagmiProvider, http } from 'wagmi';
+import { WagmiProvider } from 'wagmi';
+import { http } from 'viem';
 import { mainnet, sepolia, polygon, arbitrum } from 'wagmi/chains';
 import { QueryClientProvider, QueryClient } from "@tanstack/react-query";
 
