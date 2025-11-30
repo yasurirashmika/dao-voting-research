@@ -31,15 +31,14 @@ const config = getDefaultConfig({
   projectId: projectId,
   chains: [sepolia, mainnet, polygon, arbitrum],
   transports: {
-    // Use Infura for Sepolia and Mainnet
     [sepolia.id]: http(`https://sepolia.infura.io/v3/${infuraId}`),
     [mainnet.id]: http(`https://mainnet.infura.io/v3/${infuraId}`),
-    
-    // Public RPCs for other chains
     [polygon.id]: http('https://polygon-rpc.com'),
     [arbitrum.id]: http('https://arb1.arbitrum.io/rpc'),
   },
   ssr: false,
+  // Enable automatic account watching
+  multiInjectedProviderDiscovery: true,
 });
 
 // Create React Query client

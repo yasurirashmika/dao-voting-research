@@ -1,48 +1,57 @@
-import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
-import { useProposals } from '../../hooks/useProposals';
-import { useDebounce } from '../../hooks/useDebounce';
-import Card from '../../components/common/Card/Card';
-import Button from '../../components/common/Button/Button';
-import Input from '../../components/common/Input/Input';
-import Loader from '../../components/common/Loader/Loader';
-import { formatAddress, formatDate, formatLargeNumber } from '../../utils/formatters';
-import { getProposalStateLabel, getProposalStateColor } from '../../utils/helpers';
-import { PROPOSAL_STATE } from '../../utils/constants';
-import './Proposals.css';
+import React, { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
+import { useProposals } from "../../hooks/useProposals";
+import { useDebounce } from "../../hooks/useDebounce";
+import Card from "../../components/common/Card/Card";
+import Button from "../../components/common/Button/Button";
+import Input from "../../components/common/Input/Input";
+import Loader from "../../components/common/Loader/Loader";
+import {
+  formatAddress,
+  formatDate,
+  formatLargeNumber,
+} from "../../utils/formatters";
+import {
+  getProposalStateLabel,
+  getProposalStateColor,
+} from "../../utils/helpers";
+import { PROPOSAL_STATE } from "../../utils/constants";
+import "./Proposals.css";
 
 const Proposals = () => {
   const { proposals, loading, error, fetchProposals } = useProposals();
-  const [searchTerm, setSearchTerm] = useState('');
-  const [filterState, setFilterState] = useState('all');
-  const [sortBy, setSortBy] = useState('newest');
-  
+  const [searchTerm, setSearchTerm] = useState("");
+  const [filterState, setFilterState] = useState("all");
+  const [sortBy, setSortBy] = useState("newest");
+
   const debouncedSearch = useDebounce(searchTerm, 500);
 
   const filterOptions = [
-    { value: 'all', label: 'All Proposals' },
-    { value: PROPOSAL_STATE.ACTIVE, label: 'Active' },
-    { value: PROPOSAL_STATE.SUCCEEDED, label: 'Succeeded' },
-    { value: PROPOSAL_STATE.DEFEATED, label: 'Defeated' },
-    { value: PROPOSAL_STATE.EXECUTED, label: 'Executed' }
+    { value: "all", label: "All Proposals" },
+    { value: PROPOSAL_STATE.ACTIVE, label: "Active" },
+    { value: PROPOSAL_STATE.SUCCEEDED, label: "Succeeded" },
+    { value: PROPOSAL_STATE.DEFEATED, label: "Defeated" },
+    { value: PROPOSAL_STATE.EXECUTED, label: "Executed" },
   ];
 
   // Filter and sort proposals
   const filteredProposals = proposals
-    .filter(proposal => {
-      const matchesSearch = 
+    .filter((proposal) => {
+      const matchesSearch =
         proposal.title.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
-        proposal.description.toLowerCase().includes(debouncedSearch.toLowerCase());
-      
-      const matchesFilter = 
-        filterState === 'all' || proposal.state === parseInt(filterState);
-      
+        proposal.description
+          .toLowerCase()
+          .includes(debouncedSearch.toLowerCase());
+
+      const matchesFilter =
+        filterState === "all" || proposal.state === parseInt(filterState);
+
       return matchesSearch && matchesFilter;
     })
     .sort((a, b) => {
-      if (sortBy === 'newest') {
+      if (sortBy === "newest") {
         return b.createdAt - a.createdAt;
-      } else if (sortBy === 'oldest') {
+      } else if (sortBy === "oldest") {
         return a.createdAt - b.createdAt;
       }
       return 0;
@@ -79,7 +88,9 @@ const Proposals = () => {
           </p>
         </div>
         <Link to="/create-proposal">
-          <Button size="large" icon="✏️">Create Proposal</Button>
+          <Button size="large" icon="✏️">
+            Create Proposal
+          </Button>
         </Link>
       </div>
 
@@ -100,7 +111,7 @@ const Proposals = () => {
               onChange={(e) => setFilterState(e.target.value)}
               className="filter-select"
             >
-              {filterOptions.map(option => (
+              {filterOptions.map((option) => (
                 <option key={option.value} value={option.value}>
                   {option.label}
                 </option>
@@ -144,9 +155,11 @@ const Proposals = () => {
 
 // Proposal Card Component
 const ProposalCard = ({ proposal }) => {
-  const totalVotes = proposal.forVotes + proposal.againstVotes + proposal.abstainVotes;
-  const forPercentage = totalVotes > 0 ? (proposal.forVotes / totalVotes) * 100 : 0;
-  const againstPercentage = totalVotes > 0 ? (proposal.againstVotes / totalVotes) * 100 : 0;
+  const totalVotes = (proposal.yesVotes || 0) + (proposal.noVotes || 0);
+  const yesPercentage =
+    totalVotes > 0 ? (proposal.yesVotes / totalVotes) * 100 : 0;
+  const noPercentage =
+    totalVotes > 0 ? (proposal.noVotes / totalVotes) * 100 : 0;
 
   return (
     <Link to={`/proposals/${proposal.id}`} className="proposal-card-link">
@@ -155,10 +168,11 @@ const ProposalCard = ({ proposal }) => {
           <div className="proposal-info">
             <h3 className="proposal-title">{proposal.title}</h3>
             <p className="proposal-meta">
-              Proposed by {formatAddress(proposal.proposer)} • {formatDate(proposal.createdAt)}
+              Proposed by {formatAddress(proposal.proposer)} •{" "}
+              <span>{formatDate(proposal.createdAt, "long")}</span>
             </p>
           </div>
-          <span 
+          <span
             className="proposal-status"
             style={{ backgroundColor: getProposalStateColor(proposal.state) }}
           >
@@ -168,36 +182,33 @@ const ProposalCard = ({ proposal }) => {
 
         <p className="proposal-description">
           {proposal.description.substring(0, 200)}
-          {proposal.description.length > 200 ? '...' : ''}
+          {proposal.description.length > 200 ? "..." : ""}
         </p>
 
-        {/* Vote Progress */}
-        <div className="vote-progress">
-          <div className="vote-stats">
-            <div className="vote-stat vote-for">
-              <span className="vote-label">For</span>
-              <span className="vote-value">{formatLargeNumber(proposal.forVotes)}</span>
-            </div>
-            <div className="vote-stat vote-against">
-              <span className="vote-label">Against</span>
-              <span className="vote-value">{formatLargeNumber(proposal.againstVotes)}</span>
-            </div>
-            <div className="vote-stat vote-abstain">
-              <span className="vote-label">Abstain</span>
-              <span className="vote-value">{formatLargeNumber(proposal.abstainVotes)}</span>
-            </div>
+        <div className="vote-stats">
+          <div className="vote-stat vote-for">
+            <span className="vote-label">Yes</span>
+            <span className="vote-value">
+              {formatLargeNumber(proposal.yesVotes || 0)}
+            </span>
           </div>
+          <div className="vote-stat vote-against">
+            <span className="vote-label">No</span>
+            <span className="vote-value">
+              {formatLargeNumber(proposal.noVotes || 0)}
+            </span>
+          </div>
+        </div>
 
-          <div className="progress-bar">
-            <div 
-              className="progress-segment progress-for"
-              style={{ width: `${forPercentage}%` }}
-            />
-            <div 
-              className="progress-segment progress-against"
-              style={{ width: `${againstPercentage}%` }}
-            />
-          </div>
+        <div className="progress-bar">
+          <div
+            className="progress-segment progress-for"
+            style={{ width: `${yesPercentage}%` }}
+          />
+          <div
+            className="progress-segment progress-against"
+            style={{ width: `${noPercentage}%` }}
+          />
         </div>
       </Card>
     </Link>

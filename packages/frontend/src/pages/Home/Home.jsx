@@ -1,12 +1,36 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { useAccount } from 'wagmi';
+import { useConnectModal } from '@rainbow-me/rainbowkit';
 import Button from '../../components/common/Button/Button';
 import Card from '../../components/common/Card/Card';
+import { useProposals } from '../../hooks/useProposals';
 import './Home.css';
 
 const Home = () => {
   const { isConnected } = useAccount();
+  const { openConnectModal } = useConnectModal();
+  const { proposals } = useProposals();
+
+  // Calculate real stats from blockchain data
+  const stats = [
+    { 
+      label: 'Total Proposals', 
+      value: proposals.length.toString()
+    },
+    { 
+      label: 'Active Votes', 
+      value: proposals.filter(p => p.state === 1).length.toString()
+    },
+    { 
+      label: 'DAO Members', 
+      value: '1,234' // TODO: Get from contract
+    },
+    { 
+      label: 'Total Votes Cast', 
+      value: proposals.reduce((sum, p) => sum + (p.yesVotes || 0) + (p.noVotes || 0), 0).toLocaleString()
+    }
+  ];
 
   const features = [
     {
@@ -29,13 +53,6 @@ const Home = () => {
       title: 'Secure & Transparent',
       description: 'All votes are recorded on-chain for complete transparency'
     }
-  ];
-
-  const stats = [
-    { label: 'Total Proposals', value: '124' },
-    { label: 'Active Votes', value: '8' },
-    { label: 'DAO Members', value: '1,234' },
-    { label: 'Total Votes Cast', value: '5,678' }
   ];
 
   return (
@@ -68,7 +85,11 @@ const Home = () => {
                 <Link to="/proposals">
                   <Button size="large">Explore Proposals</Button>
                 </Link>
-                <Button size="large" variant="secondary">
+                <Button 
+                  size="large" 
+                  variant="secondary"
+                  onClick={openConnectModal}
+                >
                   Connect Wallet to Start
                 </Button>
               </>

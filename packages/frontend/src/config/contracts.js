@@ -1,77 +1,61 @@
-// Contract addresses for different networks
+// REPLACE THE ENTIRE FILE WITH:
 export const CONTRACT_ADDRESSES = {
   // Sepolia Testnet
   11155111: {
-    DAOGovernance: process.env.REACT_APP_DAO_GOVERNANCE_CONTRACT || '0x...',
-    GovernanceToken: process.env.REACT_APP_GOVERNANCE_TOKEN_CONTRACT || '0x...',
-    Treasury: process.env.REACT_APP_TREASURY_CONTRACT || '0x...'
+    DAOVoting: process.env.REACT_APP_DAO_VOTING_CONTRACT,
+    GovernanceToken: process.env.REACT_APP_GOVERNANCE_TOKEN_CONTRACT,
+    ReputationManager: process.env.REACT_APP_REPUTATION_MANAGER_CONTRACT,
   },
-  // Ethereum Mainnet
-  1: {
-    DAOGovernance: '0x...',
-    GovernanceToken: '0x...',
-    Treasury: '0x...'
-  },
-  // Polygon
-  137: {
-    DAOGovernance: '0x...',
-    GovernanceToken: '0x...',
-    Treasury: '0x...'
-  }
 };
 
-// Get contract address by network and contract name
 export const getContractAddress = (chainId, contractName) => {
   const network = CONTRACT_ADDRESSES[chainId];
   if (!network) {
     throw new Error(`Unsupported network: ${chainId}`);
   }
-  
+
   const address = network[contractName];
-  if (!address || address === '0x...') {
-    throw new Error(`Contract ${contractName} not deployed on network ${chainId}`);
+  if (!address) {
+    throw new Error(
+      `Contract ${contractName} not deployed on network ${chainId}`
+    );
   }
-  
+
   return address;
 };
 
-// Contract function names
+// Contract function names - UPDATED FOR DAOVoting
 export const CONTRACT_FUNCTIONS = {
   // Governance
-  PROPOSE: 'propose',
-  CAST_VOTE: 'castVote',
-  CAST_VOTE_WITH_REASON: 'castVoteWithReason',
-  EXECUTE: 'execute',
-  CANCEL: 'cancel',
-  QUEUE: 'queue',
-  GET_VOTES: 'getVotes',
-  PROPOSAL_STATE: 'state',
-  PROPOSAL_VOTES: 'proposalVotes',
-  
+  SUBMIT_PROPOSAL: "submitProposal",
+  CAST_VOTE: "castVote",
+  FINALIZE_PROPOSAL: "finalizeProposal",
+  CANCEL_PROPOSAL: "cancelProposal",
+  START_VOTING: "startVoting",
+  GET_PROPOSAL_DETAILS: "getProposalDetails",
+  CALCULATE_VOTING_WEIGHT: "calculateVotingWeight",
+  GET_VOTING_POWER: "getVotingPowerOf",
+  REGISTER_VOTER: "registerVoter",
+  IS_VOTER_REGISTERED: "isVoterRegistered",
+
   // Token
-  DELEGATE: 'delegate',
-  BALANCE_OF: 'balanceOf',
-  TOTAL_SUPPLY: 'totalSupply',
-  
-  // Treasury
-  WITHDRAW: 'withdraw',
-  DEPOSIT: 'deposit'
+  BALANCE_OF: "balanceOf",
+  TOTAL_SUPPLY: "totalSupply",
+
+  // Reputation
+  GET_REPUTATION: "getReputation",
 };
 
-// Event names
 export const CONTRACT_EVENTS = {
-  PROPOSAL_CREATED: 'ProposalCreated',
-  VOTE_CAST: 'VoteCast',
-  PROPOSAL_EXECUTED: 'ProposalExecuted',
-  PROPOSAL_CANCELED: 'ProposalCanceled',
-  PROPOSAL_QUEUED: 'ProposalQueued',
-  DELEGATE_CHANGED: 'DelegateChanged',
-  DELEGATE_VOTES_CHANGED: 'DelegateVotesChanged'
+  PROPOSAL_CREATED: "ProposalCreated",
+  VOTE_CAST: "VoteCast",
+  PROPOSAL_STATE_CHANGED: "ProposalStateChanged",
+  VOTER_REGISTERED: "VoterRegistered",
 };
 
 export default {
   CONTRACT_ADDRESSES,
   getContractAddress,
   CONTRACT_FUNCTIONS,
-  CONTRACT_EVENTS
+  CONTRACT_EVENTS,
 };

@@ -1,14 +1,7 @@
-import { useState, useEffect } from 'react';
-import { usePublicClient, useWalletClient } from 'wagmi';
-import { getContract } from 'viem';
-import { getContractAddress } from '../config/contracts';
+import { useState, useEffect } from "react";
+import { usePublicClient, useWalletClient } from "wagmi";
+import { getContractAddress } from "../config/contracts";
 
-/**
- * Custom hook to interact with smart contracts
- * @param {string} contractName - Name of the contract
- * @param {object} abi - Contract ABI
- * @returns {object} Contract instance and utilities
- */
 export const useContract = (contractName, abi) => {
   const [contract, setContract] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -24,14 +17,7 @@ export const useContract = (contractName, abi) => {
       const chainId = publicClient.chain.id;
       const address = getContractAddress(chainId, contractName);
 
-      const contractInstance = getContract({
-        address,
-        abi,
-        publicClient,
-        walletClient: walletClient || undefined
-      });
-
-      setContract(contractInstance);
+      setContract({ address, abi, publicClient, walletClient });
       setError(null);
     } catch (err) {
       console.error(`Error initializing ${contractName} contract:`, err);
@@ -39,17 +25,19 @@ export const useContract = (contractName, abi) => {
     }
   }, [publicClient, walletClient, contractName, abi]);
 
-  /**
-   * Read from contract
-   */
   const read = async (functionName, args = []) => {
     if (!contract) {
-      throw new Error('Contract not initialized');
+      throw new Error("Contract not initialized");
     }
 
     setLoading(true);
     try {
-      const result = await contract.read[functionName](args);
+      const result = await contract.publicClient.readContract({
+        address: contract.address,
+        abi: contract.abi,
+        functionName: functionName,
+        args: args,
+      });
       setLoading(false);
       return result;
     } catch (err) {
@@ -59,21 +47,28 @@ export const useContract = (contractName, abi) => {
     }
   };
 
-  /**
-   * Write to contract
-   */
   const write = async (functionName, args = [], options = {}) => {
-    if (!contract || !walletClient) {
-      throw new Error('Contract or wallet not initialized');
+    if (!contract || !contract.walletClient) {
+      throw new Error("Contract or wallet not initialized");
     }
 
     setLoading(true);
     try {
-      const hash = await contract.write[functionName](args, options);
-      
-      // Wait for transaction
-      const receipt = await publicClient.waitForTransactionReceipt({ hash });
-      
+      const { request } = await contract.publicClient.simulateContract({
+        address: contract.address,
+        abi: contract.abi,
+        functionName: functionName,
+        args: args,
+        account: contract.walletClient.account,
+        ...options,
+      });
+
+      const hash = await contract.walletClient.writeContract(request);
+
+      const receipt = await contract.publicClient.waitForTransactionReceipt({
+        hash,
+      });
+
       setLoading(false);
       return { hash, receipt };
     } catch (err) {
@@ -88,7 +83,7 @@ export const useContract = (contractName, abi) => {
     read,
     write,
     loading,
-    error
+    error,
   };
 };
 

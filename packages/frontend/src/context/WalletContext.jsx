@@ -14,7 +14,11 @@ export const useWallet = () => {
 export const WalletProvider = ({ children }) => {
   const { address, isConnected, isConnecting } = useAccount();
   const chainId = useChainId();
-  const { data: balance } = useBalance({ address });
+  const { data: balance, refetch: refetchBalance } = useBalance({ 
+    address,
+    // Force refetch when address changes
+    watch: true 
+  });
   
   const [walletState, setWalletState] = useState({
     address: null,
@@ -24,7 +28,10 @@ export const WalletProvider = ({ children }) => {
     balance: null
   });
 
+  // Update state when wagmi detects changes
   useEffect(() => {
+    console.log('🔄 Wallet state updated:', { address, isConnected });
+    
     setWalletState({
       address,
       isConnected,
@@ -32,11 +39,17 @@ export const WalletProvider = ({ children }) => {
       chainId,
       balance: balance?.formatted || null
     });
-  }, [address, isConnected, isConnecting, chainId, balance]);
+
+    // Refetch balance when address changes
+    if (address) {
+      refetchBalance();
+    }
+  }, [address, isConnected, isConnecting, chainId, balance, refetchBalance]);
 
   const value = {
     ...walletState,
-    balanceSymbol: balance?.symbol || 'ETH'
+    balanceSymbol: balance?.symbol || 'ETH',
+    refetchBalance
   };
 
   return (

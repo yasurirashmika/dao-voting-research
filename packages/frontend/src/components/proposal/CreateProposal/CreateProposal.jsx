@@ -1,22 +1,25 @@
-import React, { useState } from 'react';
-import Card from '../../common/Card/Card';
-import Button from '../../common/Button/Button';
-import Input from '../../common/Input/Input';
-import { validateProposalTitle, validateProposalDescription } from '../../../utils/validators';
-import { MAX_VALUES } from '../../../utils/constants';
-import './CreateProposal.css';
+import React, { useState } from "react";
+import Card from "../../common/Card/Card";
+import Button from "../../common/Button/Button";
+import Input from "../../common/Input/Input";
+import {
+  validateProposalTitle,
+  validateProposalDescription,
+} from "../../../utils/validators";
+import { MAX_VALUES } from "../../../utils/constants";
+import "./CreateProposal.css";
 
 const CreateProposal = ({ onSubmit, loading }) => {
   const [formData, setFormData] = useState({
-    title: '',
-    description: ''
+    title: "",
+    description: "",
   });
   const [errors, setErrors] = useState({});
 
   const handleChange = (field, value) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
+    setFormData((prev) => ({ ...prev, [field]: value }));
     if (errors[field]) {
-      setErrors(prev => ({ ...prev, [field]: '' }));
+      setErrors((prev) => ({ ...prev, [field]: "" }));
     }
   };
 
@@ -37,10 +40,62 @@ const CreateProposal = ({ onSubmit, loading }) => {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = (e) => {
+  // Add this function before handleSubmit:
+  const checkVoterRegistration = async () => {
+    try {
+      const { read } = useContract("DAOVoting", DAOVotingABI.abi);
+      const isRegistered = await read("isVoterRegistered", [address]);
+
+      if (!isRegistered) {
+        alert("You need to register as a voter first!");
+        return false;
+      }
+      return true;
+    } catch (error) {
+      console.error("Error checking voter registration:", error);
+      return false;
+    }
+  };
+
+  // const handleSubmit = (e) => {
+  //   e.preventDefault();
+  //   if (validateForm()) {
+  //     onSubmit(formData);
+  //   }
+  // };
+
+  // REPLACE the handleSubmit function:
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    if (validateForm()) {
-      onSubmit(formData);
+
+    if (!isConnected) {
+      alert("Please connect your wallet to create a proposal");
+      return;
+    }
+
+    if (!validateForm()) {
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      // DAOVoting contract expects: title, description, minTokensRequired, minReputationRequired
+      await createProposal(
+        formData.title,
+        formData.description,
+        0, // minTokensRequired - set to 0 or get from form
+        0 // minReputationRequired - set to 0 or get from form
+      );
+
+      alert("Proposal created successfully!");
+      navigate("/proposals");
+    } catch (error) {
+      console.error("Error creating proposal:", error);
+      alert("Failed to create proposal: " + (error.message || "Unknown error"));
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -50,7 +105,7 @@ const CreateProposal = ({ onSubmit, loading }) => {
         <Input
           label="Proposal Title"
           value={formData.title}
-          onChange={(e) => handleChange('title', e.target.value)}
+          onChange={(e) => handleChange("title", e.target.value)}
           placeholder="Enter proposal title..."
           error={errors.title}
           helperText={`${formData.title.length}/${MAX_VALUES.PROPOSAL_TITLE_LENGTH} characters`}
@@ -63,7 +118,7 @@ const CreateProposal = ({ onSubmit, loading }) => {
           multiline
           rows={10}
           value={formData.description}
-          onChange={(e) => handleChange('description', e.target.value)}
+          onChange={(e) => handleChange("description", e.target.value)}
           placeholder="Describe your proposal in detail..."
           error={errors.description}
           helperText={`${formData.description.length}/${MAX_VALUES.PROPOSAL_DESCRIPTION_LENGTH} characters`}
@@ -73,7 +128,7 @@ const CreateProposal = ({ onSubmit, loading }) => {
 
         <div className="form-actions">
           <Button type="submit" loading={loading} fullWidth>
-            {loading ? 'Creating...' : 'Create Proposal'}
+            {loading ? "Creating..." : "Create Proposal"}
           </Button>
         </div>
       </form>

@@ -1,34 +1,113 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAccount } from 'wagmi';
 import { useWallet } from '../../context/WalletContext';
+import { useProposals } from '../../hooks/useProposals';
+import { useVoting } from '../../hooks/useVoting';
 import Card from '../../components/common/Card/Card';
 import Button from '../../components/common/Button/Button';
+import Loader from '../../components/common/Loader/Loader';
 import { formatAddress, formatTokenAmount } from '../../utils/formatters';
 import './Dashboard.css';
 
 const Dashboard = () => {
   const { address } = useAccount();
   const { balance, balanceSymbol } = useWallet();
+  const { proposals, loading: proposalsLoading } = useProposals();
+  const { getVotingPower } = useVoting();
 
-  // Mock data - replace with actual blockchain data
-  const userStats = {
-    votingPower: '1,234',
-    proposalsCreated: 5,
-    votescast: 23,
+  const [votingPower, setVotingPower] = useState(0);
+  const [userStats, setUserStats] = useState({
+    votingPower: '0',
+    proposalsCreated: 0,
+    votesCast: 0,
     delegatedTo: address
+  });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (address) {
+      loadDashboardData();
+    }
+  }, [address, proposals]);
+
+  const loadDashboardData = async () => {
+    try {
+      // Get voting power
+      const power = await getVotingPower(address);
+      setVotingPower(power);
+
+      // Calculate user stats from proposals
+      const userProposals = proposals.filter(
+        p => p.proposer.toLowerCase() === address.toLowerCase()
+      );
+
+      // Count votes cast (you can enhance this by checking each proposal)
+      // For now, we'll use a simple count
+      const votesCast = 0; // TODO: Implement vote counting
+
+      setUserStats({
+        votingPower: power.toString(),
+        proposalsCreated: userProposals.length,
+        votesCast: votesCast,
+        delegatedTo: address
+      });
+
+      setLoading(false);
+    } catch (error) {
+      console.error('Error loading dashboard data:', error);
+      setLoading(false);
+    }
   };
 
-  const recentActivity = [
-    { type: 'vote', proposal: 'Increase Treasury Allocation', action: 'Voted For', time: '2 hours ago' },
-    { type: 'create', proposal: 'Update Governance Parameters', action: 'Created', time: '1 day ago' },
-    { type: 'vote', proposal: 'Community Fund Distribution', action: 'Voted Against', time: '3 days ago' }
-  ];
+  // Filter active proposals (state = 1)
+  const activeProposals = proposals.filter(p => p.state === 1).slice(0, 5);
 
-  const activeProposals = [
-    { id: 1, title: 'Increase Treasury Allocation', status: 'Active', timeLeft: '2 days' },
-    { id: 2, title: 'Update Governance Parameters', status: 'Active', timeLeft: '5 days' }
-  ];
+  // Get recent proposals for activity (last 5)
+  const recentActivity = proposals
+    .slice(0, 5)
+    .map(p => ({
+      type: p.proposer.toLowerCase() === address.toLowerCase() ? 'create' : 'proposal',
+      proposal: p.title,
+      action: p.proposer.toLowerCase() === address.toLowerCase() ? 'Created' : 'New Proposal',
+      timestamp: p.createdAt * 1000
+    }));
+
+  const formatTimeLeft = (votingEnd) => {
+    const now = Math.floor(Date.now() / 1000);
+    const timeLeft = votingEnd - now;
+    
+    if (timeLeft <= 0) return 'Ended';
+    
+    const days = Math.floor(timeLeft / 86400);
+    const hours = Math.floor((timeLeft % 86400) / 3600);
+    
+    if (days > 0) return `${days} day${days > 1 ? 's' : ''} left`;
+    if (hours > 0) return `${hours} hour${hours > 1 ? 's' : ''} left`;
+    return 'Less than 1 hour';
+  };
+
+  const formatRelativeTime = (timestamp) => {
+    const now = Date.now();
+    const diff = now - timestamp;
+    
+    const minutes = Math.floor(diff / 60000);
+    const hours = Math.floor(diff / 3600000);
+    const days = Math.floor(diff / 86400000);
+    
+    if (days > 0) return `${days} day${days > 1 ? 's' : ''} ago`;
+    if (hours > 0) return `${hours} hour${hours > 1 ? 's' : ''} ago`;
+    if (minutes > 0) return `${minutes} minute${minutes > 1 ? 's' : ''} ago`;
+    return 'Just now';
+  };
+
+  if (loading || proposalsLoading) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', padding: '4rem' }}>
+        <Loader size="large" text="Loading dashboard..." />
+      </div>
+    );
+  }
 
   return (
     <div className="dashboard-page">
@@ -64,7 +143,7 @@ const Dashboard = () => {
             <div className="stat-icon">🗳️</div>
             <div className="stat-info">
               <div className="stat-label">Votes Cast</div>
-              <div className="stat-value">{userStats.votescast}</div>
+              <div className="stat-value">{userStats.votesCast}</div>
             </div>
           </Card>
 
@@ -90,47 +169,64 @@ const Dashboard = () => {
               </Link>
             </div>
 
-            <div className="proposals-list">
-              {activeProposals.map((proposal) => (
-                <div key={proposal.id} className="proposal-item">
-                  <div className="proposal-item-content">
-                    <Link to={`/proposals/${proposal.id}`} className="proposal-item-title">
-                      {proposal.title}
-                    </Link>
-                    <div className="proposal-item-meta">
-                      <span className="proposal-status">{proposal.status}</span>
-                      <span>•</span>
-                      <span>{proposal.timeLeft} left</span>
+            {activeProposals.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--color-text-secondary)' }}>
+                <p>No active proposals at the moment</p>
+                <Link to="/create-proposal">
+                  <Button variant="primary" style={{ marginTop: '1rem' }}>
+                    Create First Proposal
+                  </Button>
+                </Link>
+              </div>
+            ) : (
+              <div className="proposals-list">
+                {activeProposals.map((proposal) => (
+                  <div key={proposal.id} className="proposal-item">
+                    <div className="proposal-item-content">
+                      <Link to={`/proposals/${proposal.id}`} className="proposal-item-title">
+                        {proposal.title}
+                      </Link>
+                      <div className="proposal-item-meta">
+                        <span className="proposal-status">Active</span>
+                        <span>•</span>
+                        <span>{formatTimeLeft(proposal.votingEnd)}</span>
+                      </div>
                     </div>
+                    <Link to={`/proposals/${proposal.id}`}>
+                      <Button variant="secondary" size="small">Vote</Button>
+                    </Link>
                   </div>
-                  <Link to={`/proposals/${proposal.id}`}>
-                    <Button variant="secondary" size="small">Vote</Button>
-                  </Link>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </Card>
 
           {/* Recent Activity */}
           <Card padding="large">
             <h2 className="section-title">Recent Activity</h2>
             
-            <div className="activity-list">
-              {recentActivity.map((activity, index) => (
-                <div key={index} className="activity-item">
-                  <div className="activity-icon">
-                    {activity.type === 'vote' ? '🗳️' : '📝'}
-                  </div>
-                  <div className="activity-content">
-                    <div className="activity-text">
-                      <span className="activity-action">{activity.action}</span>
-                      <span className="activity-proposal">{activity.proposal}</span>
+            {recentActivity.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--color-text-secondary)' }}>
+                <p>No recent activity</p>
+              </div>
+            ) : (
+              <div className="activity-list">
+                {recentActivity.map((activity, index) => (
+                  <div key={index} className="activity-item">
+                    <div className="activity-icon">
+                      {activity.type === 'create' ? '📝' : '🗳️'}
                     </div>
-                    <div className="activity-time">{activity.time}</div>
+                    <div className="activity-content">
+                      <div className="activity-text">
+                        <span className="activity-action">{activity.action}</span>
+                        <span className="activity-proposal">{activity.proposal}</span>
+                      </div>
+                      <div className="activity-time">{formatRelativeTime(activity.timestamp)}</div>
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </Card>
         </div>
 

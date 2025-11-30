@@ -1,37 +1,35 @@
 import { useState, useCallback } from 'react';
+import { useAccount } from 'wagmi';
 import { useContract } from './useContract';
-import { VOTE_TYPE } from '../utils/constants';
-// import DAOGovernanceABI from '../abis/DAOGovernance.json';
+import DAOVotingABI from '../abis/DAOVoting.json';
 
-/**
- * Hook to manage voting
- */
 export const useVoting = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const { address } = useAccount();
 
-  // Uncomment when you have the ABI
-  // const { read, write } = useContract('DAOGovernance', DAOGovernanceABI);
+  const { contract, read, write } = useContract('DAOVoting', DAOVotingABI.abi);
 
   /**
-   * Cast a vote
+   * Cast vote on proposal
+   * @param {number} proposalId - Proposal ID
+   * @param {boolean} support - true for YES, false for NO
    */
   const castVote = useCallback(async (proposalId, support) => {
+    if (!contract || !address) {
+      throw new Error('Contract not initialized or wallet not connected');
+    }
+
     setLoading(true);
     setError(null);
 
     try {
-      // TODO: Implement actual blockchain call
-      // const result = await write('castVote', [proposalId, support]);
+      // Convert support to boolean if needed
+      const voteSupport = support === true || support === 'FOR' || support === 1;
       
-      console.log('Casting vote:', { proposalId, support });
+      const result = await write('castVote', [proposalId, voteSupport]);
       
-      // Mock response
-      const result = {
-        hash: '0x' + '2'.repeat(64),
-        receipt: { status: 'success' }
-      };
-
+      console.log('Vote cast successfully:', result);
       setLoading(false);
       return result;
     } catch (err) {
@@ -40,86 +38,73 @@ export const useVoting = () => {
       setLoading(false);
       throw err;
     }
-  }, []);
+  }, [contract, write, address]);
 
   /**
-   * Cast vote with reason
+   * Cast vote with reason (Note: Current contract doesn't have this, so we'll use regular castVote)
    */
   const castVoteWithReason = useCallback(async (proposalId, support, reason) => {
-    setLoading(true);
-    setError(null);
-
-    try {
-      // TODO: Implement actual blockchain call
-      // const result = await write('castVoteWithReason', [proposalId, support, reason]);
-      
-      console.log('Casting vote with reason:', { proposalId, support, reason });
-      
-      const result = {
-        hash: '0x' + '3'.repeat(64),
-        receipt: { status: 'success' }
-      };
-
-      setLoading(false);
-      return result;
-    } catch (err) {
-      console.error('Error casting vote with reason:', err);
-      setError(err.message);
-      setLoading(false);
-      throw err;
-    }
-  }, []);
+    // For now, just use regular castVote since contract doesn't have castVoteWithReason
+    console.log('Vote reason (not stored on-chain):', reason);
+    return await castVote(proposalId, support);
+  }, [castVote]);
 
   /**
-   * Check if user has voted
+   * Check if user has voted on a proposal
    */
   const hasVoted = useCallback(async (proposalId, voterAddress) => {
+    if (!contract) return false;
+    
     try {
-      // TODO: Implement actual blockchain call
-      // const voted = await read('hasVoted', [proposalId, voterAddress]);
-      
-      return false; // Mock response
+      const voted = await read('hasVoted', [proposalId, voterAddress || address]);
+      return voted;
     } catch (err) {
       console.error('Error checking vote status:', err);
       return false;
     }
-  }, []);
+  }, [contract, read, address]);
 
   /**
-   * Get user's vote on a proposal
+   * Get vote details for a specific voter on a proposal
    */
-  const getUserVote = useCallback(async (proposalId, voterAddress) => {
+  const getVote = useCallback(async (proposalId, voterAddress) => {
+    if (!contract) return null;
+    
     try {
-      // TODO: Implement actual blockchain call
-      // const vote = await read('getReceipt', [proposalId, voterAddress]);
+      const voteData = await read('getVote', [proposalId, voterAddress || address]);
       
-      return null; // Mock response
+      return {
+        hasVoted: voteData[0],
+        support: voteData[1],
+        weight: Number(voteData[2]),
+        timestamp: Number(voteData[3])
+      };
     } catch (err) {
-      console.error('Error getting user vote:', err);
+      console.error('Error getting vote:', err);
       return null;
     }
-  }, []);
+  }, [contract, read, address]);
 
   /**
-   * Get voting power of address
+   * Get user's voting power
    */
-  const getVotingPower = useCallback(async (address, blockNumber) => {
+  const getVotingPower = useCallback(async (voterAddress) => {
+    if (!contract) return 0;
+    
     try {
-      // TODO: Implement actual blockchain call
-      // const power = await read('getVotes', [address, blockNumber]);
-      
-      return '0'; // Mock response
+      const power = await read('getVotingPowerOf', [voterAddress || address]);
+      return Number(power);
     } catch (err) {
       console.error('Error getting voting power:', err);
-      return '0';
+      return 0;
     }
-  }, []);
+  }, [contract, read, address]);
 
   return {
     castVote,
     castVoteWithReason,
     hasVoted,
-    getUserVote,
+    getVote,
     getVotingPower,
     loading,
     error
