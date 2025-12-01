@@ -49,6 +49,29 @@
   flex-direction: column;
 }
 
+/* ✅ NEW: Section Subtitle & Description */
+.section-subtitle {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  margin: 0 0 0.5rem 0;
+}
+
+.section-description {
+  font-size: 0.9rem;
+  color: var(--color-text-secondary);
+  margin: 0 0 1rem 0;
+  line-height: 1.6;
+}
+
+/* ✅ NEW: Requirements Grid */
+.requirements-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1rem;
+  margin-top: 0.5rem;
+}
+
 /* Info Box */
 .info-box {
   display: flex;
@@ -158,6 +181,38 @@
   margin: 0;
 }
 
+/* ✅ NEW: Preview Requirements */
+.preview-requirements {
+  margin-top: 1.5rem;
+  padding: 1rem;
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.05), rgba(139, 92, 246, 0.05));
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+}
+
+.preview-requirements h4 {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  margin: 0 0 0.5rem 0;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.preview-requirements ul {
+  margin: 0;
+  padding-left: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.preview-requirements li {
+  color: var(--color-text-secondary);
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
 /* Scrollbar for Preview */
 .preview-card::-webkit-scrollbar {
   width: 6px;
@@ -187,6 +242,10 @@
     position: static;
     max-height: none;
   }
+
+  .requirements-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 768px) {
@@ -200,5 +259,9 @@
 
   .form-actions button {
     width: 100%;
+  }
+
+  .requirements-grid {
+    grid-template-columns: 1fr;
   }
 }

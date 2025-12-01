@@ -1,0 +1,261 @@
+.admin-page {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 2rem;
+}
+
+.admin-loading {
+  display: flex;
+  justify-content: center;
+  padding: 4rem;
+}
+
+.admin-not-connected {
+  text-align: center;
+}
+
+.admin-header {
+  margin-bottom: 2rem;
+}
+
+.admin-header h1 {
+  font-size: 2.5rem;
+  font-weight: 700;
+  margin: 0 0 0.5rem 0;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.admin-header p {
+  font-size: 1.125rem;
+  color: var(--color-text-secondary, #757575);
+  margin: 0;
+}
+
+.admin-owner-badge {
+  font-size: 0.85rem;
+  color: var(--color-text-secondary, #757575);
+  margin-top: 0.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.admin-owner-status {
+  color: #4CAF50;
+  font-weight: 600;
+}
+
+.admin-divider {
+  color: var(--color-text-secondary, #757575);
+}
+
+.admin-owner-address {
+  font-family: monospace;
+}
+
+/* Access Denied Section */
+.admin-access-denied {
+  margin-top: 1.5rem;
+}
+
+.admin-address-display {
+  display: block;
+  padding: 0.5rem;
+  background: var(--color-background-secondary, #f5f5f5);
+  border-radius: 4px;
+  font-size: 0.9rem;
+  margin-top: 0.5rem;
+  word-break: break-all;
+  font-family: monospace;
+}
+
+.admin-troubleshooting-title {
+  font-size: 0.9rem;
+  color: var(--color-text-secondary, #757575);
+  margin-top: 1rem;
+  margin-bottom: 0.5rem;
+}
+
+.admin-troubleshooting-list {
+  font-size: 0.9rem;
+  color: var(--color-text-secondary, #757575);
+  margin-top: 0.5rem;
+  padding-left: 1.5rem;
+  line-height: 1.8;
+}
+
+.admin-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(500px, 1fr));
+  gap: 2rem;
+}
+
+.section-title {
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin: 0 0 0.5rem 0;
+  color: var(--color-text-primary, #212121);
+}
+
+.section-description {
+  margin-bottom: 1.5rem;
+  color: var(--color-text-secondary, #757575);
+}
+
+/* Register Form */
+.admin-register-form {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-end;
+}
+
+.admin-input-wrapper {
+  flex: 1;
+}
+
+.admin-batch-button {
+  margin-top: 1rem;
+}
+
+/* Test Wallets List */
+.test-wallets-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.test-wallet-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem;
+  background-color: var(--color-background-secondary, #f5f5f5);
+  border-radius: 8px;
+  transition: all 0.2s;
+}
+
+.test-wallet-item:hover {
+  background-color: var(--color-background-hover, #ebebeb);
+}
+
+.test-wallet-info {
+  flex: 1;
+}
+
+.test-wallet-label {
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+}
+
+.test-wallet-address {
+  font-size: 0.75rem;
+  color: var(--color-text-secondary, #757575);
+  font-family: monospace;
+}
+
+.test-wallet-action {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.wallet-status-error {
+  color: #f44336;
+  font-size: 0.85rem;
+}
+
+.wallet-status-registered {
+  color: #4CAF50;
+  font-weight: 600;
+}
+
+.admin-tip-alert {
+  margin-top: 1.5rem;
+}
+
+/* Voter Stats */
+.voter-stats {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1.5rem;
+  margin-top: 1.5rem;
+}
+
+.stat-item {
+  text-align: center;
+  padding: 1.5rem;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 12px;
+  color: white;
+}
+
+.stat-value {
+  font-size: 2.5rem;
+  font-weight: 700;
+  margin-bottom: 0.5rem;
+}
+
+.stat-label {
+  font-size: 0.9rem;
+  opacity: 0.9;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.admin-refresh-button {
+  margin-top: 1rem;
+}
+
+/* Code styling in alerts */
+code {
+  padding: 0.2rem 0.4rem;
+  background-color: rgba(0, 0, 0, 0.1);
+  border-radius: 4px;
+  font-family: 'Courier New', monospace;
+  font-size: 0.9em;
+}
+
+/* Responsive */
+@media (max-width: 1024px) {
+  .admin-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .admin-page {
+    padding: 1rem;
+  }
+
+  .admin-header h1 {
+    font-size: 2rem;
+  }
+
+  .admin-owner-badge {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.25rem;
+  }
+
+  .admin-register-form {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .test-wallet-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1rem;
+  }
+
+  .test-wallet-action {
+    width: 100%;
+  }
+
+  .voter-stats {
+    grid-template-columns: 1fr;
+  }
+}

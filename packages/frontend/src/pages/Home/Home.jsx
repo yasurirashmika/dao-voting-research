@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAccount } from 'wagmi';
 import { useConnectModal } from '@rainbow-me/rainbowkit';
@@ -10,25 +10,36 @@ import './Home.css';
 const Home = () => {
   const { isConnected } = useAccount();
   const { openConnectModal } = useConnectModal();
-  const { proposals } = useProposals();
+  const { proposals, loading: proposalsLoading } = useProposals();
+
+  // Calculate total votes cast across all proposals
+  const totalVotesCast = proposals.reduce((sum, p) => {
+    return sum + (Number(p.yesVotes) || 0) + (Number(p.noVotes) || 0);
+  }, 0);
 
   // Calculate real stats from blockchain data
   const stats = [
     { 
       label: 'Total Proposals', 
-      value: proposals.length.toString()
+      value: proposals.length.toString(),
+      loading: proposalsLoading
     },
     { 
       label: 'Active Votes', 
-      value: proposals.filter(p => p.state === 1).length.toString()
+      value: proposals.filter(p => p.state === 1).length.toString(),
+      loading: proposalsLoading
     },
     { 
-      label: 'DAO Members', 
-      value: '1,234' // TODO: Get from contract
+      label: 'Registered voters who can participate in governance', 
+      value: '—',
+      loading: false,
+      tooltip: 'Go to Admin panel to register voters'
     },
     { 
       label: 'Total Votes Cast', 
-      value: proposals.reduce((sum, p) => sum + (p.yesVotes || 0) + (p.noVotes || 0), 0).toLocaleString()
+      value: proposalsLoading ? '...' : totalVotesCast.toLocaleString(),
+      loading: proposalsLoading,
+      tooltip: 'Sum of all Yes and No votes across all proposals'
     }
   ];
 
@@ -107,8 +118,12 @@ const Home = () => {
       {/* Stats Section */}
       <section className="stats-section">
         {stats.map((stat, index) => (
-          <Card key={index} padding="medium" className="stat-card">
-            <div className="stat-value">{stat.value}</div>
+          <Card key={index} padding="medium" className="stat-card" title={stat.tooltip}>
+            {stat.loading ? (
+              <div className="stat-value">...</div>
+            ) : (
+              <div className="stat-value">{stat.value}</div>
+            )}
             <div className="stat-label">{stat.label}</div>
           </Card>
         ))}

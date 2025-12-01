@@ -5,6 +5,7 @@ import { useProposals } from '../../hooks/useProposals';
 import Card from '../../components/common/Card/Card';
 import Button from '../../components/common/Button/Button';
 import Input from '../../components/common/Input/Input';
+import Alert from '../../components/common/Alert/Alert';
 import { validateProposalTitle, validateProposalDescription } from '../../utils/validators';
 import { MAX_VALUES } from '../../utils/constants';
 import './CreateProposalPage.css';
@@ -16,15 +17,24 @@ const CreateProposalPage = () => {
 
   const [formData, setFormData] = useState({
     title: '',
-    description: ''
+    description: '',
+    minTokensRequired: '0',
+    minReputationRequired: '0'
   });
 
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
+  const [alert, setAlert] = useState(null);
+
+  const showAlert = (type, title, message, duration = 5000) => {
+    setAlert({ type, title, message });
+    if (duration) {
+      setTimeout(() => setAlert(null), duration);
+    }
+  };
 
   const handleChange = (field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }));
-    // Clear error when user starts typing
     if (errors[field]) {
       setErrors(prev => ({ ...prev, [field]: '' }));
     }
@@ -43,6 +53,18 @@ const CreateProposalPage = () => {
       newErrors.description = descriptionValidation.error;
     }
 
+    // Validate min tokens
+    const minTokens = parseInt(formData.minTokensRequired);
+    if (isNaN(minTokens) || minTokens < 0) {
+      newErrors.minTokensRequired = 'Must be a valid non-negative number';
+    }
+
+    // Validate min reputation (1-1000 range)
+    const minRep = parseInt(formData.minReputationRequired);
+    if (isNaN(minRep) || minRep < 0 || minRep > 1000) {
+      newErrors.minReputationRequired = 'Must be between 0 and 1000';
+    }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -51,35 +73,44 @@ const CreateProposalPage = () => {
     e.preventDefault();
 
     if (!isConnected) {
-      alert('Please connect your wallet to create a proposal');
+      showAlert('error', 'Wallet Not Connected', 'Please connect your wallet to create a proposal.');
       return;
     }
 
     if (!validateForm()) {
+      showAlert('error', 'Validation Error', 'Please fix the errors in the form.');
       return;
     }
 
     setLoading(true);
 
     try {
-      // TODO: Replace with actual smart contract parameters
-      const targets = []; // Array of target addresses
-      const values = []; // Array of values to send
-      const calldatas = []; // Array of encoded function calls
-
+      // ✅ FIXED: Pass correct parameters to match contract
       await createProposal(
         formData.title,
         formData.description,
-        targets,
-        values,
-        calldatas
+        formData.minTokensRequired,
+        formData.minReputationRequired
       );
 
-      alert('Proposal created successfully!');
-      navigate('/proposals');
+      showAlert('success', 'Proposal Created!', 'Your proposal has been submitted successfully.');
+      
+      // Navigate after a short delay to show success message
+      setTimeout(() => {
+        navigate('/proposals');
+      }, 2000);
     } catch (error) {
       console.error('Error creating proposal:', error);
-      alert('Failed to create proposal: ' + error.message);
+      
+      let errorMessage = 'Failed to create proposal. Please try again.';
+      
+      if (error.message.includes('Insufficient tokens')) {
+        errorMessage = 'You don\'t have enough governance tokens to create a proposal.';
+      } else if (error.message.includes('User denied')) {
+        errorMessage = 'Transaction cancelled in MetaMask.';
+      }
+      
+      showAlert('error', 'Creation Failed', errorMessage);
     } finally {
       setLoading(false);
     }
@@ -101,6 +132,12 @@ const CreateProposalPage = () => {
           Submit a proposal for the DAO to vote on. Make sure to provide clear details about what you're proposing.
         </p>
       </div>
+
+      {alert && (
+        <Alert type={alert.type} title={alert.title} onClose={() => setAlert(null)}>
+          {alert.message}
+        </Alert>
+      )}
 
       <div className="create-proposal-content">
         <Card padding="large" className="create-proposal-form-card">
@@ -147,6 +184,42 @@ const CreateProposalPage = () => {
               />
             </div>
 
+            {/* Voting Requirements Section */}
+            <div className="form-section">
+              <h3 className="section-subtitle">Voting Requirements (Optional)</h3>
+              <p className="section-description">
+                Set minimum requirements for voters to participate in this proposal.
+                Leave at 0 to allow all registered voters.
+              </p>
+
+              <div className="requirements-grid">
+                <Input
+                  label="Minimum Tokens Required"
+                  type="number"
+                  min="0"
+                  value={formData.minTokensRequired}
+                  onChange={(e) => handleChange('minTokensRequired', e.target.value)}
+                  placeholder="0"
+                  error={errors.minTokensRequired}
+                  helperText="Minimum governance tokens needed to vote (0 = no minimum)"
+                  fullWidth
+                />
+
+                <Input
+                  label="Minimum Reputation Required"
+                  type="number"
+                  min="0"
+                  max="1000"
+                  value={formData.minReputationRequired}
+                  onChange={(e) => handleChange('minReputationRequired', e.target.value)}
+                  placeholder="0"
+                  error={errors.minReputationRequired}
+                  helperText="Minimum reputation score (0-1000, 0 = no minimum)"
+                  fullWidth
+                />
+              </div>
+            </div>
+
             {/* Info Box */}
             <div className="info-box">
               <div className="info-box-icon">ℹ️</div>
@@ -156,7 +229,8 @@ const CreateProposalPage = () => {
                   <li>Ensure you have enough governance tokens to create a proposal</li>
                   <li>Double-check all information for accuracy</li>
                   <li>Your proposal will be publicly visible and cannot be edited</li>
-                  <li>The voting period will start after a short delay</li>
+                  <li>The voting period will start after a 1-hour delay</li>
+                  <li>Voting lasts for 7 days after it starts</li>
                 </ul>
               </div>
             </div>
@@ -202,6 +276,20 @@ const CreateProposalPage = () => {
                   <p className="preview-description">{formData.description}</p>
                 ) : (
                   <p className="preview-placeholder">Description will appear here...</p>
+                )}
+                
+                {(formData.minTokensRequired !== '0' || formData.minReputationRequired !== '0') && (
+                  <div className="preview-requirements">
+                    <h4>Voting Requirements:</h4>
+                    <ul>
+                      {formData.minTokensRequired !== '0' && (
+                        <li>Minimum {formData.minTokensRequired} governance tokens</li>
+                      )}
+                      {formData.minReputationRequired !== '0' && (
+                        <li>Minimum {formData.minReputationRequired} reputation score</li>
+                      )}
+                    </ul>
+                  </div>
                 )}
               </>
             ) : (

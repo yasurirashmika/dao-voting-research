@@ -3,27 +3,22 @@ import { Link } from 'react-router-dom';
 import { useAccount } from 'wagmi';
 import { useWallet } from '../../context/WalletContext';
 import { useProposals } from '../../hooks/useProposals';
-import { useVoting } from '../../hooks/useVoting';
 import Card from '../../components/common/Card/Card';
 import Button from '../../components/common/Button/Button';
 import Loader from '../../components/common/Loader/Loader';
-import { formatAddress, formatTokenAmount } from '../../utils/formatters';
+import VotingPower from '../../components/voting/VotingPower/VotingPower';
+import { formatAddress } from '../../utils/formatters';
 import './Dashboard.css';
 
 const Dashboard = () => {
   const { address } = useAccount();
   const { balance, balanceSymbol } = useWallet();
   const { proposals, loading: proposalsLoading } = useProposals();
-  const { getVotingPower } = useVoting();
 
-  const [votingPower, setVotingPower] = useState(0);
   const [userStats, setUserStats] = useState({
-    votingPower: '0',
     proposalsCreated: 0,
     votesCast: 0,
-    delegatedTo: address
   });
-  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (address) {
@@ -31,33 +26,19 @@ const Dashboard = () => {
     }
   }, [address, proposals]);
 
-  const loadDashboardData = async () => {
-    try {
-      // Get voting power
-      const power = await getVotingPower(address);
-      setVotingPower(power);
+  const loadDashboardData = () => {
+    // Calculate user stats from proposals
+    const userProposals = proposals.filter(
+      p => p.proposer.toLowerCase() === address.toLowerCase()
+    );
 
-      // Calculate user stats from proposals
-      const userProposals = proposals.filter(
-        p => p.proposer.toLowerCase() === address.toLowerCase()
-      );
+    // TODO: Implement actual vote counting by checking hasVoted for each proposal
+    const votesCast = 0;
 
-      // Count votes cast (you can enhance this by checking each proposal)
-      // For now, we'll use a simple count
-      const votesCast = 0; // TODO: Implement vote counting
-
-      setUserStats({
-        votingPower: power.toString(),
-        proposalsCreated: userProposals.length,
-        votesCast: votesCast,
-        delegatedTo: address
-      });
-
-      setLoading(false);
-    } catch (error) {
-      console.error('Error loading dashboard data:', error);
-      setLoading(false);
-    }
+    setUserStats({
+      proposalsCreated: userProposals.length,
+      votesCast: votesCast,
+    });
   };
 
   // Filter active proposals (state = 1)
@@ -101,9 +82,9 @@ const Dashboard = () => {
     return 'Just now';
   };
 
-  if (loading || proposalsLoading) {
+  if (proposalsLoading) {
     return (
-      <div style={{ display: 'flex', justifyContent: 'center', padding: '4rem' }}>
+      <div className="dashboard-loading">
         <Loader size="large" text="Loading dashboard..." />
       </div>
     );
@@ -123,14 +104,6 @@ const Dashboard = () => {
       <div className="dashboard-grid">
         {/* Stats Cards */}
         <div className="stats-grid">
-          <Card padding="medium" className="stat-card">
-            <div className="stat-icon">⚡</div>
-            <div className="stat-info">
-              <div className="stat-label">Voting Power</div>
-              <div className="stat-value">{userStats.votingPower}</div>
-            </div>
-          </Card>
-
           <Card padding="medium" className="stat-card">
             <div className="stat-icon">📝</div>
             <div className="stat-info">
@@ -156,6 +129,14 @@ const Dashboard = () => {
               </div>
             </div>
           </Card>
+
+          <Card padding="medium" className="stat-card">
+            <div className="stat-icon">📊</div>
+            <div className="stat-info">
+              <div className="stat-label">Active Proposals</div>
+              <div className="stat-value">{activeProposals.length}</div>
+            </div>
+          </Card>
         </div>
 
         {/* Main Content */}
@@ -170,10 +151,10 @@ const Dashboard = () => {
             </div>
 
             {activeProposals.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--color-text-secondary)' }}>
+              <div className="empty-state">
                 <p>No active proposals at the moment</p>
                 <Link to="/create-proposal">
-                  <Button variant="primary" style={{ marginTop: '1rem' }}>
+                  <Button variant="primary" className="empty-state-button">
                     Create First Proposal
                   </Button>
                 </Link>
@@ -206,7 +187,7 @@ const Dashboard = () => {
             <h2 className="section-title">Recent Activity</h2>
             
             {recentActivity.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--color-text-secondary)' }}>
+              <div className="empty-state">
                 <p>No recent activity</p>
               </div>
             ) : (
@@ -232,6 +213,11 @@ const Dashboard = () => {
 
         {/* Sidebar */}
         <div className="dashboard-sidebar">
+          {/* ✅ NEW: Voting Power Widget */}
+          <Card padding="medium">
+            <VotingPower />
+          </Card>
+
           {/* Wallet Info */}
           <Card padding="medium">
             <h3 className="sidebar-title">Wallet Information</h3>
@@ -241,10 +227,8 @@ const Dashboard = () => {
                 <span className="info-value">{formatAddress(address)}</span>
               </div>
               <div className="info-row">
-                <span className="info-label">Delegated To</span>
-                <span className="info-value">
-                  {userStats.delegatedTo === address ? 'Self' : formatAddress(userStats.delegatedTo)}
-                </span>
+                <span className="info-label">Network</span>
+                <span className="info-value">Sepolia</span>
               </div>
             </div>
           </Card>
