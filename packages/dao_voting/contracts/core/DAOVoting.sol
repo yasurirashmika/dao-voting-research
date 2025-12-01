@@ -309,9 +309,12 @@ contract DAOVoting is Ownable, ReentrancyGuard {
             "Voting period not ended"
         );
 
-        // Check if quorum was reached
-        uint256 totalSupply = governanceToken.totalSupply();
-        uint256 quorumRequired = (totalSupply * quorumPercentage) / 100;
+        // ✅ FIX: Calculate Quorum based on TOTAL WEIGHT (10,000 basis points), not token supply
+        // The maximum possible weight in the system is 10,000 (Token Weight + Reputation Weight)
+        uint256 maxPossibleWeight = tokenWeightPercentage + reputationWeightPercentage; // = 10,000
+        
+        // Calculate required weight score (e.g. 40% of 10,000 = 4,000)
+        uint256 quorumRequired = (maxPossibleWeight * quorumPercentage) / 100;
 
         if (proposal.totalVotingWeight < quorumRequired) {
             proposal.state = ProposalState.Defeated;

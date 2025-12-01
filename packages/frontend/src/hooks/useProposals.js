@@ -8,12 +8,12 @@ export const useProposals = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const { address } = useAccount();
-  const hasFetchedRef = useRef(false); // ✅ Prevent initial duplicate fetch
+  const hasFetchedRef = useRef(false);
 
   const { contract, read, write } = useContract("DAOVoting", DAOVotingABI.abi);
 
   /**
-   * Fetch all proposals
+   * Fetch all proposals using Multicall (Batched Request)
    */
   const fetchProposals = useCallback(async () => {
     if (!contract) return;
@@ -22,39 +22,64 @@ export const useProposals = () => {
     setError(null);
 
     try {
+      // 1. Get the total count
       const proposalCount = await read("proposalCount", []);
-      const proposalData = [];
+      const count = Number(proposalCount);
 
-      // Around line 35-55, update the proposal mapping:
-for (let i = 1; i <= Number(proposalCount); i++) {
-  try {
-    const proposal = await read('getProposalDetails', [i]);
-    
-    // Check if timestamps look like block numbers (too small)
-    const votingStart = Number(proposal[9]);
-    const votingEnd = Number(proposal[10]);
-    
-    // If timestamp is less than year 2000 (946684800), it's probably a block number
-    const isBlockNumber = votingStart < 946684800;
-    
-    proposalData.push({
-      id: Number(proposal[0]),
-      title: proposal[1],
-      description: proposal[2],
-      proposer: proposal[3],
-      yesVotes: Number(proposal[4]),
-      noVotes: Number(proposal[5]),
-      totalVotingWeight: Number(proposal[6]),
-      state: Number(proposal[7]),
-      createdAt: Number(proposal[8]),
-      votingStart: votingStart,
-      votingEnd: votingEnd,
-      isBlockNumber: isBlockNumber // Flag for display logic
-    });
-  } catch (err) {
-    console.error(`Error fetching proposal ${i}:`, err);
-  }
-}
+      if (count === 0) {
+        setProposals([]);
+        setLoading(false);
+        return;
+      }
+
+      // 2. Prepare the Batch Request (Multicall)
+      // Instead of await-ing inside a loop, we build an array of instructions
+      const contractCalls = [];
+      for (let i = 1; i <= count; i++) {
+        contractCalls.push({
+          address: contract.address,
+          abi: contract.abi,
+          functionName: 'getProposalDetails',
+          args: [i]
+        });
+      }
+
+      // 3. Execute ONE network request for ALL proposals
+      // We access publicClient directly from your contract object
+      const results = await contract.publicClient.multicall({
+        contracts: contractCalls
+      });
+
+      // 4. Process the results
+      const proposalData = results.map((result, index) => {
+        // If the individual call failed, result.status will be 'failure'
+        if (result.status === 'failure') {
+          console.error(`Failed to fetch proposal ${index + 1}`, result.error);
+          return null;
+        }
+
+        const proposal = result.result;
+        
+        // Check if timestamps look like block numbers (logic from your original code)
+        const votingStart = Number(proposal[9]);
+        const votingEnd = Number(proposal[10]);
+        const isBlockNumber = votingStart < 946684800;
+
+        return {
+          id: Number(proposal[0]),
+          title: proposal[1],
+          description: proposal[2],
+          proposer: proposal[3],
+          yesVotes: Number(proposal[4]),
+          noVotes: Number(proposal[5]),
+          totalVotingWeight: Number(proposal[6]),
+          state: Number(proposal[7]),
+          createdAt: Number(proposal[8]),
+          votingStart: votingStart,
+          votingEnd: votingEnd,
+          isBlockNumber: isBlockNumber
+        };
+      }).filter(p => p !== null); // Remove any failed fetches
 
       setProposals(proposalData);
       setLoading(false);
@@ -111,7 +136,6 @@ for (let i = 1; i <= Number(proposalCount); i++) {
       }
 
       try {
-        // Call submitProposal function
         const result = await write("submitProposal", [
           title,
           description,
@@ -120,10 +144,7 @@ for (let i = 1; i <= Number(proposalCount); i++) {
         ]);
 
         console.log("Proposal created successfully:", result);
-
-        // Refresh proposals after creation
-        await fetchProposals();
-
+        await fetchProposals(); // Refresh list
         return result;
       } catch (err) {
         console.error("Error creating proposal:", err);
@@ -144,12 +165,8 @@ for (let i = 1; i <= Number(proposalCount); i++) {
 
       try {
         const result = await write("castVote", [proposalId, support]);
-
         console.log("Vote cast successfully:", result);
-
-        // Refresh proposals after voting
-        await fetchProposals();
-
+        await fetchProposals(); // Refresh list
         return result;
       } catch (err) {
         console.error("Error casting vote:", err);
@@ -198,13 +215,13 @@ for (let i = 1; i <= Number(proposalCount); i++) {
     [contract, read, address]
   );
 
-  // ✅ FIXED: Load proposals only once when contract is ready
+  // Load proposals only once when contract is ready
   useEffect(() => {
     if (contract && !hasFetchedRef.current) {
       hasFetchedRef.current = true;
       fetchProposals();
     }
-  }, [contract]); // ✅ Only depend on contract, not fetchProposals
+  }, [contract]); 
 
   return {
     proposals,

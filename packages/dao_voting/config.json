@@ -1,9 +1,9 @@
 {
   "network": "sepolia",
   "contracts": {
-    "GovernanceToken": "0xBc22DAA2b28237ee7709f323dD26d095a75CC6CA",
-    "DAOVoting": "0x85A2Ec8b430463E751EcaE1c0bD9Df11135c2Fd0",
-    "ReputationManager": "0xD56A205aaBA84f53e4B1F35C8F8B776FC85759aB"
+    "GovernanceToken": "0x5aeE1C91651fcC0094fb2e9E6A51afaD9A8AC401",
+    "DAOVoting": "0xf29435b12F6494fd782bE3472AF8F6B9eD6E7676",
+    "ReputationManager": "0x3AE3e68b226005a355F0E3BB039DB463eD88a4dD"
   },
   "deploymentBlock": 12345678,
   "deployerAddress": "0x..."

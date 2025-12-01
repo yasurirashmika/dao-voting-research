@@ -16,7 +16,8 @@ const Admin = () => {
     isRegisteredVoter,
     isOwner,
     loading,
-    error
+    error,
+    contract // ✅ Get contract status
   } = useAdmin();
 
   const [isAdmin, setIsAdmin] = useState(false);
@@ -26,25 +27,27 @@ const Admin = () => {
   const [alert, setAlert] = useState(null);
   const [registeredVoters, setRegisteredVoters] = useState([]);
 
-  // 🔥 IMPORTANT: Replace with your 5 wallet addresses
+  // Test wallets
   const testWallets = [
-    address, // Current user
-    // Add your other 4 wallet addresses here:
-    // '0x34c057fd7ee5a9d879116a8ebbebb60edbf61439',
-    // '0xc20dc1D394f1d424b20b9F79D7C0281B9005e174',
-    // '0x8A4aAda53a356B8394a64Fe6BA2d1A3c7AF5F58F',
-    // '0xCED1B0307491a0d67A2B3c6fFa44a8Ef1E57e0d2',
+    address,
+    // Add your other wallets here
   ].filter(Boolean);
 
+  // ✅ FIXED: Dependency array now includes 'contract'
+  // This ensures the check runs again once the contract is fully loaded
   useEffect(() => {
-    checkAdminStatus();
-  }, [address, isConnected]);
+    if (isConnected && contract) {
+      checkAdminStatus();
+    } else if (!isConnected) {
+      setCheckingAdmin(false);
+    }
+  }, [address, isConnected, contract]); 
 
   useEffect(() => {
-    if (isAdmin) {
+    if (isAdmin && contract) {
       loadRegisteredVoters();
     }
-  }, [isAdmin]);
+  }, [isAdmin, contract]);
 
   const showAlert = (type, title, message, duration = 5000) => {
     setAlert({ type, title, message });
@@ -54,10 +57,17 @@ const Admin = () => {
   };
 
   const checkAdminStatus = async () => {
+    // Double check basics
     if (!address || !isConnected) {
       setCheckingAdmin(false);
       setIsAdmin(false);
       return;
+    }
+
+    // ✅ CHECK: If contract isn't ready, don't fail, just wait (return)
+    if (!contract) {
+      console.log("⏳ Admin Page: Contract not ready yet...");
+      return; 
     }
 
     console.log('🔍 Checking admin status for:', address);
@@ -70,16 +80,14 @@ const Admin = () => {
     } catch (err) {
       console.error('❌ Error checking admin status:', err);
       setIsAdmin(false);
-      
-      if (err.message.includes('Contract not initialized')) {
-        showAlert('error', 'Contract Error', 'DAOVoting contract not found. Please check your .env configuration.', null);
-      }
     } finally {
       setCheckingAdmin(false);
     }
   };
 
   const loadRegisteredVoters = async () => {
+    if (!contract) return; // Guard clause
+
     const voters = [];
     
     for (const addr of testWallets) {
@@ -171,7 +179,7 @@ const Admin = () => {
   if (checkingAdmin) {
     return (
       <div className="admin-page admin-loading">
-        <Loader size="large" text="Checking admin access..." />
+        <Loader size="large" text="Verifying admin access..." />
       </div>
     );
   }
@@ -323,7 +331,7 @@ const Admin = () => {
           </div>
 
           <Alert type="info" title="💡 Tip" className="admin-tip-alert">
-            To add more test wallets, edit the <code>testWallets</code> array in Admin.jsx (line 23) with your wallet addresses.
+            To add more test wallets, edit the <code>testWallets</code> array in Admin.jsx (line 23).
           </Alert>
         </Card>
 

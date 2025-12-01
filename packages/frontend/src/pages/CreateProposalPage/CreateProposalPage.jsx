@@ -6,6 +6,7 @@ import Card from '../../components/common/Card/Card';
 import Button from '../../components/common/Button/Button';
 import Input from '../../components/common/Input/Input';
 import Alert from '../../components/common/Alert/Alert';
+import Modal from '../../components/common/Modal/Modal'; // ✅ Import Modal
 import { validateProposalTitle, validateProposalDescription } from '../../utils/validators';
 import { MAX_VALUES } from '../../utils/constants';
 import './CreateProposalPage.css';
@@ -24,12 +25,30 @@ const CreateProposalPage = () => {
 
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
-  const [alert, setAlert] = useState(null);
+  
+  // ✅ NEW: Modal State for Errors
+  const [modalState, setModalState] = useState({
+    isOpen: false,
+    type: 'error', // 'error' or 'success'
+    title: '',
+    message: ''
+  });
 
-  const showAlert = (type, title, message, duration = 5000) => {
-    setAlert({ type, title, message });
-    if (duration) {
-      setTimeout(() => setAlert(null), duration);
+  // Helper to open modal
+  const showModal = (type, title, message) => {
+    setModalState({
+      isOpen: true,
+      type,
+      title,
+      message
+    });
+  };
+
+  const closeModal = () => {
+    setModalState(prev => ({ ...prev, isOpen: false }));
+    // If it was a success modal, navigate away on close
+    if (modalState.type === 'success') {
+      navigate('/proposals');
     }
   };
 
@@ -53,13 +72,11 @@ const CreateProposalPage = () => {
       newErrors.description = descriptionValidation.error;
     }
 
-    // Validate min tokens
     const minTokens = parseInt(formData.minTokensRequired);
     if (isNaN(minTokens) || minTokens < 0) {
       newErrors.minTokensRequired = 'Must be a valid non-negative number';
     }
 
-    // Validate min reputation (1-1000 range)
     const minRep = parseInt(formData.minReputationRequired);
     if (isNaN(minRep) || minRep < 0 || minRep > 1000) {
       newErrors.minReputationRequired = 'Must be between 0 and 1000';
@@ -73,19 +90,18 @@ const CreateProposalPage = () => {
     e.preventDefault();
 
     if (!isConnected) {
-      showAlert('error', 'Wallet Not Connected', 'Please connect your wallet to create a proposal.');
+      showModal('error', 'Wallet Not Connected', 'Please connect your wallet to create a proposal.');
       return;
     }
 
     if (!validateForm()) {
-      showAlert('error', 'Validation Error', 'Please fix the errors in the form.');
+      showModal('error', 'Validation Error', 'Please fix the errors highlighted in the form.');
       return;
     }
 
     setLoading(true);
 
     try {
-      // ✅ FIXED: Pass correct parameters to match contract
       await createProposal(
         formData.title,
         formData.description,
@@ -93,24 +109,27 @@ const CreateProposalPage = () => {
         formData.minReputationRequired
       );
 
-      showAlert('success', 'Proposal Created!', 'Your proposal has been submitted successfully.');
+      showModal('success', 'Proposal Created!', 'Your proposal has been submitted successfully.');
       
-      // Navigate after a short delay to show success message
-      setTimeout(() => {
-        navigate('/proposals');
-      }, 2000);
     } catch (error) {
       console.error('Error creating proposal:', error);
       
       let errorMessage = 'Failed to create proposal. Please try again.';
       
-      if (error.message.includes('Insufficient tokens')) {
-        errorMessage = 'You don\'t have enough governance tokens to create a proposal.';
-      } else if (error.message.includes('User denied')) {
+      // Smart Error Handling
+      if (error.message.includes('Only registered voters')) {
+        errorMessage = 'Access Denied: Only registered voters can create proposals. Please register in the Admin panel or contact a DAO member.';
+      } else if (error.message.includes('Insufficient tokens')) {
+        errorMessage = 'Insufficient Balance: You need 1,000 Governance Tokens to create a proposal.';
+      } else if (error.message.includes('User denied') || error.message.includes('user rejected')) {
         errorMessage = 'Transaction cancelled in MetaMask.';
+      } else if (error.shortMessage) {
+        errorMessage = error.shortMessage;
+      } else if (error.reason) {
+        errorMessage = error.reason;
       }
       
-      showAlert('error', 'Creation Failed', errorMessage);
+      showModal('error', 'Creation Failed', errorMessage);
     } finally {
       setLoading(false);
     }
@@ -132,12 +151,6 @@ const CreateProposalPage = () => {
           Submit a proposal for the DAO to vote on. Make sure to provide clear details about what you're proposing.
         </p>
       </div>
-
-      {alert && (
-        <Alert type={alert.type} title={alert.title} onClose={() => setAlert(null)}>
-          {alert.message}
-        </Alert>
-      )}
 
       <div className="create-proposal-content">
         <Card padding="large" className="create-proposal-form-card">
@@ -168,12 +181,7 @@ const CreateProposalPage = () => {
                 rows={12}
                 value={formData.description}
                 onChange={(e) => handleChange('description', e.target.value)}
-                placeholder="Provide detailed information about your proposal...
-
-• What problem does this solve?
-• What are the expected outcomes?
-• What resources are needed?
-• What is the timeline?"
+                placeholder="Provide detailed information about your proposal...&#10;&#10;• What problem does this solve?&#10;• What are the expected outcomes?&#10;• What resources are needed?&#10;• What is the timeline?"
                 error={errors.description}
                 helperText={
                   !errors.description && 
@@ -226,7 +234,7 @@ const CreateProposalPage = () => {
               <div className="info-box-content">
                 <h4>Before submitting:</h4>
                 <ul>
-                  <li>Ensure you have enough governance tokens to create a proposal</li>
+                  <li>Ensure you have enough governance tokens (1,000) to create a proposal</li>
                   <li>Double-check all information for accuracy</li>
                   <li>Your proposal will be publicly visible and cannot be edited</li>
                   <li>The voting period will start after a 1-hour delay</li>
@@ -300,6 +308,34 @@ const CreateProposalPage = () => {
           </div>
         </Card>
       </div>
+
+      {/* ✅ Error/Success Popup Modal */}
+      <Modal
+        isOpen={modalState.isOpen}
+        onClose={closeModal}
+        title={modalState.title}
+        footer={
+          <Button onClick={closeModal} variant={modalState.type === 'error' ? 'primary' : 'success'}>
+            {modalState.type === 'success' ? 'Go to Proposals' : 'Close'}
+          </Button>
+        }
+      >
+        <div className={`modal-message ${modalState.type}`}>
+          {/* Icon */}
+          <div style={{ fontSize: '3rem', marginBottom: '1rem', textAlign: 'center' }}>
+            {modalState.type === 'success' ? '✅' : '❌'}
+          </div>
+          
+          <p style={{ 
+            fontSize: '1.1rem', 
+            textAlign: 'center', 
+            color: 'var(--color-text-primary)',
+            lineHeight: '1.6'
+          }}>
+            {modalState.message}
+          </p>
+        </div>
+      </Modal>
     </div>
   );
 };

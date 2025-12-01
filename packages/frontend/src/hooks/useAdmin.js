@@ -76,6 +76,7 @@ export const useAdmin = () => {
    * Check if current user is the owner
    */
   const isOwner = useCallback(async () => {
+    // If contract is not ready, we cannot determine ownership yet
     if (!contract || !address) return false;
 
     try {
@@ -88,7 +89,7 @@ export const useAdmin = () => {
   }, [contract, read, address]);
 
   /**
-   * Get all registered voters count (checks provided addresses)
+   * Get all registered voters count
    */
   const getRegisteredVotersCount = useCallback(async (addressesToCheck = []) => {
     if (!contract) return 0;
@@ -108,7 +109,7 @@ export const useAdmin = () => {
   }, [contract, read]);
 
   /**
-   * Update voting parameters (admin only)
+   * Update voting parameters
    */
   const updateVotingParameters = useCallback(async (
     votingDelay,
@@ -150,7 +151,8 @@ export const useAdmin = () => {
     getRegisteredVotersCount,
     updateVotingParameters,
     loading,
-    error
+    error,
+    contract // ✅ ADDED: Exposing contract so components know when it's ready
   };
 };
 
