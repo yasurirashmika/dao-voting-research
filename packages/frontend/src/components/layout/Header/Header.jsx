@@ -3,30 +3,41 @@ import { Link, useLocation } from 'react-router-dom';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { useAccount } from 'wagmi';
 import { useTheme } from '../../../context/ThemeContext';
-import { useAdmin } from '../../../hooks/useAdmin';
+import { useContract } from '../../../hooks/useContract';
+import DAOVotingABI from '../../../abis/DAOVoting.json';
 import './Header.css';
 
 const Header = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { theme, toggleTheme } = useTheme();
   const location = useLocation();
-  const { address } = useAccount();
-  const { isOwner } = useAdmin();
+  const { address, isConnected } = useAccount();
   
   const [isAdmin, setIsAdmin] = useState(false);
-  const [checkingAdmin, setCheckingAdmin] = useState(true);
+  const [checkingAdmin, setCheckingAdmin] = useState(false);
+
+  // Get contract instance
+  const { contract, read } = useContract('DAOVoting', DAOVotingABI.abi);
 
   // Check if user is admin (contract owner)
   useEffect(() => {
     checkAdminStatus();
-  }, [address]);
+  }, [address, contract]); // ✅ Re-check when contract OR address changes
 
   const checkAdminStatus = async () => {
-    console.log('🔍 Checking admin status...');
+    console.log('🔍 Header: Checking admin status...');
     console.log('📍 Connected address:', address);
+    console.log('📦 Contract ready:', !!contract);
     
-    if (!address) {
+    if (!address || !isConnected) {
       console.log('❌ No address connected');
+      setIsAdmin(false);
+      setCheckingAdmin(false);
+      return;
+    }
+
+    if (!contract) {
+      console.log('⏳ Contract not ready yet');
       setIsAdmin(false);
       setCheckingAdmin(false);
       return;
@@ -34,8 +45,15 @@ const Header = () => {
     
     try {
       setCheckingAdmin(true);
-      const adminStatus = await isOwner();
-      console.log('✅ Admin status:', adminStatus);
+      
+      // Call owner() directly from contract
+      const ownerAddress = await read('owner', []);
+      const adminStatus = ownerAddress.toLowerCase() === address.toLowerCase();
+      
+      console.log('👑 Contract Owner:', ownerAddress);
+      console.log('👤 Current User:', address);
+      console.log('✅ Is Admin:', adminStatus);
+      
       setIsAdmin(adminStatus);
     } catch (err) {
       console.error('❌ Error checking admin status:', err);
@@ -45,14 +63,6 @@ const Header = () => {
     }
   };
 
-  // DEBUG: Log current state
-  useEffect(() => {
-    console.log('=== HEADER STATE ===');
-    console.log('Address:', address);
-    console.log('Is Admin:', isAdmin);
-    console.log('Checking Admin:', checkingAdmin);
-  }, [address, isAdmin, checkingAdmin]);
-
   // Navigation links - conditionally add Admin link for contract owner
   const navLinks = [
     { path: '/', label: 'Home' },
@@ -61,9 +71,6 @@ const Header = () => {
     { path: '/dashboard', label: 'Dashboard' },
     ...(isAdmin ? [{ path: '/admin', label: 'Admin', isAdmin: true }] : []),
   ];
-
-  // DEBUG: Log nav links
-  console.log('📋 Nav links:', navLinks.map(l => l.label));
 
   const isActive = (path) => location.pathname === path;
 
@@ -90,13 +97,6 @@ const Header = () => {
               )}
             </Link>
           ))}
-          
-          {/* DEBUG INDICATOR */}
-          {checkingAdmin && (
-            <span style={{ marginLeft: '1rem', color: '#999', fontSize: '0.85rem' }}>
-              Checking admin...
-            </span>
-          )}
         </nav>
 
         {/* Right Section */}
