@@ -1,72 +1,62 @@
-# ZKP Circuit Compilation Script for Windows
-# Run with: powershell -ExecutionPolicy Bypass -File circuits/scripts/compile.ps1
+Write-Host "=== ZKP Voting Circuit Compilation ===" -ForegroundColor Cyan
 
-Write-Host "=== ZKP Voting Circuit Compilation ===" -ForegroundColor Green
-Write-Host ""
+# 1. robust Path Resolution (Works from ANY folder)
+$ScriptPath = $MyInvocation.MyCommand.Path
+$ScriptDir = Split-Path $ScriptPath
+$CircuitDir = Join-Path $ScriptDir ".."  # Go up one level to 'circuits' folder
+$BuildDir = Join-Path $CircuitDir "build"
 
-# Create build directories
-Write-Host "Creating build directories..." -ForegroundColor Yellow
-New-Item -ItemType Directory -Force -Path "circuits/build" | Out-Null
-New-Item -ItemType Directory -Force -Path "circuits/build/merkleTree" | Out-Null
-New-Item -ItemType Directory -Force -Path "circuits/build/nullifier" | Out-Null
-New-Item -ItemType Directory -Force -Path "circuits/build/vote" | Out-Null
+# Define where node_modules might be (Monorepo support)
+# Level 1: packages/dao_voting/node_modules (Local)
+$LocalNodeModules = Join-Path $ScriptDir "..\..\node_modules"
+# Level 2: Implementation/node_modules (Root Monorepo)
+$RootNodeModules = Join-Path $ScriptDir "..\..\..\..\node_modules"
 
-# Check if circom is installed
-if (!(Get-Command circom -ErrorAction SilentlyContinue)) {
-    Write-Host "ERROR: circom not found!" -ForegroundColor Red
-    Write-Host "Install with: npm install -g circom" -ForegroundColor Yellow
-    exit 1
+# Resolve absolute paths to avoid confusion
+$CircuitDir = Resolve-Path $CircuitDir | Select-Object -ExpandProperty Path
+$LocalNodeModules = $LocalNodeModules -replace '\\', '/'
+$RootNodeModules = $RootNodeModules -replace '\\', '/'
+
+Write-Host "📂 Circuit Dir: $CircuitDir" -ForegroundColor Gray
+Write-Host "📚 Root Libs:   $RootNodeModules" -ForegroundColor Gray
+
+# 2. Create Build Folder if it doesn't exist
+if (!(Test-Path -Path $BuildDir)) {
+    New-Item -ItemType Directory -Path $BuildDir | Out-Null
+    Write-Host "Created build directory: $BuildDir" -ForegroundColor Green
 }
 
-# === 1. Compile Merkle Tree Circuit ===
-Write-Host ""
-Write-Host "[1/3] Compiling Merkle Tree Circuit..." -ForegroundColor Yellow
-circom circuits/merkleTree.circom --r1cs --wasm --sym --output circuits/build/merkleTree
+# 3. Compilation Function
+function Compile-Circuit {
+    param (
+        [string]$FileName
+    )
+    $Name = [System.IO.Path]::GetFileNameWithoutExtension($FileName)
+    $OutputDir = "$BuildDir/$Name"
+    
+    if (!(Test-Path -Path $OutputDir)) {
+        New-Item -ItemType Directory -Path $OutputDir | Out-Null
+    }
 
-if ($LASTEXITCODE -eq 0) {
-    Write-Host "Success: Merkle Tree circuit compiled" -ForegroundColor Green
-} else {
-    Write-Host "Error: Merkle Tree compilation failed" -ForegroundColor Red
-    exit 1
+    Write-Host "Compiling $Name..." -ForegroundColor Yellow
+    
+    # We pass BOTH paths to ensure we find circomlib wherever it is installed
+    circom "$CircuitDir/$FileName" --r1cs --wasm --sym --c `
+        -o "$OutputDir" `
+        -l "$LocalNodeModules" `
+        -l "$RootNodeModules"
+
+    if ($LASTEXITCODE -eq 0) {
+        Write-Host "✅ $Name compiled successfully!" -ForegroundColor Green
+    } else {
+        Write-Host "❌ $Name compilation failed." -ForegroundColor Red
+        exit 1
+    }
 }
 
-# === 2. Compile Nullifier Circuit ===
-Write-Host ""
-Write-Host "[2/3] Compiling Nullifier Circuit..." -ForegroundColor Yellow
-circom circuits/nullifier.circom --r1cs --wasm --sym --output circuits/build/nullifier
+# 4. Run Compilation
+Compile-Circuit "merkleTree.circom"
+Compile-Circuit "nullifier.circom"
+Compile-Circuit "vote.circom"
 
-if ($LASTEXITCODE -eq 0) {
-    Write-Host "Success: Nullifier circuit compiled" -ForegroundColor Green
-} else {
-    Write-Host "Error: Nullifier compilation failed" -ForegroundColor Red
-    exit 1
-}
-
-# === 3. Compile Vote Circuit ===
-Write-Host ""
-Write-Host "[3/3] Compiling Vote Circuit..." -ForegroundColor Yellow
-circom circuits/vote.circom --r1cs --wasm --sym --output circuits/build/vote
-
-if ($LASTEXITCODE -eq 0) {
-    Write-Host "Success: Vote circuit compiled" -ForegroundColor Green
-} else {
-    Write-Host "Error: Vote compilation failed" -ForegroundColor Red
-    exit 1
-}
-
-# === Display Circuit Info ===
-Write-Host ""
-Write-Host "=== Circuit Information ===" -ForegroundColor Green
-Write-Host "Merkle Tree:"
-snarkjs r1cs info circuits/build/merkleTree/merkleTree.r1cs
-
-Write-Host ""
-Write-Host "Vote Circuit:"
-snarkjs r1cs info circuits/build/vote/vote.r1cs
-
-Write-Host ""
-Write-Host "Success: All circuits compiled successfully!" -ForegroundColor Green
-Write-Host ""
-Write-Host "Next steps:" -ForegroundColor Yellow
-Write-Host "1. Run: npm run circuits:setup" -ForegroundColor Green
-Write-Host "2. Run: npm run circuits:verifier" -ForegroundColor Green
+Write-Host "🎉 All circuits compiled successfully!" -ForegroundColor Cyan

@@ -20,3 +20,20 @@
 /coverage
 
 .env
+
+# --- ZKP / Circom Ignored Files ---
+# Ignore the build folder containing large keys and WASM files
+circuits/build/
+
+# Ignore Powers of Tau files (large downloads)
+*.ptau
+
+# Ignore proving keys (large binary files)
+*.zkey
+
+# Ignore circuit constraints
+*.r1cs
+
+# Ignore witness generation files
+*.wasm
+*.dat

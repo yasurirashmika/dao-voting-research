@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.28;
+pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import "./VoteVerifier.sol";
+// Fix: SnarkJS generates 'contract Verifier', so we alias it to VoteVerifier here
+import { Groth16Verifier as VoteVerifier } from "./VoteVerifier.sol";
 
 /**
  * @title PrivateDAOVoting
@@ -151,25 +152,39 @@ contract PrivateDAOVoting is Ownable, ReentrancyGuard {
      * @param _proposalId Proposal ID
      * @param _support Vote choice (true = yes, false = no)
      * @param _nullifier Unique nullifier to prevent double voting
-     * @param _proof zk-SNARK proof
+     * @param _proof_a zk-SNARK proof A
+     * @param _proof_b zk-SNARK proof B
+     * @param _proof_c zk-SNARK proof C
+     * @param _publicSignals [nullifier, root, proposalId, voteChoice]
      */
     function castPrivateVote(
         uint256 _proposalId,
         bool _support,
         bytes32 _nullifier,
-        uint[2] memory _proof_a,
-        uint[2][2] memory _proof_b,
-        uint[2] memory _proof_c,
-        uint[3] memory _publicSignals // [root, proposalId, voteChoice]
+        uint256[2] memory _proof_a,
+        uint256[2][2] memory _proof_b,
+        uint256[2] memory _proof_c,
+        uint256[4] memory _publicSignals 
     ) external nonReentrant {
         Proposal storage proposal = proposals[_proposalId];
         
+        // 1. Checks
         require(proposal.state == ProposalState.Active, "Not active");
         require(block.timestamp >= proposal.votingStart, "Not started");
         require(block.timestamp <= proposal.votingEnd, "Ended");
         require(!nullifiers[_proposalId][_nullifier], "Already voted");
 
-        // Verify zk-SNARK proof
+        // 2. Validate Public Signals Logic
+        // Verify that the Nullifier passed in matches the one in the proof
+        require(bytes32(_publicSignals[0]) == _nullifier, "Nullifier mismatch");
+        // Verify Merkle Root matches the proposal's root
+        require(uint256(proposal.voterSetRoot) == _publicSignals[1], "Invalid root");
+        // Verify Proposal ID matches
+        require(_proposalId == _publicSignals[2], "Invalid proposal ID");
+        // Verify Vote Choice matches the boolean support (1=Yes, 0=No)
+        require((_support ? 1 : 0) == _publicSignals[3], "Invalid vote choice");
+
+        // 3. Verify zk-SNARK proof
         require(
             verifier.verifyProof(
                 _proof_a,
@@ -180,15 +195,9 @@ contract PrivateDAOVoting is Ownable, ReentrancyGuard {
             "Invalid proof"
         );
 
-        // Verify public signals match
-        require(uint256(proposal.voterSetRoot) == _publicSignals[0], "Invalid root");
-        require(_proposalId == _publicSignals[1], "Invalid proposal ID");
-        require((_support ? 1 : 0) == _publicSignals[2], "Invalid vote choice");
-
-        // Mark nullifier as used
+        // 4. Register Vote
         nullifiers[_proposalId][_nullifier] = true;
 
-        // Update vote count
         if (_support) {
             proposal.yesVotes++;
         } else {
@@ -207,9 +216,9 @@ contract PrivateDAOVoting is Ownable, ReentrancyGuard {
         require(proposal.state == ProposalState.Active, "Not active");
         require(block.timestamp > proposal.votingEnd, "Not ended");
 
-        // Check quorum (based on total votes, not voter set size)
         uint256 totalVotes = proposal.yesVotes + proposal.noVotes;
         
+        // Simple majority logic
         if (totalVotes == 0) {
             proposal.state = ProposalState.Defeated;
         } else if (proposal.yesVotes > proposal.noVotes) {
