@@ -14,8 +14,17 @@
     "deploy:sepolia": "npx hardhat run scripts/deploy-full-system.js --network sepolia",
     "verify:sepolia": "node scripts/verify-contracts.js",
     "node:local": "npx hardhat node",
-    "clean": "npx hardhat clean",
-    "size": "npx hardhat size-contracts"
+    "clean": "npx hardhat clean && rm -rf circuits/build/*",
+    "size": "npx hardhat size-contracts",
+    "test:zkp": "npx hardhat test test/zkp/",
+    "deploy:zkp:local": "npx hardhat run scripts/deploy-zkp-system.js --network localhost",
+    "deploy:zkp:sepolia": "npx hardhat run scripts/deploy-zkp-system.js --network sepolia",
+    "circuits:compile": "powershell -ExecutionPolicy Bypass -File circuits/scripts/compile.ps1",
+    "circuits:setup": "powershell -ExecutionPolicy Bypass -File circuits/scripts/setup.ps1",
+    "circuits:verifier": "powershell -ExecutionPolicy Bypass -File circuits/scripts/generate-verifier.ps1",
+    "circuits:full": "npm run circuits:compile && npm run circuits:setup && npm run circuits:verifier",
+    "proof:generate": "node circuits/scripts/generateProof.js",
+    "zkp:full": "npm run circuits:full && npm run compile && npm run test:zkp"
   },
   "keywords": [
     "DAO",
@@ -29,6 +38,8 @@
   "license": "ISC",
   "dependencies": {
     "@openzeppelin/contracts": "^5.4.0",
+    "circomlib": "^2.0.5",
+    "circomlibjs": "^0.1.7",
     "snarkjs": "^0.7.5"
   },
   "devDependencies": {
