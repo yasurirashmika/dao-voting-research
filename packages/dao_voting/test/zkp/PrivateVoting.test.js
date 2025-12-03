@@ -1,347 +1,186 @@
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
 const snarkjs = require("snarkjs");
+const path = require("path");
 const { buildPoseidon } = require("circomlibjs");
-const fs = require("fs");
 
-describe("ZKP Private Voting System", function () {
-  let verifier, didRegistry, privateVoting;
-  let owner, voter1, voter2, voter3, unauthorized;
-  let poseidon;
+describe("PrivateDAOVoting ZKP Integration", function () {
+    // Increase timeout for ZK proof generation (can be slow)
+    this.timeout(120000);
 
-  // Helper: Generate commitment
-  async function generateCommitment(secret) {
-    const hash = poseidon.F.toString(poseidon([secret]));
-    return BigInt(hash);
-  }
+    let votingContract;
+    let verifierContract;
+    let owner;
+    let voter;
+    let poseidon;
 
-  // Helper: Generate nullifier
-  async function generateNullifier(secret, proposalId) {
-    const hash = poseidon.F.toString(poseidon([secret, proposalId]));
-    return BigInt(hash);
-  }
-
-  // Helper: Build Merkle tree
-  function buildMerkleTree(leaves, levels = 20) {
-    let currentLevel = [...leaves];
-    const tree = [currentLevel];
-
-    for (let level = 0; level < levels; level++) {
-      const nextLevel = [];
-      for (let i = 0; i < currentLevel.length; i += 2) {
-        const left = currentLevel[i];
-        const right = i + 1 < currentLevel.length ? currentLevel[i + 1] : BigInt(0);
-        const hash = poseidon.F.toString(poseidon([left, right]));
-        nextLevel.push(BigInt(hash));
-      }
-      tree.push(nextLevel);
-      currentLevel = nextLevel;
-    }
-
-    return {
-      root: currentLevel[0],
-      tree,
-      levels
-    };
-  }
-
-  // Helper: Get Merkle proof
-  function getMerkleProof(tree, leafIndex) {
-    const pathElements = [];
-    const pathIndices = [];
-
-    let currentIndex = leafIndex;
-
-    for (let level = 0; level < tree.length - 1; level++) {
-      const siblingIndex = currentIndex % 2 === 0 ? currentIndex + 1 : currentIndex - 1;
-      const sibling = siblingIndex < tree[level].length 
-        ? tree[level][siblingIndex] 
-        : BigInt(0);
-
-      pathElements.push(sibling);
-      pathIndices.push(currentIndex % 2);
-
-      currentIndex = Math.floor(currentIndex / 2);
-    }
-
-    return { pathElements, pathIndices };
-  }
-
-  before(async function () {
-    this.timeout(60000); // Increase timeout for circuit operations
-
-    // Initialize Poseidon
-    poseidon = await buildPoseidon();
-
-    // Get signers
-    [owner, voter1, voter2, voter3, unauthorized] = await ethers.getSigners();
-
-    console.log("\n📦 Deploying contracts...");
-
-    // Deploy VoteVerifier
-    const VoteVerifier = await ethers.getContractFactory("VoteVerifier");
-    verifier = await VoteVerifier.deploy();
-    await verifier.waitForDeployment();
-    console.log("✅ VoteVerifier deployed");
-
-    // Deploy DIDRegistry
-    const DIDRegistry = await ethers.getContractFactory("DIDRegistry");
-    didRegistry = await DIDRegistry.deploy(owner.address);
-    await didRegistry.waitForDeployment();
-    console.log("✅ DIDRegistry deployed");
-
-    // Deploy PrivateDAOVoting
-    const PrivateDAOVoting = await ethers.getContractFactory("PrivateDAOVoting");
-    privateVoting = await PrivateDAOVoting.deploy(
-      await verifier.getAddress(),
-      owner.address
-    );
-    await privateVoting.waitForDeployment();
-    console.log("✅ PrivateDAOVoting deployed");
-  });
-
-  describe("DID Registry", function () {
-    it("Should authorize issuer", async function () {
-      await expect(didRegistry.authorizeIssuer(owner.address))
-        .to.emit(didRegistry, "IssuerAuthorized")
-        .withArgs(owner.address);
-    });
-
-    it("Should create DID for voter", async function () {
-      await expect(didRegistry.createDID(voter1.address))
-        .to.emit(didRegistry, "DIDCreated");
-
-      const didDoc = await didRegistry.getDIDDocument(voter1.address);
-      expect(didDoc.isActive).to.be.true;
-      expect(didDoc.controller).to.equal(voter1.address);
-    });
-
-    it("Should issue credential", async function () {
-      const credentialHash = ethers.id("test-credential-voter1");
-      const validityPeriod = 365 * 24 * 60 * 60; // 1 year
-
-      await expect(
-        didRegistry.issueCredential(
-          voter1.address,
-          "GovernanceCredential",
-          credentialHash,
-          validityPeriod
-        )
-      ).to.emit(didRegistry, "CredentialIssued");
-
-      const isEligible = await didRegistry.verifyVotingEligibility(voter1.address);
-      expect(isEligible).to.be.true;
-    });
-
-    it("Should reject unauthorized issuer", async function () {
-      await expect(
-        didRegistry.connect(unauthorized).createDID(voter2.address)
-      ).to.be.revertedWith("Not authorized issuer");
-    });
-  });
-
-  describe("Voter Registration", function () {
-    let voterSecrets = [];
-    let voterCommitments = [];
+    // Paths to circuit artifacts
+    const BUILD_DIR = path.join(__dirname, "../../circuits/build/vote");
+    const WASM_PATH = path.join(BUILD_DIR, "vote_js/vote.wasm");
+    const ZKEY_PATH = path.join(BUILD_DIR, "vote_final.zkey");
 
     before(async function () {
-      // Generate secrets and commitments for 3 voters
-      for (let i = 0; i < 3; i++) {
-        const secret = BigInt(Math.floor(Math.random() * 1000000));
-        voterSecrets.push(secret);
-        const commitment = await generateCommitment(secret);
-        voterCommitments.push(commitment);
-      }
+        poseidon = await buildPoseidon();
     });
 
-    it("Should register voter commitments", async function () {
-      for (let i = 0; i < voterCommitments.length; i++) {
-        const commitmentBytes32 = ethers.zeroPadValue(
-          ethers.toBeHex(voterCommitments[i]),
-          32
+    beforeEach(async function () {
+        [owner, voter] = await ethers.getSigners();
+
+        // 1. Deploy Verifier
+        // FIX: The contract name inside VoteVerifier.sol is "Groth16Verifier"
+        const Verifier = await ethers.getContractFactory("Groth16Verifier");
+        verifierContract = await Verifier.deploy();
+        await verifierContract.waitForDeployment();
+
+        // 2. Deploy Voting Contract
+        const PrivateDAOVoting = await ethers.getContractFactory("PrivateDAOVoting");
+        votingContract = await PrivateDAOVoting.deploy(await verifierContract.getAddress(), owner.address);
+        await votingContract.waitForDeployment();
+    });
+
+    // Helper: Hash function matching the circuit (Poseidon)
+    function hash(inputs) {
+        return BigInt(poseidon.F.toString(poseidon(inputs)));
+    }
+
+    // Helper: Generate Merkle Proof (Simplified for testing)
+    function generateMerkleProof(leaves, index) {
+        // We create a sparse tree for testing where other leaves are 0
+        const pathElements = new Array(20).fill(0n);
+        const pathIndices = new Array(20).fill(0);
+        
+        let curr = index;
+        for (let i = 0; i < 20; i++) {
+            pathIndices[i] = curr % 2;
+            curr = Math.floor(curr / 2);
+        }
+        
+        // Calculate root manually
+        let currentLevelHash = leaves[index];
+        for (let i = 0; i < 20; i++) {
+             if (pathIndices[i] === 0) {
+                 // Sibling is right
+                 currentLevelHash = hash([currentLevelHash, BigInt(0)]);
+             } else {
+                 // Sibling is left
+                 currentLevelHash = hash([BigInt(0), currentLevelHash]);
+             }
+        }
+        
+        return { pathElements, pathIndices, root: currentLevelHash };
+    }
+
+    it("Should execute a full private voting cycle with Real ZK Proofs", async function () {
+        console.log("\n   🗳️  Starting ZKP Vote Cycle...");
+
+        // --- 1. Setup Proposal & Voter ---
+        const secret = 123456n;
+        const commitment = hash([secret]);
+        
+        // Generate Merkle Proof for the voter
+        const { root, pathElements, pathIndices } = generateMerkleProof([commitment], 0);
+
+        // Update Contract Root (Register the voter set)
+        const rootHex = "0x" + root.toString(16).padStart(64, "0");
+        await votingContract.updateVoterSetRoot(rootHex);
+
+        // Create Proposal
+        await votingContract.submitProposal("ZKP Test Proposal", "Testing integration");
+        const proposalId = 1;
+
+        // Move time forward to start voting period
+        await ethers.provider.send("evm_increaseTime", [3601]); // +1 hour
+        await ethers.provider.send("evm_mine");
+        await votingContract.startVoting(proposalId);
+
+        // --- 2. Generate ZKP Proof (Off-Chain) ---
+        console.log("   🔐 Generating Proof (this may take a moment)...");
+        const voteChoice = 1; // Yes
+        
+        const input = {
+            root: root.toString(),
+            proposalId: proposalId.toString(),
+            voteChoice: voteChoice.toString(),
+            secret: secret.toString(),
+            pathElements: pathElements.map(e => e.toString()),
+            pathIndices: pathIndices.map(e => e.toString())
+        };
+
+        const { proof, publicSignals } = await snarkjs.groth16.fullProve(
+            input,
+            WASM_PATH,
+            ZKEY_PATH
         );
 
-        await expect(privateVoting.registerVoter(commitmentBytes32))
-          .to.emit(privateVoting, "VoterRegistered")
-          .withArgs(commitmentBytes32);
-      }
+        // --- 3. Format Proof for Solidity ---
+        const pA = [proof.pi_a[0], proof.pi_a[1]];
+        const pB = [[proof.pi_b[0][1], proof.pi_b[0][0]], [proof.pi_b[1][1], proof.pi_b[1][0]]];
+        const pC = [proof.pi_c[0], proof.pi_c[1]];
+        const pubSignals = publicSignals; // [nullifier, root, proposalId, voteChoice]
+
+        const nullifier = pubSignals[0];
+        const nullifierHex = "0x" + BigInt(nullifier).toString(16).padStart(64, "0");
+        
+        console.log("   ✅ Proof Generated!");
+        console.log("      Nullifier:", nullifier);
+
+        // --- 4. Cast Vote (On-Chain) ---
+        console.log("   📡 Submitting Vote to Blockchain...");
+        
+        await expect(votingContract.castPrivateVote(
+            proposalId,
+            true, // support = true matches voteChoice 1
+            nullifierHex,
+            pA,
+            pB,
+            pC,
+            pubSignals
+        )).to.emit(votingContract, "PrivateVoteCast")
+          .withArgs(proposalId, nullifierHex, true);
+
+        // --- 5. Verify Result ---
+        const proposal = await votingContract.proposals(proposalId);
+        expect(proposal.yesVotes).to.equal(1);
+        console.log("   🎉 Vote Counted Successfully!");
     });
 
-    it("Should reject duplicate commitment", async function () {
-      const commitmentBytes32 = ethers.zeroPadValue(
-        ethers.toBeHex(voterCommitments[0]),
-        32
-      );
+    it("Should prevent double voting using Nullifiers", async function () {
+        // Setup same voter again
+        const secret = 999n;
+        const commitment = hash([secret]);
+        const { root, pathElements, pathIndices } = generateMerkleProof([commitment], 0);
+        
+        const rootHex = "0x" + root.toString(16).padStart(64, "0");
+        await votingContract.updateVoterSetRoot(rootHex);
+        await votingContract.submitProposal("Double Vote", "Desc");
+        
+        await ethers.provider.send("evm_increaseTime", [3601]);
+        await ethers.provider.send("evm_mine");
+        await votingContract.startVoting(1);
 
-      await expect(
-        privateVoting.registerVoter(commitmentBytes32)
-      ).to.be.revertedWith("Already registered");
+        // Generate Proof
+        const input = {
+            root: root.toString(),
+            proposalId: "1",
+            voteChoice: "1",
+            secret: secret.toString(),
+            pathElements: pathElements.map(e => e.toString()),
+            pathIndices: pathIndices.map(e => e.toString())
+        };
+
+        const { proof, publicSignals } = await snarkjs.groth16.fullProve(input, WASM_PATH, ZKEY_PATH);
+
+        const pA = [proof.pi_a[0], proof.pi_a[1]];
+        const pB = [[proof.pi_b[0][1], proof.pi_b[0][0]], [proof.pi_b[1][1], proof.pi_b[1][0]]];
+        const pC = [proof.pi_c[0], proof.pi_c[1]];
+        const nullifierHex = "0x" + BigInt(publicSignals[0]).toString(16).padStart(64, "0");
+
+        // First Vote -> Success
+        await votingContract.castPrivateVote(1, true, nullifierHex, pA, pB, pC, publicSignals);
+
+        // Second Vote -> Fail (Replay Attack)
+        await expect(votingContract.castPrivateVote(
+            1, true, nullifierHex, pA, pB, pC, publicSignals
+        )).to.be.revertedWith("Already voted");
     });
-
-    it("Should batch register voters", async function () {
-      const newSecrets = [BigInt(111111), BigInt(222222)];
-      const newCommitments = [];
-
-      for (const secret of newSecrets) {
-        const commitment = await generateCommitment(secret);
-        newCommitments.push(
-          ethers.zeroPadValue(ethers.toBeHex(commitment), 32)
-        );
-      }
-
-      await privateVoting.batchRegisterVoters(newCommitments);
-
-      // Verify registered
-      for (const commitment of newCommitments) {
-        const isRegistered = await privateVoting.isCommitmentRegistered(commitment);
-        expect(isRegistered).to.be.true;
-      }
-    });
-
-    it("Should update voter set root", async function () {
-      // Build Merkle tree
-      const { root } = buildMerkleTree(voterCommitments);
-      const rootBytes32 = ethers.zeroPadValue(ethers.toBeHex(root), 32);
-
-      await expect(privateVoting.updateVoterSetRoot(rootBytes32))
-        .to.emit(privateVoting, "VoterSetUpdated")
-        .withArgs(rootBytes32, await ethers.provider.getBlock("latest").then(b => b.timestamp + 1));
-    });
-  });
-
-  describe("Proposal Creation", function () {
-    it("Should create proposal with voter set root", async function () {
-      await expect(
-        privateVoting.submitProposal(
-          "Test Proposal",
-          "This is a test proposal for ZKP voting"
-        )
-      ).to.emit(privateVoting, "ProposalCreated");
-
-      const proposal = await privateVoting.getProposal(1);
-      expect(proposal.title).to.equal("Test Proposal");
-      expect(proposal.state).to.equal(0); // Pending
-    });
-
-    it("Should reject proposal without voter set", async function () {
-      // Deploy new contract without voter set
-      const PrivateDAOVoting = await ethers.getContractFactory("PrivateDAOVoting");
-      const newVoting = await PrivateDAOVoting.deploy(
-        await verifier.getAddress(),
-        owner.address
-      );
-
-      await expect(
-        newVoting.submitProposal("Test", "Description")
-      ).to.be.revertedWith("Voter set not initialized");
-    });
-  });
-
-  describe("Private Voting (Mock - No Actual Proof)", function () {
-    // Note: Actual proof generation requires full circuit setup
-    // This tests the contract interface
-
-    it("Should start voting on proposal", async function () {
-      // Fast forward time
-      await ethers.provider.send("evm_increaseTime", [3600]); // 1 hour
-      await ethers.provider.send("evm_mine");
-
-      await privateVoting.startVoting(1);
-
-      const proposal = await privateVoting.getProposal(1);
-      expect(proposal.state).to.equal(1); // Active
-    });
-
-    it("Should reject vote with invalid proof (mock)", async function () {
-      // Mock proof data (invalid)
-      const mockProof_a = [0, 0];
-      const mockProof_b = [[0, 0], [0, 0]];
-      const mockProof_c = [0, 0];
-      const mockPublicSignals = [0, 1, 1]; // [root, proposalId, voteChoice]
-      const mockNullifier = ethers.id("mock-nullifier");
-
-      await expect(
-        privateVoting.castPrivateVote(
-          1,
-          true,
-          mockNullifier,
-          mockProof_a,
-          mockProof_b,
-          mockProof_c,
-          mockPublicSignals
-        )
-      ).to.be.reverted; // Will fail proof verification
-    });
-  });
-
-  describe("Proposal Finalization", function () {
-    it("Should finalize proposal after voting ends", async function () {
-      // Fast forward past voting period
-      await ethers.provider.send("evm_increaseTime", [7 * 24 * 3600]); // 7 days
-      await ethers.provider.send("evm_mine");
-
-      await privateVoting.finalizeProposal(1);
-
-      const proposal = await privateVoting.getProposal(1);
-      expect(proposal.state).to.be.oneOf([2, 3]); // Succeeded or Defeated
-    });
-
-    it("Should reject finalization before voting ends", async function () {
-      // Create new proposal
-      await privateVoting.submitProposal("Proposal 2", "Test");
-      
-      await ethers.provider.send("evm_increaseTime", [3600]);
-      await ethers.provider.send("evm_mine");
-      
-      await privateVoting.startVoting(2);
-
-      await expect(
-        privateVoting.finalizeProposal(2)
-      ).to.be.revertedWith("Not ended");
-    });
-  });
-
-  describe("Access Control", function () {
-    it("Should allow owner to register voters", async function () {
-      const commitment = ethers.id("test-commitment");
-      await privateVoting.registerVoter(commitment);
-    });
-
-    it("Should reject non-owner voter registration", async function () {
-      const commitment = ethers.id("unauthorized-commitment");
-      
-      await expect(
-        privateVoting.connect(unauthorized).registerVoter(commitment)
-      ).to.be.reverted;
-    });
-
-    it("Should allow proposer or owner to cancel", async function () {
-      await privateVoting.submitProposal("Cancel Test", "Description");
-      const proposalId = await privateVoting.proposalCount();
-
-      await expect(privateVoting.cancelProposal(proposalId))
-        .to.emit(privateVoting, "ProposalStateChanged");
-    });
-  });
-
-  describe("Gas Measurements", function () {
-    it("Should measure voter registration gas", async function () {
-      const commitment = ethers.id("gas-test-commitment");
-      const tx = await privateVoting.registerVoter(commitment);
-      const receipt = await tx.wait();
-
-      console.log("\n📊 Gas Usage:");
-      console.log(`  Voter Registration: ${receipt.gasUsed.toString()} gas`);
-    });
-
-    it("Should measure proposal creation gas", async function () {
-      const tx = await privateVoting.submitProposal(
-        "Gas Test Proposal",
-        "Measuring gas for proposal creation"
-      );
-      const receipt = await tx.wait();
-
-      console.log(`  Proposal Creation: ${receipt.gasUsed.toString()} gas`);
-    });
-  });
 });

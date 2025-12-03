@@ -37,3 +37,9 @@ circuits/build/
 # Ignore witness generation files
 *.wasm
 *.dat
+
+# Ignore debugging symbol files (e.g., merkleTree.sym in root)
+*.sym
+
+# Ignore Localhost deployment logs (Keep Sepolia for history)
+deployments/*

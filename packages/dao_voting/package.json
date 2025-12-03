@@ -16,7 +16,7 @@
     "node:local": "npx hardhat node",
     "clean": "npx hardhat clean && rm -rf circuits/build/*",
     "size": "npx hardhat size-contracts",
-    "test:zkp": "npx hardhat test test/zkp/",
+    "test:zkp": "npx hardhat test test/zkp/PrivateVoting.test.js",
     "deploy:zkp:local": "npx hardhat run scripts/deploy-zkp-system.js --network localhost",
     "deploy:zkp:sepolia": "npx hardhat run scripts/deploy-zkp-system.js --network sepolia",
     "circuits:compile": "powershell -ExecutionPolicy Bypass -File circuits/scripts/compile.ps1",

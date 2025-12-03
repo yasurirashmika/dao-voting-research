@@ -14,7 +14,8 @@ async function main() {
   // ============================================
   console.log("\n📝 [1/3] Deploying VoteVerifier...");
   
-  const VoteVerifier = await hre.ethers.getContractFactory("VoteVerifier");
+  // FIX: The contract inside the auto-generated VoteVerifier.sol is named "Groth16Verifier"
+  const VoteVerifier = await hre.ethers.getContractFactory("Groth16Verifier");
   const verifier = await VoteVerifier.deploy();
   await verifier.waitForDeployment();
   
@@ -93,7 +94,13 @@ async function main() {
   // ============================================
   // 6. Update Frontend Config
   // ============================================
-  const frontendConfigPath = path.join(__dirname, "../../frontend/src/config/zkp-contracts.js");
+  // Ensure directory exists
+  const frontendConfigDir = path.join(__dirname, "../../frontend/src/config");
+  if (!fs.existsSync(frontendConfigDir)) {
+      fs.mkdirSync(frontendConfigDir, { recursive: true });
+  }
+
+  const frontendConfigPath = path.join(frontendConfigDir, "zkp-contracts.js");
   const frontendConfig = `// Auto-generated ZKP contract addresses
 // Generated on: ${deployment.timestamp}
 // Network: ${deployment.network}
