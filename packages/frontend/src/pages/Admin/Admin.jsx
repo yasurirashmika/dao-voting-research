@@ -8,6 +8,8 @@ import Alert from '../../components/common/Alert/Alert';
 import Loader from '../../components/common/Loader/Loader';
 import { formatAddress } from '../../utils/formatters';
 import './Admin.css';
+import TokenMinting from '../../components/admin/TokenMinting/TokenMinting';
+import TokenBalance from '../../components/admin/TokenBalance/TokenBalance';
 
 const Admin = () => {
   const { address, isConnected } = useAccount();
@@ -362,6 +364,13 @@ const Admin = () => {
             Refresh Status
           </Button>
         </Card>
+
+        {/* Token Minting */}
+        <TokenMinting onMintSuccess={loadRegisteredVoters} />
+
+        {/* Token Balance Checker */}
+        <TokenBalance />
+        
       </div>
     </div>
   );

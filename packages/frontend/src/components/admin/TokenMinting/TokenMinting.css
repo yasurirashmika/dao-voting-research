@@ -1,0 +1,98 @@
+/* src/components/admin/TokenMinting/TokenMinting.css */
+
+.token-minting-title {
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin: 0 0 0.5rem 0;
+  color: var(--color-text-primary, #212121);
+}
+
+.token-minting-description {
+  margin-bottom: 1.5rem;
+  color: var(--color-text-secondary, #757575);
+}
+
+/* Supply Info */
+.token-supply-info {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  padding: 1.5rem;
+  border-radius: 12px;
+  margin-bottom: 2rem;
+  color: white;
+}
+
+.supply-stat {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 0.75rem;
+}
+
+.supply-label {
+  font-size: 0.9rem;
+  opacity: 0.9;
+}
+
+.supply-value {
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.supply-progress-bar {
+  width: 100%;
+  height: 8px;
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 4px;
+  overflow: hidden;
+  margin-top: 1rem;
+}
+
+.supply-progress-fill {
+  height: 100%;
+  background: white;
+  transition: width 0.3s ease;
+}
+
+.supply-percentage {
+  display: block;
+  margin-top: 0.5rem;
+  font-size: 0.85rem;
+  opacity: 0.9;
+  text-align: right;
+}
+
+/* Minting Form */
+.token-minting-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.quick-amount-buttons {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.quick-amount-label {
+  font-size: 0.9rem;
+  color: var(--color-text-secondary, #757575);
+  margin-right: 0.5rem;
+}
+
+.token-info-alert {
+  margin-top: 1.5rem;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .quick-amount-buttons {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .quick-amount-label {
+    margin-right: 0;
+    margin-bottom: 0.5rem;
+  }
+}
