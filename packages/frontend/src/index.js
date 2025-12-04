@@ -1,75 +1,72 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import App from './App';
-
-// Import styles
-import './assets/styles/variables.css';
-import './assets/styles/global.css';
-
-// Import RainbowKit styles
-import '@rainbow-me/rainbowkit/styles.css';
-
-// Import wagmi and RainbowKit
-import { getDefaultConfig, RainbowKitProvider, lightTheme } from '@rainbow-me/rainbowkit';
 import { WagmiProvider } from 'wagmi';
-import { http } from 'viem';
-import { mainnet, sepolia, polygon, arbitrum } from 'wagmi/chains';
-import { QueryClientProvider, QueryClient } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { RainbowKitProvider, lightTheme } from '@rainbow-me/rainbowkit';
 
-// Import context providers
+// Config
+import { config } from './config/wagmi';
+
+// Contexts
+import { DeploymentProvider } from './context/DeploymentContext';
+import { ThemeProvider } from './context/ThemeContext';
 import { WalletProvider } from './context/WalletContext';
 import { DAOProvider } from './context/DAOContext';
-import { ThemeProvider } from './context/ThemeContext';
 
-// Get project IDs from environment variables
-const projectId = process.env.REACT_APP_WALLETCONNECT_PROJECT_ID || 'bb12a9390f7afd6748d4e48963e83782';
-const infuraId = process.env.REACT_APP_INFURA_PROJECT_ID;
+// Main Component
+import App from './App';
 
-// Configure wagmi with chains using Infura
-const config = getDefaultConfig({
-  appName: 'DAO Voting Platform',
-  projectId: projectId,
-  chains: [sepolia, mainnet, polygon, arbitrum],
-  transports: {
-    [sepolia.id]: http(`https://sepolia.infura.io/v3/${infuraId}`),
-    [mainnet.id]: http(`https://mainnet.infura.io/v3/${infuraId}`),
-    [polygon.id]: http('https://polygon-rpc.com'),
-    [arbitrum.id]: http('https://arb1.arbitrum.io/rpc'),
-  },
-  ssr: false,
-  // Enable automatic account watching
-  multiInjectedProviderDiscovery: true,
-});
+// Styles
+import './assets/styles/variables.css';
+import './assets/styles/global.css';
+import '@rainbow-me/rainbowkit/styles.css';
 
-// Create React Query client
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       refetchOnWindowFocus: false,
       retry: 1,
-      staleTime: 5 * 60 * 1000, // 5 minutes
+      staleTime: 5 * 60 * 1000,
     },
   },
 });
 
-// Render the app
 const root = ReactDOM.createRoot(document.getElementById('root'));
+
 root.render(
-  <WagmiProvider config={config}>
-    <QueryClientProvider client={queryClient}>
-      <RainbowKitProvider
-        coolMode
-        theme={lightTheme()}
-        showRecentTransactions={true}
-      >
-        <ThemeProvider>
-          <WalletProvider>
-            <DAOProvider>
-              <App />
-            </DAOProvider>
-          </WalletProvider>
-        </ThemeProvider>
-      </RainbowKitProvider>
-    </QueryClientProvider>
-  </WagmiProvider>
+  <React.StrictMode>
+    {/* 1. Deployment Context (Must be first for config loading) */}
+    <DeploymentProvider>
+      
+      {/* 2. Wagmi (Blockchain Connection) */}
+      <WagmiProvider config={config}>
+        <QueryClientProvider client={queryClient}>
+          <RainbowKitProvider 
+            coolMode 
+            theme={lightTheme()}
+            showRecentTransactions={true}
+          >
+            
+            {/* 3. Theme & UI */}
+            <ThemeProvider>
+              
+              {/* 4. Wallet Data */}
+              <WalletProvider>
+                
+                {/* 5. DAO Logic (Depends on Deployment + Wallet) */}
+                <DAOProvider>
+                  
+                  {/* 6. The App */}
+                  <App />
+                  
+                </DAOProvider>
+              </WalletProvider>
+            </ThemeProvider>
+            
+          </RainbowKitProvider>
+        </QueryClientProvider>
+      </WagmiProvider>
+      
+    </DeploymentProvider>
+  </React.StrictMode>
 );

@@ -1,10 +1,11 @@
-// REPLACE THE ENTIRE FILE WITH:
+// src/config/contracts.js (UPDATED)
+// ⚠️ IMPORTANT: These are Phase 3 (Baseline) addresses
 export const CONTRACT_ADDRESSES = {
-  // Sepolia Testnet
+  // Sepolia Testnet - Baseline System (Public Voting)
   11155111: {
-    DAOVoting: process.env.REACT_APP_DAO_VOTING_CONTRACT,
-    GovernanceToken: process.env.REACT_APP_GOVERNANCE_TOKEN_CONTRACT,
-    ReputationManager: process.env.REACT_APP_REPUTATION_MANAGER_CONTRACT,
+    DAOVoting: "0xf29435b12F6494fd782bE3472AF8F6B9eD6E7676",
+    GovernanceToken: "0x5aeE1C91651fcC0094fb2e9E6A51afaD9A8AC401",
+    ReputationManager: "0x3AE3e68b226005a355F0E3BB039DB463eD88a4dD",
   },
 };
 
@@ -24,7 +25,7 @@ export const getContractAddress = (chainId, contractName) => {
   return address;
 };
 
-// Contract function names - UPDATED FOR DAOVoting
+// Contract function names
 export const CONTRACT_FUNCTIONS = {
   // Governance
   SUBMIT_PROPOSAL: "submitProposal",

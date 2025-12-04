@@ -3,6 +3,29 @@ import { useContract } from "./useContract";
 import { useAccount } from "wagmi";
 import DAOVotingABI from "../abis/DAOVoting.json";
 
+/**
+ * ✅ Retry helper for handling RPC timeouts
+ */
+const retryOperation = async (operation, maxRetries = 3, delay = 2000) => {
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      return await operation();
+    } catch (error) {
+      const isTimeout =
+        error.message?.includes("timeout") ||
+        error.message?.includes("took too long") ||
+        error.message?.includes("timed out");
+
+      if (i === maxRetries - 1 || !isTimeout) {
+        throw error; // Last retry or non-timeout error
+      }
+
+      console.log(`⏳ Retry ${i + 1}/${maxRetries} after timeout...`);
+      await new Promise((resolve) => setTimeout(resolve, delay * (i + 1))); // Exponential backoff
+    }
+  }
+};
+
 export const useProposals = () => {
   const [proposals, setProposals] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -22,8 +45,13 @@ export const useProposals = () => {
     setError(null);
 
     try {
-      // 1. Get the total count
-      const proposalCount = await read("proposalCount", []);
+      // ✅ 1. Get the total count with retry logic
+      const proposalCount = await retryOperation(
+        () => read("proposalCount", []),
+        3,
+        2000
+      );
+
       const count = Number(proposalCount);
 
       if (count === 0) {
@@ -33,53 +61,56 @@ export const useProposals = () => {
       }
 
       // 2. Prepare the Batch Request (Multicall)
-      // Instead of await-ing inside a loop, we build an array of instructions
       const contractCalls = [];
       for (let i = 1; i <= count; i++) {
         contractCalls.push({
           address: contract.address,
           abi: contract.abi,
-          functionName: 'getProposalDetails',
-          args: [i]
+          functionName: "getProposalDetails",
+          args: [i],
         });
       }
 
-      // 3. Execute ONE network request for ALL proposals
-      // We access publicClient directly from your contract object
-      const results = await contract.publicClient.multicall({
-        contracts: contractCalls
-      });
+      // ✅ 3. Execute ONE network request for ALL proposals with retry
+      const results = await retryOperation(
+        () => contract.publicClient.multicall({ contracts: contractCalls }),
+        3,
+        2000
+      );
 
       // 4. Process the results
-      const proposalData = results.map((result, index) => {
-        // If the individual call failed, result.status will be 'failure'
-        if (result.status === 'failure') {
-          console.error(`Failed to fetch proposal ${index + 1}`, result.error);
-          return null;
-        }
+      const proposalData = results
+        .map((result, index) => {
+          if (result.status === "failure") {
+            console.error(
+              `Failed to fetch proposal ${index + 1}`,
+              result.error
+            );
+            return null;
+          }
 
-        const proposal = result.result;
-        
-        // Check if timestamps look like block numbers (logic from your original code)
-        const votingStart = Number(proposal[9]);
-        const votingEnd = Number(proposal[10]);
-        const isBlockNumber = votingStart < 946684800;
+          const proposal = result.result;
 
-        return {
-          id: Number(proposal[0]),
-          title: proposal[1],
-          description: proposal[2],
-          proposer: proposal[3],
-          yesVotes: Number(proposal[4]),
-          noVotes: Number(proposal[5]),
-          totalVotingWeight: Number(proposal[6]),
-          state: Number(proposal[7]),
-          createdAt: Number(proposal[8]),
-          votingStart: votingStart,
-          votingEnd: votingEnd,
-          isBlockNumber: isBlockNumber
-        };
-      }).filter(p => p !== null); // Remove any failed fetches
+          const votingStart = Number(proposal[9]);
+          const votingEnd = Number(proposal[10]);
+          const isBlockNumber = votingStart < 946684800;
+
+          return {
+            id: Number(proposal[0]),
+            title: proposal[1],
+            description: proposal[2],
+            proposer: proposal[3],
+            yesVotes: Number(proposal[4]),
+            noVotes: Number(proposal[5]),
+            totalVotingWeight: Number(proposal[6]),
+            state: Number(proposal[7]),
+            createdAt: Number(proposal[8]),
+            votingStart: votingStart,
+            votingEnd: votingEnd,
+            isBlockNumber: isBlockNumber,
+          };
+        })
+        .filter((p) => p !== null);
 
       setProposals(proposalData);
       setLoading(false);
@@ -98,7 +129,11 @@ export const useProposals = () => {
       if (!contract) throw new Error("Contract not initialized");
 
       try {
-        const proposal = await read("getProposalDetails", [proposalId]);
+        const proposal = await retryOperation(
+          () => read("getProposalDetails", [proposalId]),
+          3,
+          2000
+        );
 
         return {
           id: Number(proposal[0]),
@@ -144,7 +179,7 @@ export const useProposals = () => {
         ]);
 
         console.log("Proposal created successfully:", result);
-        await fetchProposals(); // Refresh list
+        await fetchProposals();
         return result;
       } catch (err) {
         console.error("Error creating proposal:", err);
@@ -166,7 +201,7 @@ export const useProposals = () => {
       try {
         const result = await write("castVote", [proposalId, support]);
         console.log("Vote cast successfully:", result);
-        await fetchProposals(); // Refresh list
+        await fetchProposals();
         return result;
       } catch (err) {
         console.error("Error casting vote:", err);
@@ -184,10 +219,11 @@ export const useProposals = () => {
       if (!contract) return false;
 
       try {
-        const voted = await read("hasVoted", [
-          proposalId,
-          voterAddress || address,
-        ]);
+        const voted = await retryOperation(
+          () => read("hasVoted", [proposalId, voterAddress || address]),
+          3,
+          1500
+        );
         return voted;
       } catch (err) {
         console.error("Error checking vote status:", err);
@@ -205,7 +241,11 @@ export const useProposals = () => {
       if (!contract) return 0;
 
       try {
-        const power = await read("getVotingPowerOf", [voterAddress || address]);
+        const power = await retryOperation(
+          () => read("getVotingPowerOf", [voterAddress || address]),
+          3,
+          1500
+        );
         return Number(power);
       } catch (err) {
         console.error("Error getting voting power:", err);
@@ -215,13 +255,12 @@ export const useProposals = () => {
     [contract, read, address]
   );
 
-  // Load proposals only once when contract is ready
   useEffect(() => {
     if (contract && !hasFetchedRef.current) {
       hasFetchedRef.current = true;
       fetchProposals();
     }
-  }, [contract]); 
+  }, [contract]);
 
   return {
     proposals,

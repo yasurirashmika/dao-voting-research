@@ -1,5 +1,8 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import { useWallet } from './WalletContext';
+// src/context/DAOContext.jsx (FIXED - No Infinite Loop)
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import { useAccount } from 'wagmi';
+import { useContract } from '../hooks/useContract';
+import DAOVotingABI from '../abis/DAOVoting.json';
 
 const DAOContext = createContext();
 
@@ -12,66 +15,68 @@ export const useDAO = () => {
 };
 
 export const DAOProvider = ({ children }) => {
-  const { address, isConnected } = useWallet();
+  const { address, isConnected } = useAccount();
+  const { contract } = useContract('DAOVoting', DAOVotingABI.abi);
   
   const [daoState, setDaoState] = useState({
-    proposals: [],
-    userVotingPower: 0,
-    userDelegatedTo: null,
-    totalSupply: 0,
+    isAdmin: false,
     loading: false,
     error: null
   });
 
-  // Load DAO data when wallet connects
+  const hasCheckedRef = useRef(false);
+
+  // ✅ Check admin status only once
   useEffect(() => {
-    if (isConnected && address) {
-      loadDAOData();
+    if (!contract || !address || !isConnected || hasCheckedRef.current) {
+      return;
     }
-  }, [isConnected, address]);
 
-  const loadDAOData = async () => {
-    setDaoState(prev => ({ ...prev, loading: true, error: null }));
-    
-    try {
-      // TODO: Fetch actual data from blockchain
-      // This is placeholder data
-      const mockData = {
-        proposals: [],
-        userVotingPower: 0,
-        userDelegatedTo: address,
-        totalSupply: 1000000
-      };
-      
-      setDaoState(prev => ({
-        ...prev,
-        ...mockData,
-        loading: false
-      }));
-    } catch (error) {
-      console.error('Error loading DAO data:', error);
-      setDaoState(prev => ({
-        ...prev,
-        loading: false,
-        error: error.message
-      }));
-    }
-  };
+    const checkAdmin = async () => {
+      try {
+        setDaoState(prev => ({ ...prev, loading: true }));
+        
+        const owner = await contract.publicClient.readContract({
+          address: contract.address,
+          abi: contract.abi,
+          functionName: 'owner',
+          args: []
+        });
 
-  const refreshProposals = async () => {
-    // TODO: Implement proposal refresh
-    await loadDAOData();
-  };
+        const isAdmin = owner.toLowerCase() === address.toLowerCase();
+        
+        setDaoState({
+          isAdmin,
+          loading: false,
+          error: null
+        });
+        
+        hasCheckedRef.current = true; // ✅ Mark as checked
+      } catch (err) {
+        console.error('Error checking admin:', err);
+        setDaoState({
+          isAdmin: false,
+          loading: false,
+          error: err.message
+        });
+        hasCheckedRef.current = true;
+      }
+    };
+
+    checkAdmin();
+  }, [contract, address, isConnected]);
+
+  // ✅ Reset when wallet changes
+  useEffect(() => {
+    hasCheckedRef.current = false;
+    setDaoState({ isAdmin: false, loading: false, error: null });
+  }, [address]);
 
   const value = {
     ...daoState,
-    loadDAOData,
-    refreshProposals
+    address,
+    isConnected
   };
 
-  return (
-    <DAOContext.Provider value={value}>
-      {children}
-    </DAOContext.Provider>
-  );
+  return <DAOContext.Provider value={value}>{children}</DAOContext.Provider>;
 };

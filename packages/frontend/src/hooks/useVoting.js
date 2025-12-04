@@ -1,6 +1,8 @@
+// src/hooks/useVoting.js (UPDATED)
 import { useState, useCallback } from 'react';
 import { useAccount } from 'wagmi';
 import { useContract } from './useContract';
+import { isPrivateVotingEnabled } from '../config/deploymentConfig';
 import DAOVotingABI from '../abis/DAOVoting.json';
 
 export const useVoting = () => {
@@ -11,7 +13,12 @@ export const useVoting = () => {
   const { contract, read, write } = useContract('DAOVoting', DAOVotingABI.abi);
 
   /**
+   * ✅ UPDATED: Adaptive vote casting
+   * Auto-detects if using Baseline or Private system
+   * 
    * Cast a vote on a proposal
+   * - Baseline mode: Direct on-chain vote
+   * - Private mode: ZKP proof generation (future)
    */
   const castVote = useCallback(async (proposalId, support) => {
     if (!contract || !address) {
@@ -22,10 +29,30 @@ export const useVoting = () => {
     setError(null);
 
     try {
-      const result = await write('castVote', [proposalId, support]);
-      console.log('Vote cast successfully:', result);
-      setLoading(false);
-      return result;
+      const isPrivate = isPrivateVotingEnabled();
+      
+      if (isPrivate) {
+        // ✅ TODO: Generate ZKP proof here in future
+        // For now, we'll use the same function name
+        console.warn('🔒 Private voting mode detected. ZKP proof generation not yet implemented.');
+        console.warn('📝 Using fallback public vote for demonstration.');
+        
+        // Future implementation:
+        // const proof = await generateVoteProof(proposalId, support, address);
+        // const result = await write('castPrivateVote', [proposalId, proof]);
+        
+        // Fallback for now
+        const result = await write('castVote', [proposalId, support]);
+        console.log('Vote cast (fallback mode):', result);
+        setLoading(false);
+        return result;
+      } else {
+        // ✅ Baseline mode: Standard public vote
+        const result = await write('castVote', [proposalId, support]);
+        console.log('Vote cast successfully:', result);
+        setLoading(false);
+        return result;
+      }
     } catch (err) {
       console.error('Error casting vote:', err);
       setError(err.message);
@@ -206,7 +233,9 @@ export const useVoting = () => {
     hasVotedOnProposal,
     getVotingParameters,
     loading,
-    error
+    error,
+    // ✅ NEW: Expose deployment mode info
+    isPrivateMode: isPrivateVotingEnabled()
   };
 };
 

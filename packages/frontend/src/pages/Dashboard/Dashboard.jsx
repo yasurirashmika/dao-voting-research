@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from 'react';
+// src/pages/Dashboard/Dashboard.jsx (UPDATED)
+import React, { useEffect, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { useAccount } from 'wagmi';
 import { useWallet } from '../../context/WalletContext';
@@ -7,6 +8,7 @@ import Card from '../../components/common/Card/Card';
 import Button from '../../components/common/Button/Button';
 import Loader from '../../components/common/Loader/Loader';
 import VotingPower from '../../components/voting/VotingPower/VotingPower';
+import WhaleAnalysis from '../../components/dashboard/WhaleAnalysis/WhaleAnalysis';
 import { formatAddress } from '../../utils/formatters';
 import './Dashboard.css';
 
@@ -20,16 +22,15 @@ const Dashboard = () => {
     votesCast: 0,
   });
 
-  useEffect(() => {
-    if (address) {
-      loadDashboardData();
-    }
-  }, [address, proposals]);
+  // ✅ Get test wallets from .env
+  const testWallets = process.env.REACT_APP_TEST_WALLETS 
+    ? process.env.REACT_APP_TEST_WALLETS.split(',').map(w => w.trim()).filter(Boolean)
+    : [];
 
-  const loadDashboardData = () => {
+  const loadDashboardData = useCallback(() => {
     // Calculate user stats from proposals
     const userProposals = proposals.filter(
-      p => p.proposer.toLowerCase() === address.toLowerCase()
+      p => p.proposer.toLowerCase() === address?.toLowerCase()
     );
 
     // TODO: Implement actual vote counting by checking hasVoted for each proposal
@@ -39,7 +40,13 @@ const Dashboard = () => {
       proposalsCreated: userProposals.length,
       votesCast: votesCast,
     });
-  };
+  }, [proposals, address]);
+
+  useEffect(() => {
+    if (address) {
+      loadDashboardData();
+    }
+  }, [address, loadDashboardData]);
 
   // Filter active proposals (state = 1)
   const activeProposals = proposals.filter(p => p.state === 1).slice(0, 5);
@@ -48,9 +55,9 @@ const Dashboard = () => {
   const recentActivity = proposals
     .slice(0, 5)
     .map(p => ({
-      type: p.proposer.toLowerCase() === address.toLowerCase() ? 'create' : 'proposal',
+      type: p.proposer.toLowerCase() === address?.toLowerCase() ? 'create' : 'proposal',
       proposal: p.title,
-      action: p.proposer.toLowerCase() === address.toLowerCase() ? 'Created' : 'New Proposal',
+      action: p.proposer.toLowerCase() === address?.toLowerCase() ? 'Created' : 'New Proposal',
       timestamp: p.createdAt * 1000
     }));
 
@@ -213,10 +220,17 @@ const Dashboard = () => {
 
         {/* Sidebar */}
         <div className="dashboard-sidebar">
-          {/* ✅ NEW: Voting Power Widget */}
+          {/* ✅ Voting Power Widget */}
           <Card padding="medium">
             <VotingPower />
           </Card>
+
+          {/* ✅ NEW: Whale Analysis */}
+          {testWallets.length > 0 && (
+            <Card padding="medium">
+              <WhaleAnalysis testWallets={testWallets} />
+            </Card>
+          )}
 
           {/* Wallet Info */}
           <Card padding="medium">

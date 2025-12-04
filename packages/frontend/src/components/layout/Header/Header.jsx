@@ -1,69 +1,65 @@
-import React, { useState, useEffect } from 'react';
+// src/components/layout/Header/Header.jsx (UPDATED - Optimized)
+import React, { useState, useEffect, useCallback } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { useAccount } from 'wagmi';
 import { useTheme } from '../../../context/ThemeContext';
+import { useDeployment } from '../../../context/DeploymentContext';
 import { useContract } from '../../../hooks/useContract';
+import DeploymentBadge from '../../common/DeploymentBadge/DeploymentBadge';
 import DAOVotingABI from '../../../abis/DAOVoting.json';
 import './Header.css';
 
 const Header = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [showDeploymentModal, setShowDeploymentModal] = useState(false);
+  
   const { theme, toggleTheme } = useTheme();
+  const { deploymentInfo } = useDeployment();
   const location = useLocation();
   const { address, isConnected } = useAccount();
   
   const [isAdmin, setIsAdmin] = useState(false);
-  const [checkingAdmin, setCheckingAdmin] = useState(false);
+  const [adminChecked, setAdminChecked] = useState(false); // ✅ Track if we've checked
 
-  // Get contract instance
   const { contract, read } = useContract('DAOVoting', DAOVotingABI.abi);
 
-  // Check if user is admin (contract owner)
-  useEffect(() => {
-    checkAdminStatus();
-  }, [address, contract]); // ✅ Re-check when contract OR address changes
-
-  const checkAdminStatus = async () => {
-    console.log('🔍 Header: Checking admin status...');
-    console.log('📍 Connected address:', address);
-    console.log('📦 Contract ready:', !!contract);
+  // ✅ OPTIMIZED: Only check admin status once when conditions are met
+  const checkAdminStatus = useCallback(async () => {
+    // Prevent multiple checks
+    if (adminChecked || !address || !isConnected || !contract) {
+      return;
+    }
     
-    if (!address || !isConnected) {
-      console.log('❌ No address connected');
-      setIsAdmin(false);
-      setCheckingAdmin(false);
-      return;
-    }
-
-    if (!contract) {
-      console.log('⏳ Contract not ready yet');
-      setIsAdmin(false);
-      setCheckingAdmin(false);
-      return;
-    }
+    console.log('🔍 Header: Checking admin status...');
     
     try {
-      setCheckingAdmin(true);
-      
-      // Call owner() directly from contract
       const ownerAddress = await read('owner', []);
       const adminStatus = ownerAddress.toLowerCase() === address.toLowerCase();
       
-      console.log('👑 Contract Owner:', ownerAddress);
-      console.log('👤 Current User:', address);
       console.log('✅ Is Admin:', adminStatus);
-      
       setIsAdmin(adminStatus);
+      setAdminChecked(true); // ✅ Mark as checked
     } catch (err) {
       console.error('❌ Error checking admin status:', err);
       setIsAdmin(false);
-    } finally {
-      setCheckingAdmin(false);
+      setAdminChecked(true); // ✅ Still mark as checked to prevent retry loops
     }
-  };
+  }, [address, isConnected, contract, read, adminChecked]);
 
-  // Navigation links - conditionally add Admin link for contract owner
+  // ✅ Reset admin check when wallet changes
+  useEffect(() => {
+    setAdminChecked(false);
+    setIsAdmin(false);
+  }, [address, isConnected]);
+
+  // ✅ Check admin status only once when ready
+  useEffect(() => {
+    if (!adminChecked && address && isConnected && contract) {
+      checkAdminStatus();
+    }
+  }, [address, isConnected, contract, adminChecked, checkAdminStatus]);
+
   const navLinks = [
     { path: '/', label: 'Home' },
     { path: '/proposals', label: 'Proposals' },
@@ -101,11 +97,23 @@ const Header = () => {
 
         {/* Right Section */}
         <div className="header-actions">
+          {/* Deployment Mode Toggle */}
+          <button
+            className="deployment-toggle-header"
+            onClick={() => setShowDeploymentModal(!showDeploymentModal)}
+            type="button"
+            title="Switch deployment mode"
+          >
+            <span className="deploy-icon">{deploymentInfo.icon}</span>
+            <span className="deploy-label">{deploymentInfo.mode}</span>
+          </button>
+
           {/* Theme Toggle */}
           <button
             onClick={toggleTheme}
             className="theme-toggle"
             aria-label="Toggle theme"
+            type="button"
           >
             {theme === 'light' ? '🌙' : '☀️'}
           </button>
@@ -120,6 +128,7 @@ const Header = () => {
             className="mobile-menu-btn"
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             aria-label="Toggle menu"
+            type="button"
           >
             <span className="menu-icon">
               {mobileMenuOpen ? '✕' : '☰'}
@@ -145,6 +154,22 @@ const Header = () => {
             </Link>
           ))}
         </nav>
+      )}
+
+      {/* Deployment Switcher Modal */}
+      {showDeploymentModal && (
+        <div className="deployment-modal-overlay" onClick={() => setShowDeploymentModal(false)}>
+          <div className="deployment-modal" onClick={(e) => e.stopPropagation()}>
+            <button 
+              className="modal-close"
+              onClick={() => setShowDeploymentModal(false)}
+              type="button"
+            >
+              ✕
+            </button>
+            <DeploymentBadge variant="interactive" />
+          </div>
+        </div>
       )}
     </header>
   );
