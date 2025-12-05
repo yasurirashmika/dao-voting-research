@@ -16,17 +16,15 @@ export const getProposalStateLabel = (state) => {
  */
 export const getProposalStateColor = (state) => {
   const colorMap = {
-    [PROPOSAL_STATE.PENDING]: 'var(--color-status-pending)',
-    [PROPOSAL_STATE.ACTIVE]: 'var(--color-status-active)',
-    [PROPOSAL_STATE.CANCELED]: 'var(--color-text-tertiary)',
-    [PROPOSAL_STATE.DEFEATED]: 'var(--color-status-rejected)',
-    [PROPOSAL_STATE.SUCCEEDED]: 'var(--color-status-passed)',
-    [PROPOSAL_STATE.QUEUED]: 'var(--color-warning)',
-    [PROPOSAL_STATE.EXPIRED]: 'var(--color-text-tertiary)',
-    [PROPOSAL_STATE.EXECUTED]: 'var(--color-status-executed)'
+    [PROPOSAL_STATE.PENDING]: '#FFA500', 
+    [PROPOSAL_STATE.ACTIVE]: '#4CAF50',
+    [PROPOSAL_STATE.PASSED]: '#2196F3',
+    [PROPOSAL_STATE.REJECTED]: '#F44336',
+    [PROPOSAL_STATE.EXECUTED]: '#9C27B0',
+    [PROPOSAL_STATE.CANCELED]: '#757575'
   };
   
-  return colorMap[state] || 'var(--color-text-tertiary)';
+  return colorMap[state] || '#000000';
 };
 
 /**

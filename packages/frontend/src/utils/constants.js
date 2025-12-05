@@ -1,24 +1,20 @@
-// Proposal States
+// ✅ CORRECTED - Matches your Smart Contract
 export const PROPOSAL_STATE = {
   PENDING: 0,
   ACTIVE: 1,
-  CANCELED: 2,
-  DEFEATED: 3,
-  SUCCEEDED: 4,
-  QUEUED: 5,
-  EXPIRED: 6,
-  EXECUTED: 7
+  PASSED: 2,
+  REJECTED: 3,
+  EXECUTED: 4,
+  CANCELED: 5
 };
 
 export const PROPOSAL_STATE_LABELS = {
   [PROPOSAL_STATE.PENDING]: 'Pending',
   [PROPOSAL_STATE.ACTIVE]: 'Active',
-  [PROPOSAL_STATE.CANCELED]: 'Canceled',
-  [PROPOSAL_STATE.DEFEATED]: 'Defeated',
-  [PROPOSAL_STATE.SUCCEEDED]: 'Succeeded',
-  [PROPOSAL_STATE.QUEUED]: 'Queued',
-  [PROPOSAL_STATE.EXPIRED]: 'Expired',
-  [PROPOSAL_STATE.EXECUTED]: 'Executed'
+  [PROPOSAL_STATE.PASSED]: 'Passed',
+  [PROPOSAL_STATE.REJECTED]: 'Rejected', 
+  [PROPOSAL_STATE.EXECUTED]: 'Executed',
+  [PROPOSAL_STATE.CANCELED]: 'Canceled'
 };
 
 // Vote Types

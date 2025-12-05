@@ -27,12 +27,12 @@ const Proposals = () => {
   const debouncedSearch = useDebounce(searchTerm, 500);
 
   const filterOptions = [
-    { value: "all", label: "All Proposals" },
-    { value: PROPOSAL_STATE.ACTIVE, label: "Active" },
-    { value: PROPOSAL_STATE.SUCCEEDED, label: "Succeeded" },
-    { value: PROPOSAL_STATE.DEFEATED, label: "Defeated" },
-    { value: PROPOSAL_STATE.EXECUTED, label: "Executed" },
-  ];
+  { value: "all", label: "All Proposals" },
+  { value: PROPOSAL_STATE.ACTIVE, label: "Active" },
+  { value: PROPOSAL_STATE.PASSED, label: "Passed" },
+  { value: PROPOSAL_STATE.REJECTED, label: "Rejected" },
+  { value: PROPOSAL_STATE.EXECUTED, label: "Executed" },
+];
 
   // Filter and sort proposals
   const filteredProposals = proposals

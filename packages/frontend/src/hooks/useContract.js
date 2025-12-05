@@ -1,11 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { usePublicClient, useWalletClient } from "wagmi";
 import { getActiveContracts } from "../config/deploymentConfig";
 import { useDeployment } from "../context/DeploymentContext";
 
-/**
- * ✅ Retry helper with exponential backoff
- */
 const retryOperation = async (operation, maxRetries = 3, baseDelay = 1000) => {
   for (let i = 0; i < maxRetries; i++) {
     try {
@@ -19,17 +16,12 @@ const retryOperation = async (operation, maxRetries = 3, baseDelay = 1000) => {
         error.message?.includes('Too Many Requests');
       
       if (i === maxRetries - 1 || !isRetryable) throw error;
-      
       const delay = baseDelay * Math.pow(2, i);
       await new Promise(resolve => setTimeout(resolve, delay));
     }
   }
 };
 
-/**
- * ✅ UPDATED: Now listens to DeploymentContext
- * Automatically switches contracts when mode changes
- */
 export const useContract = (contractName, abi) => {
   const [contract, setContract] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -37,14 +29,16 @@ export const useContract = (contractName, abi) => {
 
   const publicClient = usePublicClient();
   const { data: walletClient } = useWalletClient();
-  const { mode } = useDeployment(); // 'baseline' or 'private'
+  const { mode } = useDeployment();
 
   useEffect(() => {
     if (!publicClient || !contractName || !abi) return;
 
     try {
-      const chainId = publicClient.chain.id;
-      // Get the normalized config (voting, token, etc.)
+      // Prioritize env chain ID to prevent wrong-network crashes
+      const envChainId = process.env.REACT_APP_CHAIN_ID ? parseInt(process.env.REACT_APP_CHAIN_ID) : null;
+      const chainId = envChainId || publicClient.chain.id;
+
       const activeContracts = getActiveContracts(chainId, mode);
       
       if (!activeContracts || Object.keys(activeContracts).length === 0) {
@@ -54,56 +48,46 @@ export const useContract = (contractName, abi) => {
 
       let address;
       switch(contractName) {
-        // ✅ HANDLE BOTH VOTING NAMES (Maps generic requests to the active contract)
         case 'DAOVoting':
         case 'PrivateDAOVoting':
           address = activeContracts.voting; 
           break;
-          
         case 'GovernanceToken':
           address = activeContracts.token;
           break;
-          
         case 'ReputationManager':
           address = activeContracts.reputation;
           break;
-          
         case 'DIDRegistry':
           address = activeContracts.registry;
           break;
-          
         case 'VoteVerifier':
           address = activeContracts.verifier;
           break;
-          
         default:
-          // Fallback: Check if the name matches a key directly
           address = activeContracts[contractName]; 
       }
 
       if (!address) {
-        // Only warn if we expected it to exist (e.g. ignoring DIDRegistry in baseline is fine)
         if (mode === 'baseline' && (contractName === 'DIDRegistry' || contractName === 'VoteVerifier')) {
             return;
         }
-        console.warn(`⚠️ Contract ${contractName} address not found in ${mode} mode config. (Chain ID: ${chainId})`);
+        console.warn(`⚠️ Contract ${contractName} address not found in ${mode} mode config.`);
         setContract(null);
-        setError(`${contractName} not available in ${mode} mode`);
         return;
       }
 
-      console.log(`📝 [${mode}] Initialized ${contractName} at ${address}`);
-      
+      // Store clients in state
       setContract({ address, abi, publicClient, walletClient });
       setError(null);
     } catch (err) {
-      console.error(`Error initializing ${contractName} contract:`, err);
+      console.error(`Error initializing ${contractName}:`, err);
       setError(err.message);
-      setContract(null);
     }
   }, [publicClient, walletClient, contractName, abi, mode]);
 
-  const read = async (functionName, args = []) => {
+  // ✅ FIXED: Wrapped in useCallback to prevent infinite re-renders
+  const read = useCallback(async (functionName, args = []) => {
     if (!contract) throw new Error("Contract not initialized");
     setLoading(true);
     try {
@@ -122,9 +106,10 @@ export const useContract = (contractName, abi) => {
       setError(err.message);
       throw err;
     }
-  };
+  }, [contract]);
 
-  const write = async (functionName, args = [], options = {}) => {
+  // ✅ FIXED: Wrapped in useCallback to prevent infinite re-renders
+  const write = useCallback(async (functionName, args = [], options = {}) => {
     if (!contract || !contract.walletClient) throw new Error("Contract or wallet not initialized");
     setLoading(true);
     try {
@@ -145,7 +130,7 @@ export const useContract = (contractName, abi) => {
       setError(err.message);
       throw err;
     }
-  };
+  }, [contract]);
 
   return { contract, read, write, loading, error };
 };
