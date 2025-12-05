@@ -18,12 +18,15 @@ export const DEPLOYMENT_MODE = {
  * @returns {object} Active contract addresses
  */
 export const getActiveContracts = (chainId, mode) => {
+  // Ensure we have a valid chainId, default to Sepolia if undefined (safeguard)
+  const safeChainId = chainId || 11155111;
+
   // --- ZKP / PRIVATE MODE ---
   if (mode === DEPLOYMENT_MODE.PRIVATE) {
-    const zkpContracts = ZKP_CONTRACT_ADDRESSES[chainId];
+    const zkpContracts = ZKP_CONTRACT_ADDRESSES[safeChainId];
     
     if (!zkpContracts) {
-      console.warn(`ZKP contracts not found for chain ${chainId}`);
+      console.warn(`ZKP contracts not found for chain ${safeChainId}`);
       return {};
     }
     
@@ -38,10 +41,10 @@ export const getActiveContracts = (chainId, mode) => {
   }
   
   // --- BASELINE / PUBLIC MODE ---
-  const baseContracts = CONTRACT_ADDRESSES[chainId];
+  const baseContracts = CONTRACT_ADDRESSES[safeChainId];
   
   if (!baseContracts) {
-    console.warn(`Baseline contracts not found for chain ${chainId}`);
+    console.warn(`Baseline contracts not found for chain ${safeChainId}`);
     return {};
   }
   

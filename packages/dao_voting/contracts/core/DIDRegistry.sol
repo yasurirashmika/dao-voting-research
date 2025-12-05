@@ -3,6 +3,11 @@ pragma solidity ^0.8.28;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
 
+// Interface to talk to PrivateDAOVoting
+interface IPrivateDAOVoting {
+    function registerVoter(bytes32 commitment) external;
+}
+
 /**
  * @title DIDRegistry
  * @dev Decentralized Identifier (DID) registry for voter identity management
@@ -27,6 +32,12 @@ contract DIDRegistry is Ownable {
         uint256 expiresAt;
     }
 
+    // Storage for the Private Voting Contract
+    IPrivateDAOVoting public privateVoting;
+
+    // Sybil Resistance Mapping (Controller Address -> Has Registered Commitment)
+    mapping(address => bool) public hasRegisteredForVoting;
+
     mapping(address => DIDDocument) public didDocuments;
     mapping(bytes32 => VerifiableCredential) public credentials;
     mapping(address => bool) public authorizedIssuers;
@@ -38,6 +49,9 @@ contract DIDRegistry is Ownable {
     event CredentialRevoked(bytes32 indexed credentialHash);
     event IssuerAuthorized(address indexed issuer);
     event IssuerRevoked(address indexed issuer);
+    
+    // Event for voting registration
+    event VotingRegistrationSuccess(address indexed controller, bytes32 commitment);
 
     modifier onlyAuthorizedIssuer() {
         require(
@@ -48,6 +62,43 @@ contract DIDRegistry is Ownable {
     }
 
     constructor(address initialOwner) Ownable(initialOwner) {}
+
+    // Set the Private Voting Contract Address
+    function setPrivateVotingContract(address _privateVoting) external onlyOwner {
+        require(_privateVoting != address(0), "Invalid address");
+        privateVoting = IPrivateDAOVoting(_privateVoting);
+    }
+
+    /**
+     * @dev The CORE "Gatekeeper" Function.
+     * Use this to register for the Private DAO.
+     * 1. Checks if you have a valid DID.
+     * 2. Checks if you have already registered (Sybil Check).
+     * 3. Calls PrivateDAOVoting to add your anonymous commitment.
+     */
+    function registerVoterForDAO(bytes32 commitment) external {
+        // 1. Check DID Existence
+        require(didDocuments[msg.sender].isActive, "No active DID found");
+        
+        // 2. Check Credential (Optional: Enable if you want to require Verified Credentials)
+        // require(didDocuments[msg.sender].isVerified, "DID is not verified");
+
+        // 3. Check Sybil Resistance
+        require(!hasRegisteredForVoting[msg.sender], "Sybil Attack: DID already registered for voting");
+
+        // 4. Mark as Used
+        hasRegisteredForVoting[msg.sender] = true;
+
+        // 5. Call PrivateDAOVoting
+        require(address(privateVoting) != address(0), "Private voting contract not set");
+        privateVoting.registerVoter(commitment);
+
+        emit VotingRegistrationSuccess(msg.sender, commitment);
+    }
+
+    // =========================================================
+    // EXISTING DID LOGIC BELOW
+    // =========================================================
 
     /**
      * @dev Authorize an issuer to create credentials
@@ -81,8 +132,6 @@ contract DIDRegistry is Ownable {
         // Generate DID string: did:eth:chainId:address
         string memory did = string(abi.encodePacked(
             "did:eth:",
-            block.chainid,
-            ":",
             addressToString(controller)
         ));
 
@@ -101,10 +150,6 @@ contract DIDRegistry is Ownable {
 
     /**
      * @dev Issue a verifiable credential to a DID
-     * @param subject Address of the credential subject
-     * @param credentialType Type of credential (e.g., "GovernanceCredential")
-     * @param credentialHash Hash of the full credential data
-     * @param validityPeriod How long credential is valid (in seconds)
      */
     function issueCredential(
         address subject,
@@ -135,8 +180,6 @@ contract DIDRegistry is Ownable {
 
     /**
      * @dev Verify if a DID has valid credentials for voting
-     * @param controller Address to check
-     * @return isValid Whether the DID is valid for voting
      */
     function verifyVotingEligibility(address controller) external view returns (bool isValid) {
         DIDDocument memory doc = didDocuments[controller];
@@ -179,30 +222,18 @@ contract DIDRegistry is Ownable {
         emit DIDRevoked(controller, didDocuments[controller].did);
     }
 
-    /**
-     * @dev Get DID document for an address
-     */
     function getDIDDocument(address controller) external view returns (DIDDocument memory) {
         return didDocuments[controller];
     }
 
-    /**
-     * @dev Get credential details
-     */
     function getCredential(bytes32 credentialHash) external view returns (VerifiableCredential memory) {
         return credentials[credentialHash];
     }
 
-    /**
-     * @dev Check if address has active DID
-     */
     function hasDID(address controller) external view returns (bool) {
         return didDocuments[controller].isActive;
     }
 
-    /**
-     * @dev Helper function to convert address to string
-     */
     function addressToString(address addr) internal pure returns (string memory) {
         bytes32 value = bytes32(uint256(uint160(addr)));
         bytes memory alphabet = "0123456789abcdef";

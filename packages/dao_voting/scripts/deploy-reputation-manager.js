@@ -10,28 +10,33 @@ async function main() {
   console.log("Deployer:", deployer.address);
   
   const balance = await ethers.provider.getBalance(deployer.address);
-  console.log("Balance:", ethers.utils.formatEther(balance), "ETH");
+  console.log("Balance:", ethers.formatEther(balance), "ETH");
 
   // Deploy Reputation Manager
   const ReputationManager = await ethers.getContractFactory("ReputationManager");
   const reputationManager = await ReputationManager.deploy(deployer.address);
   
-  await reputationManager.deployed();
-  console.log("ReputationManager deployed to:", reputationManager.address);
+  await reputationManager.waitForDeployment();
+  const reputationAddress = await reputationManager.getAddress();
+  console.log("ReputationManager deployed to:", reputationAddress);
   
   // Test basic functions
-  const owner = await reputationManager.owner();
-  const maxReputation = await reputationManager.MAX_REPUTATION();
-  const minReputation = await reputationManager.MIN_REPUTATION();
-  const defaultReputation = await reputationManager.DEFAULT_REPUTATION();
+  try {
+    const owner = await reputationManager.owner();
+    const maxReputation = await reputationManager.MAX_REPUTATION();
+    const minReputation = await reputationManager.MIN_REPUTATION();
+    const defaultReputation = await reputationManager.DEFAULT_REPUTATION();
+    
+    console.log("Contract Details:");
+    console.log("- Owner:", owner);
+    console.log("- Max Reputation:", maxReputation.toString());
+    console.log("- Min Reputation:", minReputation.toString());
+    console.log("- Default Reputation:", defaultReputation.toString());
+  } catch (e) {
+    console.log("Skipping verification read:", e.message);
+  }
   
-  console.log("Contract Details:");
-  console.log("- Owner:", owner);
-  console.log("- Max Reputation:", maxReputation.toString());
-  console.log("- Min Reputation:", minReputation.toString());
-  console.log("- Default Reputation:", defaultReputation.toString());
-  
-  return reputationManager.address;
+  return reputationAddress;
 }
 
 main()

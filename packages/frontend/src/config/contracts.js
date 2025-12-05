@@ -1,11 +1,11 @@
-// src/config/contracts.js (UPDATED)
+// src/config/contracts.js (FIXED)
 // ⚠️ IMPORTANT: These are Phase 3 (Baseline) addresses
 export const CONTRACT_ADDRESSES = {
   // Sepolia Testnet - Baseline System (Public Voting)
   11155111: {
-    DAOVoting: "0xf29435b12F6494fd782bE3472AF8F6B9eD6E7676",
-    GovernanceToken: "0x5aeE1C91651fcC0094fb2e9E6A51afaD9A8AC401",
-    ReputationManager: "0x3AE3e68b226005a355F0E3BB039DB463eD88a4dD",
+    DAOVoting: "0x951EB6e2af83a0574531D7007Be675cFe75Ab492",
+    GovernanceToken: "0xD72AB3c2e7482b39235E06A15e797f0C8b31ddfE",
+    ReputationManager: "0xd74591eeB4544BC4bd6BbF5E2BE7b7e8f8BA7ddE",
   },
 };
 

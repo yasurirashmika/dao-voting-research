@@ -2,6 +2,9 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useContract } from "./useContract";
 import { useAccount } from "wagmi";
 import DAOVotingABI from "../abis/DAOVoting.json";
+import PrivateDAOVotingABI from "../abis/PrivateDAOVoting.json";
+
+const DEPLOYMENT_MODE = process.env.REACT_APP_DEPLOYMENT_MODE || 'baseline';
 
 /**
  * ✅ Retry helper for handling RPC timeouts
@@ -33,7 +36,11 @@ export const useProposals = () => {
   const { address } = useAccount();
   const hasFetchedRef = useRef(false);
 
-  const { contract, read, write } = useContract("DAOVoting", DAOVotingABI.abi);
+  // 1. Determine Contract & ABI based on Mode
+  const contractName = DEPLOYMENT_MODE === 'private' ? 'PrivateDAOVoting' : 'DAOVoting';
+  const abi = DEPLOYMENT_MODE === 'private' ? PrivateDAOVotingABI.abi : DAOVotingABI.abi;
+
+  const { contract, read, write } = useContract(contractName, abi);
 
   /**
    * Fetch all proposals using Multicall (Batched Request)
@@ -61,12 +68,13 @@ export const useProposals = () => {
       }
 
       // 2. Prepare the Batch Request (Multicall)
+      // We use the mapping 'proposals' directly to ensure we get the full struct
       const contractCalls = [];
       for (let i = 1; i <= count; i++) {
         contractCalls.push({
           address: contract.address,
           abi: contract.abi,
-          functionName: "getProposalDetails",
+          functionName: "proposals",
           args: [i],
         });
       }
@@ -89,30 +97,72 @@ export const useProposals = () => {
             return null;
           }
 
-          const proposal = result.result;
+          const p = result.result;
 
-          const votingStart = Number(proposal[9]);
-          const votingEnd = Number(proposal[10]);
+          // ✅ MAPPING LOGIC FOR NEW STRUCTURES
+          let id, title, description, proposer, yesVotes, noVotes, totalVotingWeight, state, createdAt, votingStart, votingEnd;
+          let minTokensRequired = 0;
+          let minReputationRequired = 0;
+
+          if (DEPLOYMENT_MODE === 'private') {
+             // PRIVATE STRUCT:
+             // [0]id, [1]title, [2]desc, [3]proposer, [4]yes, [5]no, 
+             // [6]state, [7]created, [8]start, [9]end, [10]root, [11]minReputation
+             id = Number(p[0]);
+             title = p[1];
+             description = p[2];
+             proposer = p[3];
+             yesVotes = Number(p[4]);
+             noVotes = Number(p[5]);
+             state = Number(p[6]);
+             createdAt = Number(p[7]);
+             votingStart = Number(p[8]);
+             votingEnd = Number(p[9]);
+             // p[10] is root, ignored here
+             minReputationRequired = Number(p[11]); 
+             
+             totalVotingWeight = yesVotes + noVotes; // Private usually just counts votes
+          } else {
+             // PUBLIC STRUCT:
+             // [0]id, [1]title, [2]desc, [3]proposer, [4]yes, [5]no, [6]totalWeight, 
+             // [7]state, [8]created, [9]start, [10]end, [11]minTokens
+             id = Number(p[0]);
+             title = p[1];
+             description = p[2];
+             proposer = p[3];
+             yesVotes = Number(p[4]);
+             noVotes = Number(p[5]);
+             totalVotingWeight = Number(p[6]);
+             state = Number(p[7]);
+             createdAt = Number(p[8]);
+             votingStart = Number(p[9]);
+             votingEnd = Number(p[10]);
+             minTokensRequired = Number(p[11]);
+          }
+
           const isBlockNumber = votingStart < 946684800;
 
           return {
-            id: Number(proposal[0]),
-            title: proposal[1],
-            description: proposal[2],
-            proposer: proposal[3],
-            yesVotes: Number(proposal[4]),
-            noVotes: Number(proposal[5]),
-            totalVotingWeight: Number(proposal[6]),
-            state: Number(proposal[7]),
-            createdAt: Number(proposal[8]),
-            votingStart: votingStart,
-            votingEnd: votingEnd,
-            isBlockNumber: isBlockNumber,
+            id,
+            title,
+            description,
+            proposer,
+            yesVotes,
+            noVotes,
+            totalVotingWeight,
+            state,
+            createdAt,
+            votingStart,
+            votingEnd,
+            isBlockNumber,
+            minTokensRequired,
+            minReputationRequired
           };
         })
         .filter((p) => p !== null);
 
-      setProposals(proposalData);
+      // Sort by newest first
+      setProposals(proposalData.reverse());
       setLoading(false);
     } catch (err) {
       console.error("Error fetching proposals:", err);
@@ -129,24 +179,48 @@ export const useProposals = () => {
       if (!contract) throw new Error("Contract not initialized");
 
       try {
-        const proposal = await retryOperation(
-          () => read("getProposalDetails", [proposalId]),
+        const p = await retryOperation(
+          () => read("proposals", [proposalId]),
           3,
           2000
         );
+        
+        let id, title, description, proposer, yesVotes, noVotes, totalVotingWeight, state, createdAt, votingStart, votingEnd;
+        let minTokensRequired = 0;
+        let minReputationRequired = 0;
+
+        if (DEPLOYMENT_MODE === 'private') {
+             id = Number(p[0]);
+             title = p[1];
+             description = p[2];
+             proposer = p[3];
+             yesVotes = Number(p[4]);
+             noVotes = Number(p[5]);
+             state = Number(p[6]);
+             createdAt = Number(p[7]);
+             votingStart = Number(p[8]);
+             votingEnd = Number(p[9]);
+             minReputationRequired = Number(p[11]);
+             totalVotingWeight = yesVotes + noVotes;
+        } else {
+             id = Number(p[0]);
+             title = p[1];
+             description = p[2];
+             proposer = p[3];
+             yesVotes = Number(p[4]);
+             noVotes = Number(p[5]);
+             totalVotingWeight = Number(p[6]);
+             state = Number(p[7]);
+             createdAt = Number(p[8]);
+             votingStart = Number(p[9]);
+             votingEnd = Number(p[10]);
+             minTokensRequired = Number(p[11]);
+        }
 
         return {
-          id: Number(proposal[0]),
-          title: proposal[1],
-          description: proposal[2],
-          proposer: proposal[3],
-          yesVotes: Number(proposal[4]),
-          noVotes: Number(proposal[5]),
-          totalVotingWeight: Number(proposal[6]),
-          state: Number(proposal[7]),
-          createdAt: Number(proposal[8]),
-          votingStart: Number(proposal[9]),
-          votingEnd: Number(proposal[10]),
+          id, title, description, proposer, yesVotes, noVotes,
+          totalVotingWeight, state, createdAt, votingStart, votingEnd,
+          minTokensRequired, minReputationRequired
         };
       } catch (err) {
         console.error("Error fetching proposal:", err);
@@ -171,12 +245,25 @@ export const useProposals = () => {
       }
 
       try {
-        const result = await write("submitProposal", [
-          title,
-          description,
-          minTokensRequired,
-          minReputationRequired,
-        ]);
+        let result;
+        
+        if (DEPLOYMENT_MODE === 'private') {
+             // 🔒 Private Contract only takes (title, description, minReputation)
+             console.log("Creating Private Proposal with Rep Req:", minReputationRequired);
+             result = await write("submitProposal", [
+                title,
+                description,
+                minReputationRequired
+             ]);
+        } else {
+             // 📢 Public Contract takes (title, desc, minTokens)
+             console.log("Creating Public Proposal with Token Req:", minTokensRequired);
+             result = await write("submitProposal", [
+                title,
+                description,
+                minTokensRequired,
+             ]);
+        }
 
         console.log("Proposal created successfully:", result);
         await fetchProposals();
@@ -199,6 +286,10 @@ export const useProposals = () => {
       }
 
       try {
+        if (DEPLOYMENT_MODE === 'private') {
+            throw new Error("Private voting requires ZK Proof generation. Please use the specialized ZK voting component.");
+        }
+
         const result = await write("castVote", [proposalId, support]);
         console.log("Vote cast successfully:", result);
         await fetchProposals();
@@ -217,6 +308,9 @@ export const useProposals = () => {
   const hasVoted = useCallback(
     async (proposalId, voterAddress) => {
       if (!contract) return false;
+
+      // Private voting uses Nullifiers, not address mapping.
+      if (DEPLOYMENT_MODE === 'private') return false; 
 
       try {
         const voted = await retryOperation(
@@ -239,6 +333,8 @@ export const useProposals = () => {
   const getVotingPower = useCallback(
     async (voterAddress) => {
       if (!contract) return 0;
+      
+      if (DEPLOYMENT_MODE === 'private') return 1;
 
       try {
         const power = await retryOperation(

@@ -3,22 +3,28 @@ const fs = require("fs");
 const path = require("path");
 
 async function main() {
-  console.log("🚀 Deploying ZKP Voting System...\n");
+  console.log("🚀 Deploying ZKP Voting System (Private)...");
 
   const [deployer] = await hre.ethers.getSigners();
   console.log("Deploying with account:", deployer.address);
-  console.log("Account balance:", (await deployer.provider.getBalance(deployer.address)).toString());
+
+  const REPUTATION_MANAGER_ADDRESS = process.env.REPUTATION_MANAGER_ADDRESS;
+  const GOVERNANCE_TOKEN_ADDRESS = process.env.GOVERNANCE_TOKEN_ADDRESS;
+
+  if (!REPUTATION_MANAGER_ADDRESS) {
+      console.error("❌ Error: REPUTATION_MANAGER_ADDRESS is missing.");
+      console.error("👉 Please add 'REPUTATION_MANAGER_ADDRESS=0x...' to your packages/dao_voting/.env file");
+      process.exit(1);
+  }
+  console.log("Using Reputation Manager at:", REPUTATION_MANAGER_ADDRESS);
 
   // ============================================
   // 1. Deploy VoteVerifier (Generated from Circuit)
   // ============================================
   console.log("\n📝 [1/3] Deploying VoteVerifier...");
-  
-  // FIX: The contract inside the auto-generated VoteVerifier.sol is named "Groth16Verifier"
   const VoteVerifier = await hre.ethers.getContractFactory("Groth16Verifier");
   const verifier = await VoteVerifier.deploy();
   await verifier.waitForDeployment();
-  
   const verifierAddress = await verifier.getAddress();
   console.log("✅ VoteVerifier deployed to:", verifierAddress);
 
@@ -26,11 +32,9 @@ async function main() {
   // 2. Deploy DIDRegistry
   // ============================================
   console.log("\n📝 [2/3] Deploying DIDRegistry...");
-  
   const DIDRegistry = await hre.ethers.getContractFactory("DIDRegistry");
   const didRegistry = await DIDRegistry.deploy(deployer.address);
   await didRegistry.waitForDeployment();
-  
   const didRegistryAddress = await didRegistry.getAddress();
   console.log("✅ DIDRegistry deployed to:", didRegistryAddress);
 
@@ -38,14 +42,15 @@ async function main() {
   // 3. Deploy PrivateDAOVoting
   // ============================================
   console.log("\n📝 [3/3] Deploying PrivateDAOVoting...");
-  
   const PrivateDAOVoting = await hre.ethers.getContractFactory("PrivateDAOVoting");
+  
+  // ✅ UPDATED: Now passing Reputation Manager Address
   const privateVoting = await PrivateDAOVoting.deploy(
     verifierAddress,
+    REPUTATION_MANAGER_ADDRESS, 
     deployer.address
   );
   await privateVoting.waitForDeployment();
-  
   const privateVotingAddress = await privateVoting.getAddress();
   console.log("✅ PrivateDAOVoting deployed to:", privateVotingAddress);
 
@@ -59,49 +64,44 @@ async function main() {
   await authTx.wait();
   console.log("✅ Authorized deployer as DID issuer");
 
+  // LINKING STEPS
+  console.log("   -> Linking PrivateDAOVoting to DIDRegistry...");
+  const txLinkRegistry = await didRegistry.setPrivateVotingContract(privateVotingAddress);
+  await txLinkRegistry.wait();
+
+  console.log("   -> Linking DIDRegistry to PrivateDAOVoting...");
+  const txLinkVoting = await privateVoting.setDIDRegistry(didRegistryAddress);
+  await txLinkVoting.wait();
+  console.log("✅ Contracts linked successfully");
+
   // ============================================
-  // 5. Save Deployment Info
+  // 5. Save Deployment Info & Update Config
   // ============================================
   const deployment = {
     network: hre.network.name,
     chainId: (await hre.ethers.provider.getNetwork()).chainId.toString(),
-    deployer: deployer.address,
     timestamp: new Date().toISOString(),
     contracts: {
       VoteVerifier: verifierAddress,
       DIDRegistry: didRegistryAddress,
       PrivateDAOVoting: privateVotingAddress
-    },
-    gasUsed: {
-      VoteVerifier: "TBD", // Updated after deployment
-      DIDRegistry: "TBD",
-      PrivateDAOVoting: "TBD"
     }
   };
 
-  // Save to file
+  // Save JSON log
   const deploymentsDir = path.join(__dirname, "../deployments");
-  if (!fs.existsSync(deploymentsDir)) {
-    fs.mkdirSync(deploymentsDir, { recursive: true });
-  }
+  if (!fs.existsSync(deploymentsDir)) fs.mkdirSync(deploymentsDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(deploymentsDir, `zkp-deployment-${hre.network.name}-${Date.now()}.json`), 
+    JSON.stringify(deployment, null, 2)
+  );
 
-  const filename = `zkp-deployment-${hre.network.name}-${Date.now()}.json`;
-  const filepath = path.join(deploymentsDir, filename);
-  fs.writeFileSync(filepath, JSON.stringify(deployment, null, 2));
-
-  console.log("\n📄 Deployment info saved to:", filepath);
-
-  // ============================================
-  // 6. Update Frontend Config
-  // ============================================
-  // Ensure directory exists
+  // Update Frontend Config
   const frontendConfigDir = path.join(__dirname, "../../frontend/src/config");
-  if (!fs.existsSync(frontendConfigDir)) {
-      fs.mkdirSync(frontendConfigDir, { recursive: true });
-  }
-
-  const frontendConfigPath = path.join(frontendConfigDir, "zkp-contracts.js");
-  const frontendConfig = `// Auto-generated ZKP contract addresses
+  if (fs.existsSync(frontendConfigDir)) {
+      const frontendConfigPath = path.join(frontendConfigDir, "zkp-contracts.js");
+      
+      const frontendConfig = `// Auto-generated ZKP contract addresses
 // Generated on: ${deployment.timestamp}
 // Network: ${deployment.network}
 
@@ -110,6 +110,9 @@ export const ZKP_CONTRACT_ADDRESSES = {
     VoteVerifier: "${verifierAddress}",
     DIDRegistry: "${didRegistryAddress}",
     PrivateDAOVoting: "${privateVotingAddress}",
+    // Re-exporting these for convenience if needed by Private mode
+    GovernanceToken: "${GOVERNANCE_TOKEN_ADDRESS}", 
+    ReputationManager: "${REPUTATION_MANAGER_ADDRESS}",
   },
 };
 
@@ -118,52 +121,36 @@ export const getZKPContractAddress = (chainId, contractName) => {
   if (!network) {
     throw new Error(\`Unsupported network: \${chainId}\`);
   }
-
   const address = network[contractName];
   if (!address) {
     throw new Error(\`Contract \${contractName} not deployed on network \${chainId}\`);
   }
-
   return address;
+};
+
+export const getAllZKPContracts = (chainId) => {
+  const network = ZKP_CONTRACT_ADDRESSES[chainId];
+  if (!network) {
+    throw new Error(\`ZKP contracts not deployed on network \${chainId}\`);
+  }
+  return network;
 };
 
 export default ZKP_CONTRACT_ADDRESSES;
 `;
+      fs.writeFileSync(frontendConfigPath, frontendConfig);
+      console.log("✅ Frontend config updated:", frontendConfigPath);
+  }
 
-  fs.writeFileSync(frontendConfigPath, frontendConfig);
-  console.log("✅ Frontend config updated:", frontendConfigPath);
-
-  // ============================================
-  // Summary
-  // ============================================
-  console.log("\n" + "=".repeat(60));
-  console.log("🎉 ZKP Voting System Deployed Successfully!");
-  console.log("=".repeat(60));
-  console.log("\nContract Addresses:");
-  console.log("  VoteVerifier:", verifierAddress);
-  console.log("  DIDRegistry:", didRegistryAddress);
-  console.log("  PrivateDAOVoting:", privateVotingAddress);
-  console.log("\nNext Steps:");
-  console.log("  1. Verify contracts on Etherscan");
-  console.log("  2. Register test voters");
-  console.log("  3. Test proof generation");
-  console.log("  4. Update frontend with new addresses");
-  console.log("=".repeat(60) + "\n");
-
-  // Return for use in tests
+  // Return for tests
   return {
     verifier,
     didRegistry,
     privateVoting,
-    addresses: {
-      verifier: verifierAddress,
-      didRegistry: didRegistryAddress,
-      privateVoting: privateVotingAddress
-    }
+    addresses: deployment.contracts
   };
 }
 
-// Execute deployment
 if (require.main === module) {
   main()
     .then(() => process.exit(0))

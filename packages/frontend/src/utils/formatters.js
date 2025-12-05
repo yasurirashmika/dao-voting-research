@@ -34,6 +34,18 @@ export const formatTokenAmount = (amount, decimals = 18, displayDecimals = 4) =>
 };
 
 /**
+ * ✅ ADDED: Standard number formatter with commas
+ * @param {number|string} num - Number to format
+ * @returns {string} Formatted number
+ */
+export const formatNumber = (num) => {
+  if (num === null || num === undefined) return '0';
+  const n = Number(num);
+  if (isNaN(n)) return '0';
+  return n.toLocaleString('en-US');
+};
+
+/**
  * Format large numbers with abbreviations (K, M, B)
  * @param {number} num - Number to format
  * @returns {string} Formatted number
@@ -171,6 +183,7 @@ export const parseTokenAmount = (amount, decimals = 18) => {
 export default {
   formatAddress,
   formatTokenAmount,
+  formatNumber, // ✅ Added to default export
   formatLargeNumber,
   formatPercentage,
   formatDate,

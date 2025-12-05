@@ -10,7 +10,7 @@ async function main() {
   console.log("Deployer:", deployer.address);
   
   const balance = await ethers.provider.getBalance(deployer.address);
-  console.log("Balance:", ethers.utils.formatEther(balance), "ETH");
+  console.log("Balance:", ethers.formatEther(balance), "ETH");
 
   // Deploy Governance Token
   const GovernanceToken = await ethers.getContractFactory("GovernanceToken");
@@ -20,8 +20,9 @@ async function main() {
     deployer.address
   );
   
-  await governanceToken.deployed();
-  console.log("GovernanceToken deployed to:", governanceToken.address);
+  await governanceToken.waitForDeployment();
+  const tokenAddress = await governanceToken.getAddress();
+  console.log("GovernanceToken deployed to:", tokenAddress);
   
   // Test basic functions
   const name = await governanceToken.name();
@@ -32,10 +33,10 @@ async function main() {
   console.log("Token Details:");
   console.log("- Name:", name);
   console.log("- Symbol:", symbol); 
-  console.log("- Total Supply:", ethers.utils.formatEther(totalSupply));
-  console.log("- Deployer Balance:", ethers.utils.formatEther(deployerBalance));
+  console.log("- Total Supply:", ethers.formatEther(totalSupply));
+  console.log("- Deployer Balance:", ethers.formatEther(deployerBalance));
   
-  return governanceToken.address;
+  return tokenAddress;
 }
 
 main()

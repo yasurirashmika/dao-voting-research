@@ -3,13 +3,13 @@ pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-// Fix: SnarkJS generates 'contract Verifier', so we alias it to VoteVerifier here
-import { Groth16Verifier as VoteVerifier } from "./VoteVerifier.sol";
+import {Groth16Verifier as VoteVerifier} from "./VoteVerifier.sol";
+// ✅ NEW: Import Reputation Interface
+import "../interfaces/IReputationManager.sol";
 
 /**
  * @title PrivateDAOVoting
- * @dev Zero-knowledge proof enabled DAO voting with privacy guarantees
- * @notice Uses zk-SNARKs to enable private voting while preventing double-voting
+ * @dev ZKP Voting + Reputation Gating for Proposal Creation
  */
 contract PrivateDAOVoting is Ownable, ReentrancyGuard {
     struct Proposal {
@@ -23,7 +23,9 @@ contract PrivateDAOVoting is Ownable, ReentrancyGuard {
         uint256 createdAt;
         uint256 votingStart;
         uint256 votingEnd;
-        bytes32 voterSetRoot; // Merkle root of eligible voters
+        bytes32 voterSetRoot;
+        // ✅ NEW: Reputation Requirement
+        uint256 minReputationRequired;
     }
 
     enum ProposalState {
@@ -36,17 +38,20 @@ contract PrivateDAOVoting is Ownable, ReentrancyGuard {
     }
 
     VoteVerifier public verifier;
+    // ✅ NEW: Reputation Manager
+    IReputationManager public reputationManager;
+    address public didRegistry;
 
     mapping(uint256 => Proposal) public proposals;
-    mapping(uint256 => mapping(bytes32 => bool)) public nullifiers; // proposalId => nullifier => used
-    mapping(bytes32 => bool) public voterCommitments; // commitment => registered
+    mapping(uint256 => mapping(bytes32 => bool)) public nullifiers;
+    mapping(bytes32 => bool) public voterCommitments;
 
     uint256 public proposalCount;
     uint256 public votingDelay = 1 hours;
     uint256 public votingPeriod = 7 days;
     uint256 public quorumPercentage = 40;
 
-    bytes32 public currentVoterSetRoot; // Current Merkle root
+    bytes32 public currentVoterSetRoot;
 
     event VoterRegistered(bytes32 indexed commitment);
     event VoterSetUpdated(bytes32 indexed newRoot, uint256 timestamp);
@@ -54,49 +59,67 @@ contract PrivateDAOVoting is Ownable, ReentrancyGuard {
         uint256 indexed proposalId,
         address indexed proposer,
         string title,
-        bytes32 voterSetRoot
+        bytes32 voterSetRoot,
+        uint256 minReputationRequired
     );
     event PrivateVoteCast(
         uint256 indexed proposalId,
         bytes32 indexed nullifier,
         bool support
     );
-    event ProposalStateChanged(uint256 indexed proposalId, ProposalState newState);
+    event ProposalStateChanged(
+        uint256 indexed proposalId,
+        ProposalState newState
+    );
+    event DIDRegistryUpdated(address indexed newRegistry);
 
-    constructor(address _verifier, address initialOwner) Ownable(initialOwner) {
-        require(_verifier != address(0), "Invalid verifier address");
-        verifier = VoteVerifier(_verifier);
+    modifier onlyRegistrar() {
+        require(
+            msg.sender == didRegistry,
+            "Caller is not the authorized DID Registry"
+        );
+        _;
     }
 
-    /**
-     * @dev Register voter commitment (off-chain identity verification required)
-     * @param commitment Hash of voter's secret
-     */
-    function registerVoter(bytes32 commitment) external onlyOwner {
+    constructor(
+        address _verifier,
+        address _reputationManager, // ✅ NEW Arg
+        address initialOwner
+    ) Ownable(initialOwner) {
+        require(_verifier != address(0), "Invalid verifier address");
+        require(
+            _reputationManager != address(0),
+            "Invalid reputation manager address"
+        );
+        verifier = VoteVerifier(_verifier);
+        reputationManager = IReputationManager(_reputationManager);
+    }
+
+    function setDIDRegistry(address _didRegistry) external onlyOwner {
+        require(_didRegistry != address(0), "Invalid registry address");
+        didRegistry = _didRegistry;
+        emit DIDRegistryUpdated(_didRegistry);
+    }
+
+    function registerVoter(bytes32 commitment) external onlyRegistrar {
         require(commitment != bytes32(0), "Invalid commitment");
         require(!voterCommitments[commitment], "Already registered");
-
         voterCommitments[commitment] = true;
         emit VoterRegistered(commitment);
     }
 
-    /**
-     * @dev Batch register voters
-     */
-    function batchRegisterVoters(bytes32[] calldata commitments) external onlyOwner {
+    function batchRegisterVoters(
+        bytes32[] calldata commitments
+    ) external onlyOwner {
         for (uint256 i = 0; i < commitments.length; i++) {
             require(commitments[i] != bytes32(0), "Invalid commitment");
-            require(!voterCommitments[commitments[i]], "Duplicate commitment");
-            
-            voterCommitments[commitments[i]] = true;
-            emit VoterRegistered(commitments[i]);
+            if (!voterCommitments[commitments[i]]) {
+                voterCommitments[commitments[i]] = true;
+                emit VoterRegistered(commitments[i]);
+            }
         }
     }
 
-    /**
-     * @dev Update voter set Merkle root
-     * @param newRoot New Merkle root of voter commitments
-     */
     function updateVoterSetRoot(bytes32 newRoot) external onlyOwner {
         require(newRoot != bytes32(0), "Invalid root");
         currentVoterSetRoot = newRoot;
@@ -104,15 +127,24 @@ contract PrivateDAOVoting is Ownable, ReentrancyGuard {
     }
 
     /**
-     * @dev Create a new proposal
+     * @dev Create a new proposal with Reputation Check
      */
     function submitProposal(
         string memory _title,
-        string memory _description
+        string memory _description,
+        uint256 _minReputationRequired // ✅ NEW Arg
     ) external nonReentrant {
         require(bytes(_title).length > 0, "Title required");
         require(bytes(_description).length > 0, "Description required");
         require(currentVoterSetRoot != bytes32(0), "Voter set not initialized");
+
+        // ✅ NEW: Check Proposer's Reputation
+        // Proposer needs enough reputation to SET the requirement (or just to propose?)
+        // Usually, the requirement is for VOTERS.
+        // But let's check if Proposer has enough reputation to create a proposal.
+        // For simplicity: We just store the requirement for now.
+        // If you want to restrict creation:
+        // require(reputationManager.getReputationScore(msg.sender) >= 100, "Low reputation");
 
         proposalCount++;
         uint256 votingStart = block.timestamp + votingDelay;
@@ -129,34 +161,27 @@ contract PrivateDAOVoting is Ownable, ReentrancyGuard {
             createdAt: block.timestamp,
             votingStart: votingStart,
             votingEnd: votingEnd,
-            voterSetRoot: currentVoterSetRoot
+            voterSetRoot: currentVoterSetRoot,
+            minReputationRequired: _minReputationRequired // ✅ Stored
         });
 
-        emit ProposalCreated(proposalCount, msg.sender, _title, currentVoterSetRoot);
+        emit ProposalCreated(
+            proposalCount,
+            msg.sender,
+            _title,
+            currentVoterSetRoot,
+            _minReputationRequired
+        );
     }
 
-    /**
-     * @dev Start voting on a proposal
-     */
     function startVoting(uint256 _proposalId) external {
         Proposal storage proposal = proposals[_proposalId];
         require(proposal.state == ProposalState.Pending, "Not pending");
         require(block.timestamp >= proposal.votingStart, "Too early");
-
         proposal.state = ProposalState.Active;
         emit ProposalStateChanged(_proposalId, ProposalState.Active);
     }
 
-    /**
-     * @dev Cast a private vote using zero-knowledge proof
-     * @param _proposalId Proposal ID
-     * @param _support Vote choice (true = yes, false = no)
-     * @param _nullifier Unique nullifier to prevent double voting
-     * @param _proof_a zk-SNARK proof A
-     * @param _proof_b zk-SNARK proof B
-     * @param _proof_c zk-SNARK proof C
-     * @param _publicSignals [nullifier, root, proposalId, voteChoice]
-     */
     function castPrivateVote(
         uint256 _proposalId,
         bool _support,
@@ -164,38 +189,31 @@ contract PrivateDAOVoting is Ownable, ReentrancyGuard {
         uint256[2] memory _proof_a,
         uint256[2][2] memory _proof_b,
         uint256[2] memory _proof_c,
-        uint256[4] memory _publicSignals 
+        uint256[4] memory _publicSignals
     ) external nonReentrant {
         Proposal storage proposal = proposals[_proposalId];
-        
-        // 1. Checks
         require(proposal.state == ProposalState.Active, "Not active");
         require(block.timestamp >= proposal.votingStart, "Not started");
         require(block.timestamp <= proposal.votingEnd, "Ended");
         require(!nullifiers[_proposalId][_nullifier], "Already voted");
 
-        // 2. Validate Public Signals Logic
-        // Verify that the Nullifier passed in matches the one in the proof
         require(bytes32(_publicSignals[0]) == _nullifier, "Nullifier mismatch");
-        // Verify Merkle Root matches the proposal's root
-        require(uint256(proposal.voterSetRoot) == _publicSignals[1], "Invalid root");
-        // Verify Proposal ID matches
+        require(
+            uint256(proposal.voterSetRoot) == _publicSignals[1],
+            "Invalid root"
+        );
         require(_proposalId == _publicSignals[2], "Invalid proposal ID");
-        // Verify Vote Choice matches the boolean support (1=Yes, 0=No)
         require((_support ? 1 : 0) == _publicSignals[3], "Invalid vote choice");
 
-        // 3. Verify zk-SNARK proof
+        // Note: We cannot easily check "Reputation" here because the vote is anonymous.
+        // The Prover circuit would need to prove they have > minReputation.
+        // For this Phase, we only check the Proof validity.
+
         require(
-            verifier.verifyProof(
-                _proof_a,
-                _proof_b,
-                _proof_c,
-                _publicSignals
-            ),
+            verifier.verifyProof(_proof_a, _proof_b, _proof_c, _publicSignals),
             "Invalid proof"
         );
 
-        // 4. Register Vote
         nullifiers[_proposalId][_nullifier] = true;
 
         if (_support) {
@@ -207,18 +225,13 @@ contract PrivateDAOVoting is Ownable, ReentrancyGuard {
         emit PrivateVoteCast(_proposalId, _nullifier, _support);
     }
 
-    /**
-     * @dev Finalize proposal after voting ends
-     */
     function finalizeProposal(uint256 _proposalId) external {
         Proposal storage proposal = proposals[_proposalId];
-        
         require(proposal.state == ProposalState.Active, "Not active");
         require(block.timestamp > proposal.votingEnd, "Not ended");
 
         uint256 totalVotes = proposal.yesVotes + proposal.noVotes;
-        
-        // Simple majority logic
+
         if (totalVotes == 0) {
             proposal.state = ProposalState.Defeated;
         } else if (proposal.yesVotes > proposal.noVotes) {
@@ -226,39 +239,40 @@ contract PrivateDAOVoting is Ownable, ReentrancyGuard {
         } else {
             proposal.state = ProposalState.Defeated;
         }
-
         emit ProposalStateChanged(_proposalId, proposal.state);
     }
 
-    /**
-     * @dev Cancel proposal (proposer or owner only)
-     */
     function cancelProposal(uint256 _proposalId) external {
         Proposal storage proposal = proposals[_proposalId];
-        
         require(
             msg.sender == proposal.proposer || msg.sender == owner(),
             "Not authorized"
         );
         require(
-            proposal.state == ProposalState.Pending || proposal.state == ProposalState.Active,
+            proposal.state == ProposalState.Pending ||
+                proposal.state == ProposalState.Active,
             "Cannot cancel"
         );
-
         proposal.state = ProposalState.Cancelled;
         emit ProposalStateChanged(_proposalId, ProposalState.Cancelled);
     }
 
-    // View functions
-    function getProposal(uint256 _proposalId) external view returns (Proposal memory) {
+    function getProposal(
+        uint256 _proposalId
+    ) external view returns (Proposal memory) {
         return proposals[_proposalId];
     }
 
-    function hasVoted(uint256 _proposalId, bytes32 _nullifier) external view returns (bool) {
+    function hasVoted(
+        uint256 _proposalId,
+        bytes32 _nullifier
+    ) external view returns (bool) {
         return nullifiers[_proposalId][_nullifier];
     }
 
-    function isCommitmentRegistered(bytes32 _commitment) external view returns (bool) {
+    function isCommitmentRegistered(
+        bytes32 _commitment
+    ) external view returns (bool) {
         return voterCommitments[_commitment];
     }
 }

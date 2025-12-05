@@ -2,37 +2,44 @@ import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useAccount } from "wagmi";
 import { useProposals } from "../../hooks/useProposals";
-import { useVoting } from "../../hooks/useVoting";
 import { useContract } from "../../hooks/useContract";
 import DAOVotingABI from "../../abis/DAOVoting.json";
+import PrivateDAOVotingABI from "../../abis/PrivateDAOVoting.json";
 import Card from "../../components/common/Card/Card";
 import Button from "../../components/common/Button/Button";
 import Input from "../../components/common/Input/Input";
 import Modal from "../../components/common/Modal/Modal";
 import Loader from "../../components/common/Loader/Loader";
 import Alert from "../../components/common/Alert/Alert";
+import ReactMarkdown from 'react-markdown';
 import {
   formatAddress,
   formatDate,
   formatLargeNumber,
+  formatNumber
 } from "../../utils/formatters";
 import "./ProposalDetails.css";
+
+const DEPLOYMENT_MODE = process.env.REACT_APP_DEPLOYMENT_MODE || 'baseline';
 
 const ProposalDetails = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { address, isConnected } = useAccount();
-  const { getProposal, proposals } = useProposals();
-  const { castVote, getVote, loading: voteLoading } = useVoting();
   
-  const { write, read, contract } = useContract("DAOVoting", DAOVotingABI.abi);
+  // ✅ Consolidated hook usage
+  const { getProposal, castVote, hasVoted } = useProposals();
+
+  // ✅ Dynamic Contract Selection for Admin Actions (Start/Cancel/Finalize)
+  const contractName = DEPLOYMENT_MODE === 'private' ? 'PrivateDAOVoting' : 'DAOVoting';
+  const contractAbi = DEPLOYMENT_MODE === 'private' ? PrivateDAOVotingABI.abi : DAOVotingABI.abi;
+  const { write, read, contract } = useContract(contractName, contractAbi);
 
   const [proposal, setProposal] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showVoteModal, setShowVoteModal] = useState(false);
   const [selectedVote, setSelectedVote] = useState(null);
   const [voteReason, setVoteReason] = useState("");
-  // Initialize with safe defaults
   const [userVote, setUserVote] = useState({ hasVoted: false, support: false });
   const [actionLoading, setActionLoading] = useState(false);
   const [alert, setAlert] = useState(null);
@@ -52,70 +59,66 @@ const ProposalDetails = () => {
     return { title: 'Transaction Failed', message: errorString.length > 100 ? 'An error occurred.' : errorString };
   };
 
+  // ✅ Check Registration (Public Only)
   useEffect(() => {
     if (contract && address) {
-      checkRegistration();
+      if (DEPLOYMENT_MODE === 'baseline') {
+        checkRegistration();
+      } else {
+        // In private mode, registration is handled by DID, but for UI state we allow interaction
+        setIsRegistered(true); 
+      }
     }
   }, [contract, address]);
 
   const checkRegistration = async () => {
     try {
-      const status = await read('isVoterRegistered', [address]);
+      // Public contract uses 'registeredVoters' mapping
+      const status = await read('registeredVoters', [address]);
       setIsRegistered(status);
     } catch (err) {
       console.error("Error checking registration:", err);
     }
   };
 
-  useEffect(() => {
-    if (contract) {
-      loadProposal();
-    }
-  }, [id, proposals, contract]);
-
-  useEffect(() => {
-    if (proposal && address && contract) {
-      checkUserVote();
-    }
-  }, [proposal, address, contract]);
-
-  const loadProposal = async () => {
-    const existingProposal = proposals.find((p) => p.id === Number(id));
-    if (existingProposal) {
-      setProposal(existingProposal);
-      setLoading(false);
-      return;
-    }
-    if (!contract) return; 
+  // ✅ Load Proposal Data
+  const loadProposalData = async () => {
+    if (!id) return;
+    setLoading(true);
     try {
-      setLoading(true);
       const data = await getProposal(id);
       setProposal(data);
-      setLoading(false);
+      
+      // Check vote status
+      if (address && isConnected) {
+        const voted = await hasVoted(id, address);
+        
+        if (voted === true) {
+            setUserVote({ hasVoted: true, support: null });
+        } else if (Array.isArray(voted)) {
+            // Handle if return is [hasVoted, support, weight, time]
+            setUserVote({ hasVoted: voted[0], support: voted[1] });
+        } else if (typeof voted === 'object') {
+             setUserVote({ hasVoted: voted.hasVotedOnProposal || voted.hasVoted, support: voted.support });
+        }
+      }
     } catch (error) {
       console.error("Error loading proposal:", error);
+    } finally {
       setLoading(false);
     }
   };
 
-  const checkUserVote = async () => {
-    if (!address || !proposal || !contract) return;
-    try {
-      const vote = await getVote(id, address);
-      if (vote) {
-        setUserVote(vote);
-      }
-    } catch (error) {
-      console.error("Error checking vote:", error);
-    }
-  };
+  useEffect(() => {
+    loadProposalData();
+  }, [id, address, isConnected, getProposal, hasVoted]);
 
   const handleVoteClick = (support) => {
     if (!isConnected) {
       showAlert('warning', 'Wallet Not Connected', 'Please connect your wallet to vote.', 3000);
       return;
     }
-    if (!isRegistered) {
+    if (DEPLOYMENT_MODE === 'baseline' && !isRegistered) {
         showAlert('error', 'Not Registered', 'You must be a registered voter to participate.');
         return;
     }
@@ -124,29 +127,29 @@ const ProposalDetails = () => {
   };
 
   const handleSubmitVote = async () => {
+    setActionLoading(true);
     try {
       await castVote(proposal.id, selectedVote);
       setShowVoteModal(false);
       setVoteReason("");
       
-      // ✅ OPTIMISTIC UPDATE: Hide buttons immediately
-      // This manually updates the local state so the UI changes instantly
+      // Optimistic update
       setUserVote({ 
         hasVoted: true, 
         support: selectedVote 
       });
 
       showAlert('success', 'Vote Cast Successfully!', 'Your vote has been recorded.');
-      
-      // Background refresh to confirm data from blockchain
-      await loadProposal();
-      await checkUserVote();
-      
+      await loadProposalData(); 
     } catch (error) {
       const { title, message } = parseError(error);
       showAlert('error', title, message);
+    } finally {
+      setActionLoading(false);
     }
   };
+
+  // --- Admin Actions ---
 
   const handleStartVoting = async () => {
     if (!isConnected) return;
@@ -154,7 +157,7 @@ const ProposalDetails = () => {
     try {
       await write("startVoting", [proposal.id]);
       showAlert('success', 'Voting Started!', 'The voting period has begun.');
-      await loadProposal();
+      await loadProposalData();
     } catch (error) {
       const { title, message } = parseError(error);
       showAlert('error', title, message);
@@ -169,7 +172,7 @@ const ProposalDetails = () => {
     try {
       await write("finalizeProposal", [proposal.id]);
       showAlert('success', 'Proposal Finalized!', 'The final results have been calculated.');
-      await loadProposal();
+      await loadProposalData();
     } catch (error) {
       const { title, message } = parseError(error);
       showAlert('error', title, message);
@@ -184,7 +187,7 @@ const ProposalDetails = () => {
     try {
       await write("cancelProposal", [proposal.id]);
       showAlert('success', 'Proposal Cancelled', 'This proposal has been cancelled.');
-      await loadProposal();
+      await loadProposalData();
     } catch (error) {
       const { title, message } = parseError(error);
       showAlert('error', title, message);
@@ -214,13 +217,8 @@ const ProposalDetails = () => {
     return `${hours}h ${minutes}m`;
   };
 
-  if (loading || !contract) {
-    return <div className="proposal-loading"><Loader size="large" text={!contract ? "Connecting..." : "Loading..."} /></div>;
-  }
-
-  if (!proposal) {
-    return <Card padding="large"><h2>Proposal Not Found</h2><Button onClick={() => navigate("/proposals")}>Back</Button></Card>;
-  }
+  if (loading) return <div className="proposal-loading"><Loader size="large" text={!contract ? "Connecting..." : "Loading..."} /></div>;
+  if (!proposal) return <Card padding="large"><h2>Proposal Not Found</h2><Button onClick={() => navigate("/proposals")}>Back</Button></Card>;
 
   const totalVotes = proposal.yesVotes + proposal.noVotes;
   const canVote = proposal.state === 1;
@@ -252,7 +250,9 @@ const ProposalDetails = () => {
 
             <div className="proposal-description">
               <h3>Description</h3>
-              <p>{proposal.description}</p>
+              <div className="markdown-content">
+                <ReactMarkdown>{proposal.description}</ReactMarkdown>
+              </div>
             </div>
 
             {/* Voting Section */}
@@ -265,9 +265,7 @@ const ProposalDetails = () => {
                   </div>
                 )}
 
-                {/* ✅ CHECK USER VOTE STATE */}
                 {userVote.hasVoted ? (
-                  /* 1. SHOW BANNER IF VOTED */
                   <div className="voted-status-card" style={{
                     padding: '1.5rem',
                     backgroundColor: userVote.support ? '#f6ffed' : '#fff1f0',
@@ -288,44 +286,46 @@ const ProposalDetails = () => {
                     </p>
                   </div>
                 ) : (
-                  /* 2. SHOW BUTTONS IF NOT VOTED */
                   <>
-                    {!isRegistered && (
-                        <div style={{ 
-                            border: '1px solid #ffccc7', 
-                            backgroundColor: '#fff2f0', 
-                            padding: '1rem', 
-                            borderRadius: '8px', 
-                            textAlign: 'center', 
-                            marginBottom: '1rem' 
-                        }}>
+                    {!isRegistered && DEPLOYMENT_MODE === 'baseline' && (
+                        <div style={{ border: '1px solid #ffccc7', backgroundColor: '#fff2f0', padding: '1rem', borderRadius: '8px', textAlign: 'center', marginBottom: '1rem' }}>
                             <p style={{ color: '#ff4d4f', fontWeight: '600', marginBottom: '0.5rem' }}>⚠️ Voting Restricted</p>
                             <p style={{ fontSize: '0.9rem', color: '#595959', marginBottom: '0' }}>You are not registered in the DAO. Only registered members can vote.</p>
                         </div>
                     )}
 
-                    <div className="vote-buttons">
-                      <Button 
-                        variant="success" 
-                        size="large" 
-                        fullWidth 
-                        onClick={() => handleVoteClick(true)} 
-                        disabled={voteLoading || !isRegistered}
-                        style={!isRegistered ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
-                      >
-                        Vote Yes 👍
-                      </Button>
-                      <Button 
-                        variant="danger" 
-                        size="large" 
-                        fullWidth 
-                        onClick={() => handleVoteClick(false)} 
-                        disabled={voteLoading || !isRegistered}
-                        style={!isRegistered ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
-                      >
-                        Vote No 👎
-                      </Button>
-                    </div>
+                    {/* ✅ CONDITIONAL VOTING INTERFACE */}
+                    {DEPLOYMENT_MODE === 'private' ? (
+                       <div style={{marginTop: '1rem'}}>
+                           <Alert type="info" title="🔒 Private Voting">
+                               Voting on this proposal requires generating a Zero-Knowledge Proof. 
+                               Please use the <strong>ZK Voting Module</strong> on your Dashboard to cast your vote anonymously.
+                           </Alert>
+                       </div>
+                    ) : (
+                        <div className="vote-buttons">
+                          <Button 
+                            variant="success" 
+                            size="large" 
+                            fullWidth 
+                            onClick={() => handleVoteClick(true)} 
+                            disabled={actionLoading || !isRegistered}
+                            style={!isRegistered ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
+                          >
+                            Vote Yes 👍
+                          </Button>
+                          <Button 
+                            variant="danger" 
+                            size="large" 
+                            fullWidth 
+                            onClick={() => handleVoteClick(false)} 
+                            disabled={actionLoading || !isRegistered}
+                            style={!isRegistered ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
+                          >
+                            Vote No 👎
+                          </Button>
+                        </div>
+                    )}
                   </>
                 )}
               </div>
@@ -367,6 +367,28 @@ const ProposalDetails = () => {
         </div>
 
         <div className="proposal-sidebar">
+          {/* ✅ NEW: Voting Requirements Card */}
+          <Card padding="medium" className="requirements-card">
+            <h3>Voting Requirements</h3>
+            <div className="requirement-item" style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+                {DEPLOYMENT_MODE === 'private' ? (
+                <>
+                    <span className="req-label" style={{color: '#666'}}>Min Reputation</span>
+                    <span className="req-value" style={{fontWeight: 'bold', color: '#2196F3'}}>
+                        {proposal.minReputationRequired || 0} Points
+                    </span>
+                </>
+                ) : (
+                <>
+                    <span className="req-label" style={{color: '#666'}}>Min Tokens</span>
+                    <span className="req-value" style={{fontWeight: 'bold', color: '#4CAF50'}}>
+                        {formatNumber(proposal.minTokensRequired || 0)} GOV
+                    </span>
+                </>
+                )}
+            </div>
+          </Card>
+
           <Card padding="medium">
             <h3 className="sidebar-title">Voting Results</h3>
             <div className="vote-breakdown">
@@ -415,7 +437,7 @@ const ProposalDetails = () => {
       <Modal isOpen={showVoteModal} onClose={() => setShowVoteModal(false)} title="Cast Your Vote" footer={
           <>
             <Button variant="secondary" onClick={() => setShowVoteModal(false)}>Cancel</Button>
-            <Button onClick={handleSubmitVote} loading={voteLoading}>Submit Vote</Button>
+            <Button onClick={handleSubmitVote} loading={actionLoading}>Submit Vote</Button>
           </>
         }>
         <div className="vote-modal-content">

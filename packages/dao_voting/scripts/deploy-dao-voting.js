@@ -3,15 +3,14 @@ const hre = require("hardhat");
 async function main() {
   const { ethers, network } = hre;
   
-  console.log("Deploying DAO Voting Contract...");
+  console.log("🚀 Deploying DAO Voting Contract (Public)...");
   console.log("Network:", network.name);
   
-  // You need to provide these addresses from previous deployments
-  const GOVERNANCE_TOKEN_ADDRESS = "0x..."; // Replace with deployed token address
-  const REPUTATION_MANAGER_ADDRESS = "0x..."; // Replace with deployed reputation manager address
+  const GOVERNANCE_TOKEN_ADDRESS = process.env.GOVERNANCE_TOKEN_ADDRESS;
   
-  if (GOVERNANCE_TOKEN_ADDRESS === "0x..." || REPUTATION_MANAGER_ADDRESS === "0x...") {
-    console.error("Please update GOVERNANCE_TOKEN_ADDRESS and REPUTATION_MANAGER_ADDRESS in this script");
+  
+  if (!GOVERNANCE_TOKEN_ADDRESS || GOVERNANCE_TOKEN_ADDRESS === "0xD72AB3c2e7482b39235E06A15e797f0C8b31ddfE") {
+    console.error("❌ Please update GOVERNANCE_TOKEN_ADDRESS in scripts/deploy-dao-voting.js");
     process.exit(1);
   }
   
@@ -19,36 +18,36 @@ async function main() {
   console.log("Deployer:", deployer.address);
   
   const balance = await ethers.provider.getBalance(deployer.address);
-  console.log("Balance:", ethers.utils.formatEther(balance), "ETH");
+  console.log("Balance:", ethers.formatEther(balance), "ETH");
 
   // Deploy DAO Voting
   const DAOVoting = await ethers.getContractFactory("DAOVoting");
+  
+  // Constructor now only accepts (Token, Owner)
+
   const daoVoting = await DAOVoting.deploy(
     GOVERNANCE_TOKEN_ADDRESS,
-    REPUTATION_MANAGER_ADDRESS,
     deployer.address
   );
   
-  await daoVoting.deployed();
-  console.log("DAOVoting deployed to:", daoVoting.address);
+  await daoVoting.waitForDeployment();
+  const daoVotingAddress = await daoVoting.getAddress();
+  console.log("✅ DAOVoting deployed to:", daoVotingAddress);
   
-  // Test basic functions
-  const owner = await daoVoting.owner();
-  const governanceToken = await daoVoting.governanceToken();
-  const reputationManager = await daoVoting.reputationManager();
-  const proposalCount = await daoVoting.proposalCount();
-  const votingDelay = await daoVoting.votingDelay();
-  const votingPeriod = await daoVoting.votingPeriod();
+  // Test interaction
+  try {
+      const owner = await daoVoting.owner();
+      console.log("Contract Details:");
+      console.log("- Owner:", owner);
+      console.log("- Governance Token:", await daoVoting.governanceToken());
+      // Note: votingDelay/Period are publicly accessible variables, not functions in some versions,
+      // but in your contract they are public variables, so getters exist.
+      console.log("- Proposal Count:", (await daoVoting.proposalCount()).toString());
+  } catch (e) {
+      console.log("Verification skipped:", e.message);
+  }
   
-  console.log("Contract Details:");
-  console.log("- Owner:", owner);
-  console.log("- Governance Token:", governanceToken);
-  console.log("- Reputation Manager:", reputationManager);
-  console.log("- Proposal Count:", proposalCount.toString());
-  console.log("- Voting Delay:", votingDelay.toString(), "seconds");
-  console.log("- Voting Period:", votingPeriod.toString(), "seconds");
-  
-  return daoVoting.address;
+  return daoVotingAddress;
 }
 
 main()
