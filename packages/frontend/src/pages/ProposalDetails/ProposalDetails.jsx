@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useAccount } from "wagmi";
 import { useProposals } from "../../hooks/useProposals";
 import { useContract } from "../../hooks/useContract";
+import { useDeployment } from "../../context/DeploymentContext";
 import DAOVotingABI from "../../abis/DAOVoting.json";
 import PrivateDAOVotingABI from "../../abis/PrivateDAOVoting.json";
 import Card from "../../components/common/Card/Card";
@@ -24,21 +25,16 @@ import {
 } from "../../utils/helpers";
 import "./ProposalDetails.css";
 
-const DEPLOYMENT_MODE = process.env.REACT_APP_DEPLOYMENT_MODE || "baseline";
-
 const ProposalDetails = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { address, isConnected } = useAccount();
+  const { mode } = useDeployment();
 
-  // ✅ Consolidated hook usage
   const { getProposal, castVote, hasVoted } = useProposals();
 
-  // ✅ Dynamic Contract Selection for Admin Actions (Start/Cancel/Finalize)
-  const contractName =
-    DEPLOYMENT_MODE === "private" ? "PrivateDAOVoting" : "DAOVoting";
-  const contractAbi =
-    DEPLOYMENT_MODE === "private" ? PrivateDAOVotingABI.abi : DAOVotingABI.abi;
+  const contractName = mode === "private" ? "PrivateDAOVoting" : "DAOVoting";
+  const contractAbi = mode === "private" ? PrivateDAOVotingABI.abi : DAOVotingABI.abi;
   const { write, read, contract } = useContract(contractName, contractAbi);
 
   const [proposal, setProposal] = useState(null);
@@ -76,44 +72,37 @@ const ProposalDetails = () => {
     };
   };
 
-  // ✅ Check Registration (Public Only)
-  useEffect(() => {
-    if (contract && address) {
-      if (DEPLOYMENT_MODE === "baseline") {
-        checkRegistration();
-      } else {
-        // In private mode, registration is handled by DID, but for UI state we allow interaction
-        setIsRegistered(true);
-      }
+  const checkRegistration = useCallback(async () => {
+    if (!contract || !address) return;
+    
+    if (mode === "private") {
+      setIsRegistered(true);
+      return;
     }
-  }, [contract, address]);
 
-  const checkRegistration = async () => {
     try {
-      // Public contract uses 'registeredVoters' mapping
       const status = await read("registeredVoters", [address]);
       setIsRegistered(status);
     } catch (err) {
       console.error("Error checking registration:", err);
+      setIsRegistered(false);
     }
-  };
+  }, [contract, address, read, mode]);
 
-  // ✅ Load Proposal Data
-  const loadProposalData = async () => {
+  const loadProposalData = useCallback(async () => {
     if (!id) return;
+    
     setLoading(true);
     try {
       const data = await getProposal(id);
       setProposal(data);
 
-      // Check vote status
       if (address && isConnected) {
         const voted = await hasVoted(id, address);
 
         if (voted === true) {
           setUserVote({ hasVoted: true, support: null });
         } else if (Array.isArray(voted)) {
-          // Handle if return is [hasVoted, support, weight, time]
           setUserVote({ hasVoted: voted[0], support: voted[1] });
         } else if (typeof voted === "object") {
           setUserVote({
@@ -127,18 +116,19 @@ const ProposalDetails = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [id, address, isConnected, getProposal, hasVoted]);
 
-  //  proposal refresh without causing loops
+  useEffect(() => {
+    if (contract && address) {
+      checkRegistration();
+    }
+  }, [contract, address, checkRegistration]);
+
   useEffect(() => {
     if (id) {
       loadProposalData();
     }
-  }, [id]); // Only re-load when proposal ID changes
-
-  useEffect(() => {
-    loadProposalData();
-  }, [id, address, isConnected]);
+  }, [id, loadProposalData]);
 
   const handleVoteClick = (support) => {
     if (!isConnected) {
@@ -150,7 +140,7 @@ const ProposalDetails = () => {
       );
       return;
     }
-    if (DEPLOYMENT_MODE === "baseline" && !isRegistered) {
+    if (mode === "baseline" && !isRegistered) {
       showAlert(
         "error",
         "Not Registered",
@@ -169,7 +159,6 @@ const ProposalDetails = () => {
       setShowVoteModal(false);
       setVoteReason("");
 
-      // Optimistic update
       setUserVote({
         hasVoted: true,
         support: selectedVote,
@@ -188,8 +177,6 @@ const ProposalDetails = () => {
       setActionLoading(false);
     }
   };
-
-  // --- Admin Actions ---
 
   const handleStartVoting = async () => {
     if (!isConnected) return;
@@ -264,6 +251,7 @@ const ProposalDetails = () => {
         />
       </div>
     );
+    
   if (!proposal)
     return (
       <Card padding="large">
@@ -327,99 +315,27 @@ const ProposalDetails = () => {
               <div className="vote-actions">
                 <h3>Cast Your Vote</h3>
                 {timeRemaining && (
-                  <div
-                    style={{
-                      marginBottom: "1rem",
-                      padding: "0.75rem",
-                      backgroundColor: "#f0f9ff",
-                      borderRadius: "6px",
-                      color: "#0369a1",
-                    }}
-                  >
+                  <div className="-noticeinfo">
                     ⏰ Time remaining: <strong>{timeRemaining}</strong>
                   </div>
                 )}
 
                 {userVote.hasVoted ? (
-                  <div
-                    className="voted-status-card"
-                    style={{
-                      padding: "1.5rem",
-                      backgroundColor: userVote.support ? "#f6ffed" : "#fff1f0",
-                      border: `1px solid ${
-                        userVote.support ? "#b7eb8f" : "#ffa39e"
-                      }`,
-                      borderRadius: "8px",
-                      textAlign: "center",
-                      marginTop: "1rem",
-                      boxShadow: "0 2px 4px rgba(0,0,0,0.05)",
-                    }}
-                  >
-                    <div style={{ fontSize: "2rem", marginBottom: "0.5rem" }}>
-                      {userVote.support ? "👍" : "👎"}
-                    </div>
-                    <h3
-                      style={{
-                        margin: 0,
-                        color: userVote.support ? "#389e0d" : "#cf1322",
-                      }}
-                    >
-                      You voted {userVote.support ? "YES" : "NO"}
-                    </h3>
-                    <p
-                      style={{
-                        margin: "0.5rem 0 0 0",
-                        color: "#666",
-                        fontSize: "0.9rem",
-                      }}
-                    >
-                      Your vote has been recorded on the blockchain.
-                    </p>
+                  <div className="voted-notice">
+                    {userVote.support ? "👍" : "👎"} You voted {userVote.support ? "YES" : "NO"}
                   </div>
                 ) : (
                   <>
-                    {!isRegistered && DEPLOYMENT_MODE === "baseline" && (
-                      <div
-                        style={{
-                          border: "1px solid #ffccc7",
-                          backgroundColor: "#fff2f0",
-                          padding: "1rem",
-                          borderRadius: "8px",
-                          textAlign: "center",
-                          marginBottom: "1rem",
-                        }}
-                      >
-                        <p
-                          style={{
-                            color: "#ff4d4f",
-                            fontWeight: "600",
-                            marginBottom: "0.5rem",
-                          }}
-                        >
-                          ⚠️ Voting Restricted
-                        </p>
-                        <p
-                          style={{
-                            fontSize: "0.9rem",
-                            color: "#595959",
-                            marginBottom: "0",
-                          }}
-                        >
-                          You are not registered in the DAO. Only registered
-                          members can vote.
-                        </p>
+                    {!isRegistered && mode === "baseline" && (
+                      <div className="voting-closed-notice">
+                        ⚠️ Voting Restricted - You are not registered in the DAO. Only registered members can vote.
                       </div>
                     )}
 
-                    {/* ✅ CONDITIONAL VOTING INTERFACE */}
-                    {DEPLOYMENT_MODE === "private" ? (
-                      <div style={{ marginTop: "1rem" }}>
-                        <Alert type="info" title="🔒 Private Voting">
-                          Voting on this proposal requires generating a
-                          Zero-Knowledge Proof. Please use the{" "}
-                          <strong>ZK Voting Module</strong> on your Dashboard to
-                          cast your vote anonymously.
-                        </Alert>
+                    {/* CONDITIONAL VOTING INTERFACE */}
+                    {mode === "private" ? (
+                      <div className="info-notice">
+                        🔒 <strong>Private Voting:</strong> Voting on this proposal requires generating a Zero-Knowledge Proof. Please use the <strong>ZK Voting Module</strong> on your Dashboard to cast your vote anonymously.
                       </div>
                     ) : (
                       <div className="vote-buttons">
@@ -429,11 +345,6 @@ const ProposalDetails = () => {
                           fullWidth
                           onClick={() => handleVoteClick(true)}
                           disabled={actionLoading || !isRegistered}
-                          style={
-                            !isRegistered
-                              ? { opacity: 0.5, cursor: "not-allowed" }
-                              : {}
-                          }
                         >
                           Vote Yes 👍
                         </Button>
@@ -443,11 +354,6 @@ const ProposalDetails = () => {
                           fullWidth
                           onClick={() => handleVoteClick(false)}
                           disabled={actionLoading || !isRegistered}
-                          style={
-                            !isRegistered
-                              ? { opacity: 0.5, cursor: "not-allowed" }
-                              : {}
-                          }
                         >
                           Vote No 👎
                         </Button>
@@ -472,7 +378,6 @@ const ProposalDetails = () => {
                     onClick={handleStartVoting}
                     disabled={actionLoading || !votingStarted}
                     loading={actionLoading}
-                    style={{ marginTop: "1rem" }}
                   >
                     {votingStarted
                       ? "Start Voting Period"
@@ -491,10 +396,7 @@ const ProposalDetails = () => {
             )}
 
             {proposal.state === 1 && votingEnded && (
-              <div
-                className="proposal-status-section"
-                style={{ marginTop: "1rem" }}
-              >
+              <div className="proposal-status-section">
                 <Button
                   variant="primary"
                   size="large"
@@ -510,7 +412,7 @@ const ProposalDetails = () => {
 
             {/* Cancel Button */}
             {(proposal.state === 0 || proposal.state === 1) && isProposer && (
-              <div style={{ marginTop: "1rem" }}>
+              <div className="proposal-status-section">
                 <Button
                   variant="danger"
                   size="medium"
@@ -525,38 +427,21 @@ const ProposalDetails = () => {
         </div>
 
         <div className="proposal-sidebar">
-          {/* ✅ NEW: Voting Requirements Card */}
+          {/* Voting Requirements Card */}
           <Card padding="medium" className="requirements-card">
-            <h3>Voting Requirements</h3>
-            <div
-              className="requirement-item"
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-              }}
-            >
-              {DEPLOYMENT_MODE === "private" ? (
+            <h3 className="sidebar-title">Voting Requirements</h3>
+            <div className="info-item">
+              {mode === "private" ? (
                 <>
-                  <span className="req-label" style={{ color: "#666" }}>
-                    Min Reputation
-                  </span>
-                  <span
-                    className="req-value"
-                    style={{ fontWeight: "bold", color: "#2196F3" }}
-                  >
+                  <span className="info-label">Min Reputation</span>
+                  <span className="info-value">
                     {proposal.minReputationRequired || 0} Points
                   </span>
                 </>
               ) : (
                 <>
-                  <span className="req-label" style={{ color: "#666" }}>
-                    Min Tokens
-                  </span>
-                  <span
-                    className="req-value"
-                    style={{ fontWeight: "bold", color: "#4CAF50" }}
-                  >
+                  <span className="info-label">Min Tokens</span>
+                  <span className="info-value">
                     {formatNumber(proposal.minTokensRequired || 0)} GOV
                   </span>
                 </>
@@ -614,17 +499,10 @@ const ProposalDetails = () => {
                 {formatLargeNumber(totalVotes)}
               </span>
             </div>
-            {/* New Quorum Warning */}
-            <div
-              style={{
-                marginTop: "1rem",
-                fontSize: "0.85rem",
-                color: "#666",
-                borderTop: "1px solid #eee",
-                paddingTop: "0.5rem",
-              }}
-            >
-              Quorum Required: <strong>{formatLargeNumber(40000)}</strong>
+            {/* Quorum Warning */}
+            <div className="info-item">
+              <span className="info-label">Quorum Required</span>
+              <span className="info-value">{formatLargeNumber(40000)}</span>
             </div>
           </Card>
 
@@ -693,16 +571,7 @@ const ProposalDetails = () => {
             placeholder="Share why you're voting this way..."
           />
           <Alert type="warning" title="⚠️ Important">
-            <ul
-              style={{
-                margin: "0.5rem 0 0 0",
-                paddingLeft: "1.25rem",
-                fontSize: "0.9rem",
-              }}
-            >
-              <li>Your vote is final.</li>
-              <li>This will cost gas fees.</li>
-            </ul>
+            Your vote is final and will cost gas fees.
           </Alert>
         </div>
       </Modal>

@@ -1,12 +1,20 @@
-import { PROPOSAL_STATE, PROPOSAL_STATE_LABELS } from './constants';
+import { PROPOSAL_STATE } from "./constants";
 
 /**
- * Get proposal state label
+ * Get human-readable label for proposal state
  * @param {number} state - Proposal state number
  * @returns {string} State label
  */
 export const getProposalStateLabel = (state) => {
-  return PROPOSAL_STATE_LABELS[state] || 'Unknown';
+  const labels = {
+    0: "Pending",
+    1: "Active", 
+    2: "Passed",      // ✅ CHANGED from "Succeeded"
+    3: "Rejected",    // ✅ CHANGED from "Defeated"
+    4: "Executed",
+    5: "Canceled",
+  };
+  return labels[state] || "Unknown";
 };
 
 /**
@@ -15,16 +23,15 @@ export const getProposalStateLabel = (state) => {
  * @returns {string} CSS color variable
  */
 export const getProposalStateColor = (state) => {
-  const colorMap = {
-    [PROPOSAL_STATE.PENDING]: '#FFA500', 
-    [PROPOSAL_STATE.ACTIVE]: '#4CAF50',
-    [PROPOSAL_STATE.PASSED]: '#2196F3',
-    [PROPOSAL_STATE.REJECTED]: '#F44336',
-    [PROPOSAL_STATE.EXECUTED]: '#9C27B0',
-    [PROPOSAL_STATE.CANCELED]: '#757575'
+  const colors = {
+    0: "#FFA500", // Pending - Orange
+    1: "#4CAF50", // Active - Green
+    2: "#2196F3", // Passed - Blue
+    3: "#F44336", // Rejected - Red
+    4: "#9C27B0", // Executed - Purple
+    5: "#757575", // Canceled - Gray
   };
-  
-  return colorMap[state] || '#000000';
+  return colors[state] || "#000000";
 };
 
 /**
@@ -64,17 +71,21 @@ export const calculateQuorum = (forVotes, totalSupply) => {
  * @param {number} abstainVotes - Abstain votes
  * @returns {object} Vote percentages
  */
-export const calculateVotePercentages = (forVotes, againstVotes, abstainVotes) => {
+export const calculateVotePercentages = (
+  forVotes,
+  againstVotes,
+  abstainVotes
+) => {
   const total = forVotes + againstVotes + abstainVotes;
-  
+
   if (total === 0) {
     return { for: 0, against: 0, abstain: 0 };
   }
-  
+
   return {
     for: (forVotes / total) * 100,
     against: (againstVotes / total) * 100,
-    abstain: (abstainVotes / total) * 100
+    abstain: (abstainVotes / total) * 100,
   };
 };
 
@@ -84,12 +95,12 @@ export const calculateVotePercentages = (forVotes, againstVotes, abstainVotes) =
  * @param {string} order - Sort order ('asc' or 'desc')
  * @returns {array} Sorted proposals
  */
-export const sortProposalsByDate = (proposals, order = 'desc') => {
+export const sortProposalsByDate = (proposals, order = "desc") => {
   return [...proposals].sort((a, b) => {
     const dateA = new Date(a.createdAt || a.startBlock);
     const dateB = new Date(b.createdAt || b.startBlock);
-    
-    return order === 'desc' ? dateB - dateA : dateA - dateB;
+
+    return order === "desc" ? dateB - dateA : dateA - dateB;
   });
 };
 
@@ -101,7 +112,7 @@ export const sortProposalsByDate = (proposals, order = 'desc') => {
  */
 export const filterProposalsByState = (proposals, states) => {
   const stateArray = Array.isArray(states) ? states : [states];
-  return proposals.filter(p => stateArray.includes(p.state));
+  return proposals.filter((p) => stateArray.includes(p.state));
 };
 
 /**
@@ -111,14 +122,15 @@ export const filterProposalsByState = (proposals, states) => {
  * @returns {array} Matching proposals
  */
 export const searchProposals = (proposals, query) => {
-  if (!query || query.trim() === '') return proposals;
-  
+  if (!query || query.trim() === "") return proposals;
+
   const lowerQuery = query.toLowerCase();
-  
-  return proposals.filter(p => 
-    (p.title && p.title.toLowerCase().includes(lowerQuery)) ||
-    (p.description && p.description.toLowerCase().includes(lowerQuery)) ||
-    (p.proposer && p.proposer.toLowerCase().includes(lowerQuery))
+
+  return proposals.filter(
+    (p) =>
+      (p.title && p.title.toLowerCase().includes(lowerQuery)) ||
+      (p.description && p.description.toLowerCase().includes(lowerQuery)) ||
+      (p.proposer && p.proposer.toLowerCase().includes(lowerQuery))
   );
 };
 
@@ -133,10 +145,10 @@ export const paginate = (items, page = 1, pageSize = 10) => {
   const totalItems = items.length;
   const totalPages = Math.ceil(totalItems / pageSize);
   const currentPage = Math.max(1, Math.min(page, totalPages));
-  
+
   const startIndex = (currentPage - 1) * pageSize;
   const endIndex = startIndex + pageSize;
-  
+
   return {
     items: items.slice(startIndex, endIndex),
     currentPage,
@@ -144,7 +156,7 @@ export const paginate = (items, page = 1, pageSize = 10) => {
     totalPages,
     totalItems,
     hasNextPage: currentPage < totalPages,
-    hasPrevPage: currentPage > 1
+    hasPrevPage: currentPage > 1,
   };
 };
 
@@ -156,13 +168,13 @@ export const paginate = (items, page = 1, pageSize = 10) => {
  */
 export const debounce = (func, wait = 300) => {
   let timeout;
-  
+
   return function executedFunction(...args) {
     const later = () => {
       clearTimeout(timeout);
       func(...args);
     };
-    
+
     clearTimeout(timeout);
     timeout = setTimeout(later, wait);
   };
@@ -178,7 +190,7 @@ export const copyToClipboard = async (text) => {
     await navigator.clipboard.writeText(text);
     return true;
   } catch (err) {
-    console.error('Failed to copy:', err);
+    console.error("Failed to copy:", err);
     return false;
   }
 };
@@ -197,7 +209,7 @@ export const generateId = () => {
  * @returns {Promise}
  */
 export const sleep = (ms) => {
-  return new Promise(resolve => setTimeout(resolve, ms));
+  return new Promise((resolve) => setTimeout(resolve, ms));
 };
 
 /**
@@ -208,7 +220,7 @@ export const sleep = (ms) => {
  */
 export const truncateText = (text, maxLength = 100) => {
   if (!text || text.length <= maxLength) return text;
-  return text.substring(0, maxLength) + '...';
+  return text.substring(0, maxLength) + "...";
 };
 
 export default {
@@ -226,5 +238,5 @@ export default {
   copyToClipboard,
   generateId,
   sleep,
-  truncateText
+  truncateText,
 };
