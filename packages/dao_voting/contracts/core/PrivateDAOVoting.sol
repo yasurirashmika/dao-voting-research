@@ -4,7 +4,6 @@ pragma solidity ^0.8.20;
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {Groth16Verifier as VoteVerifier} from "./VoteVerifier.sol";
-// ✅ NEW: Import Reputation Interface
 import "../interfaces/IReputationManager.sol";
 
 /**
@@ -24,7 +23,7 @@ contract PrivateDAOVoting is Ownable, ReentrancyGuard {
         uint256 votingStart;
         uint256 votingEnd;
         bytes32 voterSetRoot;
-        // ✅ NEW: Reputation Requirement
+        // ✅ NEW: Reputation Requirement for VOTERS
         uint256 minReputationRequired;
     }
 
@@ -38,7 +37,6 @@ contract PrivateDAOVoting is Ownable, ReentrancyGuard {
     }
 
     VoteVerifier public verifier;
-    // ✅ NEW: Reputation Manager
     IReputationManager public reputationManager;
     address public didRegistry;
 
@@ -50,6 +48,9 @@ contract PrivateDAOVoting is Ownable, ReentrancyGuard {
     uint256 public votingDelay = 1 hours;
     uint256 public votingPeriod = 7 days;
     uint256 public quorumPercentage = 40;
+    
+    // ✅ NEW: Score required to CREATE a proposal (Proposer Gate)
+    uint256 public minReputationToPropose = 50; 
 
     bytes32 public currentVoterSetRoot;
 
@@ -83,7 +84,7 @@ contract PrivateDAOVoting is Ownable, ReentrancyGuard {
 
     constructor(
         address _verifier,
-        address _reputationManager, // ✅ NEW Arg
+        address _reputationManager,
         address initialOwner
     ) Ownable(initialOwner) {
         require(_verifier != address(0), "Invalid verifier address");
@@ -99,6 +100,11 @@ contract PrivateDAOVoting is Ownable, ReentrancyGuard {
         require(_didRegistry != address(0), "Invalid registry address");
         didRegistry = _didRegistry;
         emit DIDRegistryUpdated(_didRegistry);
+    }
+
+    // Owner can adjust the difficulty to create proposals
+    function setMinReputationToPropose(uint256 _amount) external onlyOwner {
+        minReputationToPropose = _amount;
     }
 
     function registerVoter(bytes32 commitment) external onlyRegistrar {
@@ -132,19 +138,18 @@ contract PrivateDAOVoting is Ownable, ReentrancyGuard {
     function submitProposal(
         string memory _title,
         string memory _description,
-        uint256 _minReputationRequired // ✅ NEW Arg
+        uint256 _minReputationRequired // Requirement for VOTERS
     ) external nonReentrant {
         require(bytes(_title).length > 0, "Title required");
         require(bytes(_description).length > 0, "Description required");
         require(currentVoterSetRoot != bytes32(0), "Voter set not initialized");
 
-        // ✅ NEW: Check Proposer's Reputation
-        // Proposer needs enough reputation to SET the requirement (or just to propose?)
-        // Usually, the requirement is for VOTERS.
-        // But let's check if Proposer has enough reputation to create a proposal.
-        // For simplicity: We just store the requirement for now.
-        // If you want to restrict creation:
-        // require(reputationManager.getReputationScore(msg.sender) >= 100, "Low reputation");
+        // ✅ FIXED: Enforce Reputation Check for PROPOSER
+        // Uses the correct interface function 'getReputationScore'
+        require(
+            reputationManager.getReputationScore(msg.sender) >= minReputationToPropose, 
+            "Insufficient reputation to create proposal"
+        );
 
         proposalCount++;
         uint256 votingStart = block.timestamp + votingDelay;
@@ -162,7 +167,7 @@ contract PrivateDAOVoting is Ownable, ReentrancyGuard {
             votingStart: votingStart,
             votingEnd: votingEnd,
             voterSetRoot: currentVoterSetRoot,
-            minReputationRequired: _minReputationRequired // ✅ Stored
+            minReputationRequired: _minReputationRequired
         });
 
         emit ProposalCreated(
@@ -204,10 +209,6 @@ contract PrivateDAOVoting is Ownable, ReentrancyGuard {
         );
         require(_proposalId == _publicSignals[2], "Invalid proposal ID");
         require((_support ? 1 : 0) == _publicSignals[3], "Invalid vote choice");
-
-        // Note: We cannot easily check "Reputation" here because the vote is anonymous.
-        // The Prover circuit would need to prove they have > minReputation.
-        // For this Phase, we only check the Proof validity.
 
         require(
             verifier.verifyProof(_proof_a, _proof_b, _proof_c, _publicSignals),

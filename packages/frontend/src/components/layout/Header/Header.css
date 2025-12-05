@@ -364,3 +364,16 @@
     max-height: 85vh;
   }
 }
+
+.highlight-link {
+    background-color: var(--primary);
+    color: white !important; /* Force white text */
+    border-radius: 8px;
+    padding: 8px 16px !important;
+    margin-left: 10px;
+}
+
+.highlight-link:hover {
+    background-color: var(--primary-dark);
+    opacity: 0.9;
+}

@@ -1,71 +1,90 @@
-// src/components/layout/Header/Header.jsx (UPDATED - Optimized)
-import React, { useState, useEffect, useCallback } from 'react';
-import { Link, useLocation } from 'react-router-dom';
-import { ConnectButton } from '@rainbow-me/rainbowkit';
-import { useAccount } from 'wagmi';
-import { useTheme } from '../../../context/ThemeContext';
-import { useDeployment } from '../../../context/DeploymentContext';
-import { useContract } from '../../../hooks/useContract';
-import DeploymentBadge from '../../common/DeploymentBadge/DeploymentBadge';
-import DAOVotingABI from '../../../abis/DAOVoting.json';
-import './Header.css';
+import React, { useState, useEffect, useCallback } from "react";
+import { Link, useLocation } from "react-router-dom";
+import { ConnectButton } from "@rainbow-me/rainbowkit";
+import { useAccount } from "wagmi";
+import { useTheme } from "../../../context/ThemeContext";
+import { useDeployment } from "../../../context/DeploymentContext";
+import { useContract } from "../../../hooks/useContract";
+import DeploymentBadge from "../../common/DeploymentBadge/DeploymentBadge";
+import DAOVotingABI from "../../../abis/DAOVoting.json";
+import DIDRegistryABI from "../../../abis/DIDRegistry.json"; // Import DID ABI
+import "./Header.css";
 
 const Header = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showDeploymentModal, setShowDeploymentModal] = useState(false);
-  
+
   const { theme, toggleTheme } = useTheme();
-  const { deploymentInfo } = useDeployment();
+  const { deploymentInfo, mode } = useDeployment();
   const location = useLocation();
   const { address, isConnected } = useAccount();
-  
+
   const [isAdmin, setIsAdmin] = useState(false);
-  const [adminChecked, setAdminChecked] = useState(false); // ✅ Track if we've checked
+  const [isRegistered, setIsRegistered] = useState(false); // New State
 
-  const { contract, read } = useContract('DAOVoting', DAOVotingABI.abi);
+  // Contract hooks
+  const { contract: daoContract, read: readDAO } = useContract(
+    "DAOVoting",
+    DAOVotingABI.abi
+  );
+  const { contract: didContract, read: readDID } = useContract(
+    "DIDRegistry",
+    DIDRegistryABI.abi
+  );
 
-  // ✅ OPTIMIZED: Only check admin status once when conditions are met
-  const checkAdminStatus = useCallback(async () => {
-    // Prevent multiple checks
-    if (adminChecked || !address || !isConnected || !contract) {
+  // ✅ Check Status (Admin & Registration)
+  const checkUserStatus = useCallback(async () => {
+    if (!address || !isConnected) {
+      setIsAdmin(false);
+      setIsRegistered(false);
       return;
     }
-    
-    console.log('🔍 Header: Checking admin status...');
-    
+
     try {
-      const ownerAddress = await read('owner', []);
-      const adminStatus = ownerAddress.toLowerCase() === address.toLowerCase();
-      
-      console.log('✅ Is Admin:', adminStatus);
-      setIsAdmin(adminStatus);
-      setAdminChecked(true); // ✅ Mark as checked
+      // 1. Check Admin Status
+      if (daoContract) {
+        const ownerAddress = await readDAO("owner", []);
+        setIsAdmin(ownerAddress.toLowerCase() === address.toLowerCase());
+      }
+
+      // 2. Check Registration Status based on Mode
+      let registered = false;
+      if (mode === "public" && daoContract) {
+        registered = await readDAO("isRegistered", [address]);
+      } else if (mode === "private" && didContract) {
+        // For private, we check if they have a Registered DID for voting
+        registered = await readDID("hasRegisteredForVoting", [address]);
+      }
+      setIsRegistered(registered);
     } catch (err) {
-      console.error('❌ Error checking admin status:', err);
-      setIsAdmin(false);
-      setAdminChecked(true); // ✅ Still mark as checked to prevent retry loops
+      console.error("❌ Error checking status:", err);
     }
-  }, [address, isConnected, contract, read, adminChecked]);
+  }, [address, isConnected, daoContract, didContract, readDAO, readDID, mode]);
 
-  // ✅ Reset admin check when wallet changes
   useEffect(() => {
-    setAdminChecked(false);
-    setIsAdmin(false);
-  }, [address, isConnected]);
+    checkUserStatus();
+  }, [checkUserStatus]);
 
-  // ✅ Check admin status only once when ready
-  useEffect(() => {
-    if (!adminChecked && address && isConnected && contract) {
-      checkAdminStatus();
-    }
-  }, [address, isConnected, contract, adminChecked, checkAdminStatus]);
-
+  // ✅ Dynamic Navigation Links
   const navLinks = [
-    { path: '/', label: 'Home' },
-    { path: '/proposals', label: 'Proposals' },
-    { path: '/create-proposal', label: 'Create Proposal' },
-    { path: '/dashboard', label: 'Dashboard' },
-    ...(isAdmin ? [{ path: '/admin', label: 'Admin', isAdmin: true }] : []),
+    { path: "/", label: "Home" },
+    { path: "/proposals", label: "Proposals" },
+
+    // Only show "Join DAO" if connected BUT NOT registered
+    ...(isConnected && !isRegistered
+      ? [{ path: "/register", label: "Join DAO", highlight: true }]
+      : []),
+
+    // Show Dashboard if connected (regardless of registration, but usually after)
+    ...(isConnected ? [{ path: "/dashboard", label: "Dashboard" }] : []),
+
+    // Only show Create Proposal if Registered
+    ...(isRegistered
+      ? [{ path: "/create-proposal", label: "Create Proposal" }]
+      : []),
+
+    // Admin Link
+    ...(isAdmin ? [{ path: "/admin", label: "Admin", isAdmin: true }] : []),
   ];
 
   const isActive = (path) => location.pathname === path;
@@ -85,85 +104,73 @@ const Header = () => {
             <Link
               key={link.path}
               to={link.path}
-              className={`nav-link ${isActive(link.path) ? 'active' : ''} ${link.isAdmin ? 'admin-link' : ''}`}
+              className={`nav-link ${isActive(link.path) ? "active" : ""} ${
+                link.isAdmin ? "admin-link" : ""
+              } ${link.highlight ? "highlight-link" : ""}`}
             >
               {link.label}
-              {link.isAdmin && (
-                <span className="admin-badge">⚡</span>
-              )}
+              {link.isAdmin && <span className="admin-badge">⚡</span>}
             </Link>
           ))}
         </nav>
 
         {/* Right Section */}
         <div className="header-actions">
-          {/* Deployment Mode Toggle */}
           <button
             className="deployment-toggle-header"
             onClick={() => setShowDeploymentModal(!showDeploymentModal)}
-            type="button"
-            title="Switch deployment mode"
           >
             <span className="deploy-icon">{deploymentInfo.icon}</span>
             <span className="deploy-label">{deploymentInfo.mode}</span>
           </button>
 
-          {/* Theme Toggle */}
-          <button
-            onClick={toggleTheme}
-            className="theme-toggle"
-            aria-label="Toggle theme"
-            type="button"
-          >
-            {theme === 'light' ? '🌙' : '☀️'}
+          <button onClick={toggleTheme} className="theme-toggle">
+            {theme === "light" ? "🌙" : "☀️"}
           </button>
 
-          {/* Wallet Connect Button */}
           <div className="wallet-connect-wrapper">
             <ConnectButton />
           </div>
 
-          {/* Mobile Menu Button */}
           <button
             className="mobile-menu-btn"
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            aria-label="Toggle menu"
-            type="button"
           >
-            <span className="menu-icon">
-              {mobileMenuOpen ? '✕' : '☰'}
-            </span>
+            <span className="menu-icon">{mobileMenuOpen ? "✕" : "☰"}</span>
           </button>
         </div>
       </div>
 
-      {/* Mobile Navigation */}
+      {/* Mobile Nav & Modal Code (Keep existing) */}
       {mobileMenuOpen && (
         <nav className="mobile-nav">
           {navLinks.map((link) => (
             <Link
               key={link.path}
               to={link.path}
-              className={`mobile-nav-link ${isActive(link.path) ? 'active' : ''} ${link.isAdmin ? 'admin-link' : ''}`}
+              className={`mobile-nav-link ${
+                isActive(link.path) ? "active" : ""
+              }`}
               onClick={() => setMobileMenuOpen(false)}
             >
               {link.label}
-              {link.isAdmin && (
-                <span className="admin-badge">⚡</span>
-              )}
             </Link>
           ))}
         </nav>
       )}
 
-      {/* Deployment Switcher Modal */}
       {showDeploymentModal && (
-        <div className="deployment-modal-overlay" onClick={() => setShowDeploymentModal(false)}>
-          <div className="deployment-modal" onClick={(e) => e.stopPropagation()}>
-            <button 
+        <div
+          className="deployment-modal-overlay"
+          onClick={() => setShowDeploymentModal(false)}
+        >
+          <div
+            className="deployment-modal"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
               className="modal-close"
               onClick={() => setShowDeploymentModal(false)}
-              type="button"
             >
               ✕
             </button>

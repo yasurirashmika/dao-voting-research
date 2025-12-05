@@ -15,19 +15,19 @@ interface IPrivateDAOVoting {
  */
 contract DIDRegistry is Ownable {
     struct DIDDocument {
-        string did;                     // Decentralized Identifier (did:eth:0x...)
-        address controller;             // DID controller (wallet address)
-        bytes32 credentialHash;         // Hash of verifiable credential
-        uint256 issuedAt;              // Timestamp when issued
-        uint256 expiresAt;             // Credential expiration
-        bool isActive;                 // Active status
-        bool isVerified;               // KYC/Identity verified
+        string did; // Decentralized Identifier (did:eth:0x...)
+        address controller; // DID controller (wallet address)
+        bytes32 credentialHash; // Hash of verifiable credential
+        uint256 issuedAt; // Timestamp when issued
+        uint256 expiresAt; // Credential expiration
+        bool isActive; // Active status
+        bool isVerified; // KYC/Identity verified
     }
 
     struct VerifiableCredential {
-        string credentialType;          // e.g., "GovernanceCredential"
-        bytes32 credentialHash;         // Hash of full credential (stored off-chain)
-        address issuer;                 // Who issued the credential
+        string credentialType; // e.g., "GovernanceCredential"
+        bytes32 credentialHash; // Hash of full credential (stored off-chain)
+        address issuer; // Who issued the credential
         uint256 issuedAt;
         uint256 expiresAt;
     }
@@ -45,13 +45,20 @@ contract DIDRegistry is Ownable {
     event DIDCreated(address indexed controller, string did, uint256 timestamp);
     event DIDUpdated(address indexed controller, string did);
     event DIDRevoked(address indexed controller, string did);
-    event CredentialIssued(address indexed subject, bytes32 indexed credentialHash, address issuer);
+    event CredentialIssued(
+        address indexed subject,
+        bytes32 indexed credentialHash,
+        address issuer
+    );
     event CredentialRevoked(bytes32 indexed credentialHash);
     event IssuerAuthorized(address indexed issuer);
     event IssuerRevoked(address indexed issuer);
-    
+
     // Event for voting registration
-    event VotingRegistrationSuccess(address indexed controller, bytes32 commitment);
+    event VotingRegistrationSuccess(
+        address indexed controller,
+        bytes32 commitment
+    );
 
     modifier onlyAuthorizedIssuer() {
         require(
@@ -64,9 +71,56 @@ contract DIDRegistry is Ownable {
     constructor(address initialOwner) Ownable(initialOwner) {}
 
     // Set the Private Voting Contract Address
-    function setPrivateVotingContract(address _privateVoting) external onlyOwner {
+    function setPrivateVotingContract(
+        address _privateVoting
+    ) external onlyOwner {
         require(_privateVoting != address(0), "Invalid address");
         privateVoting = IPrivateDAOVoting(_privateVoting);
+    }
+
+    /**
+     * @dev ✅ NEW: Self-registration function for users
+     * Anyone can create their own DID and register for voting in one transaction
+     */
+    function selfRegisterForVoting(
+        bytes32 commitment        // string memory credentialType
+    ) external {
+        address controller = msg.sender;
+
+        // 1. Create DID if doesn't exist
+        if (!didDocuments[controller].isActive) {
+            string memory did = string(
+                abi.encodePacked("did:eth:", addressToString(controller))
+            );
+
+            didDocuments[controller] = DIDDocument({
+                did: did,
+                controller: controller,
+                credentialHash: bytes32(0),
+                issuedAt: block.timestamp,
+                expiresAt: 0,
+                isActive: true,
+                isVerified: false // Self-registered DIDs start unverified
+            });
+
+            emit DIDCreated(controller, did, block.timestamp);
+        }
+
+        // 2. Register for voting
+        require(
+            !hasRegisteredForVoting[controller],
+            "Sybil Attack: Already registered for voting"
+        );
+        hasRegisteredForVoting[controller] = true;
+
+        // 3. Register commitment in PrivateDAOVoting
+        require(
+            address(privateVoting) != address(0),
+            "Private voting contract not set"
+        );
+        privateVoting.registerVoter(commitment);
+
+        emit VotingRegistrationSuccess(controller, commitment);
     }
 
     /**
@@ -79,18 +133,24 @@ contract DIDRegistry is Ownable {
     function registerVoterForDAO(bytes32 commitment) external {
         // 1. Check DID Existence
         require(didDocuments[msg.sender].isActive, "No active DID found");
-        
+
         // 2. Check Credential (Optional: Enable if you want to require Verified Credentials)
         // require(didDocuments[msg.sender].isVerified, "DID is not verified");
 
         // 3. Check Sybil Resistance
-        require(!hasRegisteredForVoting[msg.sender], "Sybil Attack: DID already registered for voting");
+        require(
+            !hasRegisteredForVoting[msg.sender],
+            "Sybil Attack: DID already registered for voting"
+        );
 
         // 4. Mark as Used
         hasRegisteredForVoting[msg.sender] = true;
 
         // 5. Call PrivateDAOVoting
-        require(address(privateVoting) != address(0), "Private voting contract not set");
+        require(
+            address(privateVoting) != address(0),
+            "Private voting contract not set"
+        );
         privateVoting.registerVoter(commitment);
 
         emit VotingRegistrationSuccess(msg.sender, commitment);
@@ -130,10 +190,9 @@ contract DIDRegistry is Ownable {
         require(!didDocuments[controller].isActive, "DID already exists");
 
         // Generate DID string: did:eth:chainId:address
-        string memory did = string(abi.encodePacked(
-            "did:eth:",
-            addressToString(controller)
-        ));
+        string memory did = string(
+            abi.encodePacked("did:eth:", addressToString(controller))
+        );
 
         didDocuments[controller] = DIDDocument({
             did: did,
@@ -181,16 +240,18 @@ contract DIDRegistry is Ownable {
     /**
      * @dev Verify if a DID has valid credentials for voting
      */
-    function verifyVotingEligibility(address controller) external view returns (bool isValid) {
+    function verifyVotingEligibility(
+        address controller
+    ) external view returns (bool isValid) {
         DIDDocument memory doc = didDocuments[controller];
-        
+
         if (!doc.isActive || !doc.isVerified) {
             return false;
         }
 
         // Check if credential exists and is not expired
         VerifiableCredential memory cred = credentials[doc.credentialHash];
-        
+
         if (cred.credentialHash == bytes32(0)) {
             return false;
         }
@@ -205,9 +266,14 @@ contract DIDRegistry is Ownable {
     /**
      * @dev Revoke a credential
      */
-    function revokeCredential(bytes32 credentialHash) external onlyAuthorizedIssuer {
-        require(credentials[credentialHash].credentialHash != bytes32(0), "Credential not found");
-        
+    function revokeCredential(
+        bytes32 credentialHash
+    ) external onlyAuthorizedIssuer {
+        require(
+            credentials[credentialHash].credentialHash != bytes32(0),
+            "Credential not found"
+        );
+
         delete credentials[credentialHash];
         emit CredentialRevoked(credentialHash);
     }
@@ -217,16 +283,20 @@ contract DIDRegistry is Ownable {
      */
     function revokeDID(address controller) external onlyAuthorizedIssuer {
         require(didDocuments[controller].isActive, "DID not active");
-        
+
         didDocuments[controller].isActive = false;
         emit DIDRevoked(controller, didDocuments[controller].did);
     }
 
-    function getDIDDocument(address controller) external view returns (DIDDocument memory) {
+    function getDIDDocument(
+        address controller
+    ) external view returns (DIDDocument memory) {
         return didDocuments[controller];
     }
 
-    function getCredential(bytes32 credentialHash) external view returns (VerifiableCredential memory) {
+    function getCredential(
+        bytes32 credentialHash
+    ) external view returns (VerifiableCredential memory) {
         return credentials[credentialHash];
     }
 
@@ -234,19 +304,21 @@ contract DIDRegistry is Ownable {
         return didDocuments[controller].isActive;
     }
 
-    function addressToString(address addr) internal pure returns (string memory) {
+    function addressToString(
+        address addr
+    ) internal pure returns (string memory) {
         bytes32 value = bytes32(uint256(uint160(addr)));
         bytes memory alphabet = "0123456789abcdef";
         bytes memory str = new bytes(42);
-        
-        str[0] = '0';
-        str[1] = 'x';
-        
+
+        str[0] = "0";
+        str[1] = "x";
+
         for (uint256 i = 0; i < 20; i++) {
             str[2 + i * 2] = alphabet[uint8(value[i + 12] >> 4)];
             str[3 + i * 2] = alphabet[uint8(value[i + 12] & 0x0f)];
         }
-        
+
         return string(str);
     }
 }

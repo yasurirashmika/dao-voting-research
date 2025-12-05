@@ -9,7 +9,7 @@ async function main() {
   const GOVERNANCE_TOKEN_ADDRESS = process.env.GOVERNANCE_TOKEN_ADDRESS;
   
   
-  if (!GOVERNANCE_TOKEN_ADDRESS || GOVERNANCE_TOKEN_ADDRESS === "0xD72AB3c2e7482b39235E06A15e797f0C8b31ddfE") {
+  if (!GOVERNANCE_TOKEN_ADDRESS || GOVERNANCE_TOKEN_ADDRESS === "0x92aDA13a738C9069eC44a7B5C65b5dBC5Bd0a881") {
     console.error("❌ Please update GOVERNANCE_TOKEN_ADDRESS in scripts/deploy-dao-voting.js");
     process.exit(1);
   }

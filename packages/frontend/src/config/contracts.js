@@ -3,9 +3,9 @@
 export const CONTRACT_ADDRESSES = {
   // Sepolia Testnet - Baseline System (Public Voting)
   11155111: {
-    DAOVoting: "0x951EB6e2af83a0574531D7007Be675cFe75Ab492",
-    GovernanceToken: "0xD72AB3c2e7482b39235E06A15e797f0C8b31ddfE",
-    ReputationManager: "0xd74591eeB4544BC4bd6BbF5E2BE7b7e8f8BA7ddE",
+    DAOVoting: "0x2a374469438baB57ed9c2033799172B5b7d6A5bB",
+    GovernanceToken: "0x92aDA13a738C9069eC44a7B5C65b5dBC5Bd0a881",
+    ReputationManager: "0xEfcAEac1af83762889207e5aDC458774618515EE",
   },
 };
 

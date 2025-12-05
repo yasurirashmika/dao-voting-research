@@ -8,12 +8,14 @@ import Dashboard from "../pages/Dashboard/Dashboard";
 import Admin from "../pages/Admin/Admin";
 import NotFound from "../pages/NotFound/NotFound";
 import ProtectedRoute from "./ProtectedRoute";
+import Register from '../pages/Register/Register';
 
 const AppRouter = () => {
   return (
     <Routes>
       {/* Public Routes */}
       <Route path="/" element={<Home />} />
+      <Route path="/register" element={<Register />} />
       <Route path="/proposals" element={<Proposals />} />
       <Route path="/proposals/:id" element={<ProposalDetails />} />
 

@@ -23,7 +23,6 @@ contract DAOVoting is Ownable, ReentrancyGuard {
         uint256 votingStart;
         uint256 votingEnd;
         uint256 minTokensRequired;
-        // Removed: minReputationRequired
     }
 
     struct Vote {
@@ -42,18 +41,21 @@ contract DAOVoting is Ownable, ReentrancyGuard {
     }
 
     IGovernanceToken public governanceToken;
-    // Removed: ReputationManager
 
     mapping(address => bool) public registeredVoters;
     mapping(uint256 => Proposal) public proposals;
     mapping(uint256 => mapping(address => Vote)) public votes;
     mapping(uint256 => mapping(address => bool)) public hasVoted;
 
+    // --- STATE VARIABLES ---
     uint256 public proposalCount;
+    uint256 public voterCount; // ✅ ADDED THIS (Fixes the error)
+    uint256 public minTokensToRegister = 1 ether; // ✅ MOVED UP (Cleaner code)
+
     uint256 public votingDelay = 1 hours;
     uint256 public votingPeriod = 7 days;
-    uint256 public proposalThreshold = 1000 * 10 ** 18; 
-    uint256 public quorumPercentage = 40; 
+    uint256 public proposalThreshold = 1000 * 10 ** 18;
+    uint256 public quorumPercentage = 40;
 
     event VoterRegistered(address indexed voter);
     event ProposalCreated(
@@ -70,47 +72,94 @@ contract DAOVoting is Ownable, ReentrancyGuard {
         bool support,
         uint256 weight
     );
-    event ProposalStateChanged(uint256 indexed proposalId, ProposalState newState);
-    event VotingParametersUpdated(uint256 votingDelay, uint256 votingPeriod, uint256 proposalThreshold, uint256 quorumPercentage);
+    event ProposalStateChanged(
+        uint256 indexed proposalId,
+        ProposalState newState
+    );
+    event VotingParametersUpdated(
+        uint256 votingDelay,
+        uint256 votingPeriod,
+        uint256 proposalThreshold,
+        uint256 quorumPercentage
+    );
 
     modifier validProposal(uint256 _proposalId) {
-        require(_proposalId > 0 && _proposalId <= proposalCount, "Invalid proposal ID");
+        require(
+            _proposalId > 0 && _proposalId <= proposalCount,
+            "Invalid proposal ID"
+        );
         _;
     }
 
     modifier onlyRegisteredVoter() {
-        require(registeredVoters[msg.sender], "Only registered voters can perform this action");
+        require(
+            registeredVoters[msg.sender],
+            "Only registered voters can perform this action"
+        );
         _;
     }
 
     constructor(
         address _governanceToken,
-        // Removed: _reputationManager
         address initialOwner
     ) Ownable(initialOwner) {
-        require(_governanceToken != address(0), "Invalid governance token address");
+        require(
+            _governanceToken != address(0),
+            "Invalid governance token address"
+        );
         governanceToken = IGovernanceToken(_governanceToken);
     }
 
     /**
-     * @dev Register a voter
+     * @dev Register a voter (Admin only)
      */
     function registerVoter(address _voter) external onlyOwner {
         require(_voter != address(0), "Invalid voter address");
         require(!registeredVoters[_voter], "Voter already registered");
 
         registeredVoters[_voter] = true;
+        voterCount++; // Increment here as well to keep count accurate
         emit VoterRegistered(_voter);
     }
 
     /**
-     * @dev Submit a proposal (Token requirements only)
+     * @dev Self-registration function for public voting
+     */
+    function selfRegister() external {
+        require(!registeredVoters[msg.sender], "Already registered");
+        require(
+            governanceToken.balanceOf(msg.sender) >= minTokensToRegister,
+            "Insufficient tokens to register"
+        );
+
+        registeredVoters[msg.sender] = true;
+        voterCount++; // ✅ Now this variable exists!
+
+        // Note: Emitting with 2 arguments (address, timestamp) implies you might need to update the event definition
+        // The event VoterRegistered currently only takes (address).
+        // I will emit the standard event defined at the top.
+        emit VoterRegistered(msg.sender); 
+    }
+
+    // Set setter function (only owner)
+    function setMinTokensToRegister(uint256 _minTokens) external onlyOwner {
+        minTokensToRegister = _minTokens;
+    }
+
+    /**
+     * @dev Check if address is registered
+     */
+    function isRegistered(address voter) external view returns (bool) {
+        return registeredVoters[voter];
+    }
+
+    /**
+     * @dev Submit a proposal
      */
     function submitProposal(
         string memory _title,
         string memory _description,
         uint256 _minTokensRequired
-        // Removed: _minReputationRequired
     ) external onlyRegisteredVoter nonReentrant {
         require(bytes(_title).length > 0, "Title cannot be empty");
         require(bytes(_description).length > 0, "Description cannot be empty");
@@ -151,10 +200,18 @@ contract DAOVoting is Ownable, ReentrancyGuard {
     /**
      * @dev Start voting period
      */
-    function startVoting(uint256 _proposalId) external validProposal(_proposalId) {
+    function startVoting(
+        uint256 _proposalId
+    ) external validProposal(_proposalId) {
         Proposal storage proposal = proposals[_proposalId];
-        require(proposal.state == ProposalState.Pending, "Proposal not in pending state");
-        require(block.timestamp >= proposal.votingStart, "Voting period not yet started");
+        require(
+            proposal.state == ProposalState.Pending,
+            "Proposal not in pending state"
+        );
+        require(
+            block.timestamp >= proposal.votingStart,
+            "Voting period not yet started"
+        );
 
         proposal.state = ProposalState.Active;
         emit ProposalStateChanged(_proposalId, ProposalState.Active);
@@ -169,13 +226,25 @@ contract DAOVoting is Ownable, ReentrancyGuard {
     ) external onlyRegisteredVoter validProposal(_proposalId) nonReentrant {
         Proposal storage proposal = proposals[_proposalId];
         require(proposal.state == ProposalState.Active, "Proposal not active");
-        require(block.timestamp >= proposal.votingStart, "Voting not yet started");
-        require(block.timestamp <= proposal.votingEnd, "Voting period has ended");
-        require(!hasVoted[_proposalId][msg.sender], "Already voted on this proposal");
+        require(
+            block.timestamp >= proposal.votingStart,
+            "Voting not yet started"
+        );
+        require(
+            block.timestamp <= proposal.votingEnd,
+            "Voting period has ended"
+        );
+        require(
+            !hasVoted[_proposalId][msg.sender],
+            "Already voted on this proposal"
+        );
 
         // Check voting requirements (Tokens Only)
         uint256 voterTokens = governanceToken.balanceOf(msg.sender);
-        require(voterTokens >= proposal.minTokensRequired, "Insufficient tokens to vote");
+        require(
+            voterTokens >= proposal.minTokensRequired,
+            "Insufficient tokens to vote"
+        );
 
         // Calculate voting power
         uint256 votingWeight = calculateVotingWeight(msg.sender);
@@ -200,9 +269,11 @@ contract DAOVoting is Ownable, ReentrancyGuard {
     }
 
     /**
-     * @dev Calculate voting weight (Purely Token Balance now)
+     * @dev Calculate voting weight
      */
-    function calculateVotingWeight(address voter) public view returns (uint256) {
+    function calculateVotingWeight(
+        address voter
+    ) public view returns (uint256) {
         uint256 tokenBalance = governanceToken.balanceOf(voter);
         return tokenBalance;
     }
@@ -210,10 +281,15 @@ contract DAOVoting is Ownable, ReentrancyGuard {
     /**
      * @dev Finalize proposal
      */
-    function finalizeProposal(uint256 _proposalId) external validProposal(_proposalId) {
+    function finalizeProposal(
+        uint256 _proposalId
+    ) external validProposal(_proposalId) {
         Proposal storage proposal = proposals[_proposalId];
         require(proposal.state == ProposalState.Active, "Proposal not active");
-        require(block.timestamp > proposal.votingEnd, "Voting period not ended");
+        require(
+            block.timestamp > proposal.votingEnd,
+            "Voting period not ended"
+        );
 
         // Simple Quorum: X% of Total Supply
         uint256 totalSupply = governanceToken.totalSupply();
@@ -234,10 +310,19 @@ contract DAOVoting is Ownable, ReentrancyGuard {
         }
     }
 
-    function cancelProposal(uint256 _proposalId) external validProposal(_proposalId) {
+    function cancelProposal(
+        uint256 _proposalId
+    ) external validProposal(_proposalId) {
         Proposal storage proposal = proposals[_proposalId];
-        require(msg.sender == proposal.proposer || msg.sender == owner(), "Only proposer or owner can cancel");
-        require(proposal.state == ProposalState.Pending || proposal.state == ProposalState.Active, "Cannot cancel finalized proposal");
+        require(
+            msg.sender == proposal.proposer || msg.sender == owner(),
+            "Only proposer or owner can cancel"
+        );
+        require(
+            proposal.state == ProposalState.Pending ||
+                proposal.state == ProposalState.Active,
+            "Cannot cancel finalized proposal"
+        );
 
         proposal.state = ProposalState.Cancelled;
         emit ProposalStateChanged(_proposalId, ProposalState.Cancelled);
@@ -250,32 +335,78 @@ contract DAOVoting is Ownable, ReentrancyGuard {
         uint256 _quorumPercentage
     ) external onlyOwner {
         require(_votingDelay <= 7 days, "Voting delay too long");
-        require(_votingPeriod >= 1 days && _votingPeriod <= 30 days, "Invalid voting period");
-        require(_quorumPercentage > 0 && _quorumPercentage <= 100, "Invalid quorum percentage");
+        require(
+            _votingPeriod >= 1 days && _votingPeriod <= 30 days,
+            "Invalid voting period"
+        );
+        require(
+            _quorumPercentage > 0 && _quorumPercentage <= 100,
+            "Invalid quorum percentage"
+        );
 
         votingDelay = _votingDelay;
         votingPeriod = _votingPeriod;
         proposalThreshold = _proposalThreshold;
         quorumPercentage = _quorumPercentage;
 
-        emit VotingParametersUpdated(_votingDelay, _votingPeriod, _proposalThreshold, _quorumPercentage);
-    }
-
-    // View functions
-    function getProposalDetails(uint256 _proposalId) external view validProposal(_proposalId) returns (
-        uint256 id, string memory title, string memory description, address proposer,
-        uint256 yesVotes, uint256 noVotes, uint256 totalVotingWeight, ProposalState state,
-        uint256 createdAt, uint256 votingStart, uint256 votingEnd
-    ) {
-        Proposal memory proposal = proposals[_proposalId];
-        return (
-            proposal.id, proposal.title, proposal.description, proposal.proposer,
-            proposal.yesVotes, proposal.noVotes, proposal.totalVotingWeight, proposal.state,
-            proposal.createdAt, proposal.votingStart, proposal.votingEnd
+        emit VotingParametersUpdated(
+            _votingDelay,
+            _votingPeriod,
+            _proposalThreshold,
+            _quorumPercentage
         );
     }
 
-    function getVote(uint256 _proposalId, address _voter) external view returns (bool hasVotedOnProposal, bool support, uint256 weight, uint256 timestamp) {
+    // View functions
+    function getProposalDetails(
+        uint256 _proposalId
+    )
+        external
+        view
+        validProposal(_proposalId)
+        returns (
+            uint256 id,
+            string memory title,
+            string memory description,
+            address proposer,
+            uint256 yesVotes,
+            uint256 noVotes,
+            uint256 totalVotingWeight,
+            ProposalState state,
+            uint256 createdAt,
+            uint256 votingStart,
+            uint256 votingEnd
+        )
+    {
+        Proposal memory proposal = proposals[_proposalId];
+        return (
+            proposal.id,
+            proposal.title,
+            proposal.description,
+            proposal.proposer,
+            proposal.yesVotes,
+            proposal.noVotes,
+            proposal.totalVotingWeight,
+            proposal.state,
+            proposal.createdAt,
+            proposal.votingStart,
+            proposal.votingEnd
+        );
+    }
+
+    function getVote(
+        uint256 _proposalId,
+        address _voter
+    )
+        external
+        view
+        returns (
+            bool hasVotedOnProposal,
+            bool support,
+            uint256 weight,
+            uint256 timestamp
+        )
+    {
         hasVotedOnProposal = hasVoted[_proposalId][_voter];
         if (hasVotedOnProposal) {
             Vote memory vote = votes[_proposalId][_voter];
