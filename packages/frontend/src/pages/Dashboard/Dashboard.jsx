@@ -1,20 +1,22 @@
-// src/pages/Dashboard/Dashboard.jsx (UPDATED)
-import React, { useEffect, useState, useCallback } from 'react';
-import { Link } from 'react-router-dom';
-import { useAccount } from 'wagmi';
-import { useWallet } from '../../context/WalletContext';
-import { useProposals } from '../../hooks/useProposals';
-import Card from '../../components/common/Card/Card';
-import Button from '../../components/common/Button/Button';
-import Loader from '../../components/common/Loader/Loader';
-import VotingPower from '../../components/voting/VotingPower/VotingPower';
-import WhaleAnalysis from '../../components/dashboard/WhaleAnalysis/WhaleAnalysis';
-import { formatAddress } from '../../utils/formatters';
-import './Dashboard.css';
+// src/pages/Dashboard/Dashboard.jsx (UPDATED - Line 28-36)
+import React, { useEffect, useState, useCallback } from "react";
+import { Link } from "react-router-dom";
+import { useAccount } from "wagmi";
+import { useWallet } from "../../context/WalletContext";
+import { useProposals } from "../../hooks/useProposals";
+import Card from "../../components/common/Card/Card";
+import Button from "../../components/common/Button/Button";
+import Loader from "../../components/common/Loader/Loader";
+import VotingPower from "../../components/voting/VotingPower/VotingPower";
+import WhaleAnalysis from "../../components/dashboard/WhaleAnalysis/WhaleAnalysis";
+import { formatAddress } from "../../utils/formatters";
+import "./Dashboard.css";
+import { useDeployment } from "../../context/DeploymentContext";
 
 const Dashboard = () => {
   const { address } = useAccount();
   const { balance, balanceSymbol } = useWallet();
+  const { mode } = useDeployment();
   const { proposals, loading: proposalsLoading } = useProposals();
 
   const [userStats, setUserStats] = useState({
@@ -22,15 +24,37 @@ const Dashboard = () => {
     votesCast: 0,
   });
 
-  // ✅ Get test wallets from .env
-  const testWallets = process.env.REACT_APP_TEST_WALLETS 
-    ? process.env.REACT_APP_TEST_WALLETS.split(',').map(w => w.trim()).filter(Boolean)
-    : [];
+  // ✅ FIXED: Validate addresses properly
+  const isValidAddress = (addr) => {
+    if (!addr || typeof addr !== 'string') return false;
+    const trimmed = addr.trim();
+    return trimmed.startsWith('0x') && 
+           trimmed.length === 42 && 
+           /^0x[0-9A-Fa-f]{40}$/.test(trimmed);
+  };
+
+  // ✅ Get test wallets from .env with validation
+  const testWallets = React.useMemo(() => {
+    const walletsString = process.env.REACT_APP_TEST_WALLETS;
+    
+    if (!walletsString) {
+      console.log('ℹ️ No test wallets configured');
+      return [];
+    }
+
+    const wallets = walletsString
+      .split(",")
+      .map((w) => w.trim())
+      .filter(isValidAddress);
+
+    console.log(`✅ Loaded ${wallets.length} valid test wallets`);
+    return wallets;
+  }, []);
 
   const loadDashboardData = useCallback(() => {
     // Calculate user stats from proposals
     const userProposals = proposals.filter(
-      p => p.proposer.toLowerCase() === address?.toLowerCase()
+      (p) => p.proposer.toLowerCase() === address?.toLowerCase()
     );
 
     // TODO: Implement actual vote counting by checking hasVoted for each proposal
@@ -49,44 +73,48 @@ const Dashboard = () => {
   }, [address, loadDashboardData]);
 
   // Filter active proposals (state = 1)
-  const activeProposals = proposals.filter(p => p.state === 1).slice(0, 5);
+  const activeProposals = proposals.filter((p) => p.state === 1).slice(0, 5);
 
   // Get recent proposals for activity (last 5)
-  const recentActivity = proposals
-    .slice(0, 5)
-    .map(p => ({
-      type: p.proposer.toLowerCase() === address?.toLowerCase() ? 'create' : 'proposal',
-      proposal: p.title,
-      action: p.proposer.toLowerCase() === address?.toLowerCase() ? 'Created' : 'New Proposal',
-      timestamp: p.createdAt * 1000
-    }));
+  const recentActivity = proposals.slice(0, 5).map((p) => ({
+    type:
+      p.proposer.toLowerCase() === address?.toLowerCase()
+        ? "create"
+        : "proposal",
+    proposal: p.title,
+    action:
+      p.proposer.toLowerCase() === address?.toLowerCase()
+        ? "Created"
+        : "New Proposal",
+    timestamp: p.createdAt * 1000,
+  }));
 
   const formatTimeLeft = (votingEnd) => {
     const now = Math.floor(Date.now() / 1000);
     const timeLeft = votingEnd - now;
-    
-    if (timeLeft <= 0) return 'Ended';
-    
+
+    if (timeLeft <= 0) return "Ended";
+
     const days = Math.floor(timeLeft / 86400);
     const hours = Math.floor((timeLeft % 86400) / 3600);
-    
-    if (days > 0) return `${days} day${days > 1 ? 's' : ''} left`;
-    if (hours > 0) return `${hours} hour${hours > 1 ? 's' : ''} left`;
-    return 'Less than 1 hour';
+
+    if (days > 0) return `${days} day${days > 1 ? "s" : ""} left`;
+    if (hours > 0) return `${hours} hour${hours > 1 ? "s" : ""} left`;
+    return "Less than 1 hour";
   };
 
   const formatRelativeTime = (timestamp) => {
     const now = Date.now();
     const diff = now - timestamp;
-    
+
     const minutes = Math.floor(diff / 60000);
     const hours = Math.floor(diff / 3600000);
     const days = Math.floor(diff / 86400000);
-    
-    if (days > 0) return `${days} day${days > 1 ? 's' : ''} ago`;
-    if (hours > 0) return `${hours} hour${hours > 1 ? 's' : ''} ago`;
-    if (minutes > 0) return `${minutes} minute${minutes > 1 ? 's' : ''} ago`;
-    return 'Just now';
+
+    if (days > 0) return `${days} day${days > 1 ? "s" : ""} ago`;
+    if (hours > 0) return `${hours} hour${hours > 1 ? "s" : ""} ago`;
+    if (minutes > 0) return `${minutes} minute${minutes > 1 ? "s" : ""} ago`;
+    return "Just now";
   };
 
   if (proposalsLoading) {
@@ -132,7 +160,9 @@ const Dashboard = () => {
             <div className="stat-info">
               <div className="stat-label">Wallet Balance</div>
               <div className="stat-value">
-                {balance ? `${parseFloat(balance).toFixed(4)} ${balanceSymbol}` : '0'}
+                {balance
+                  ? `${parseFloat(balance).toFixed(4)} ${balanceSymbol}`
+                  : "0"}
               </div>
             </div>
           </Card>
@@ -153,7 +183,9 @@ const Dashboard = () => {
             <div className="section-header">
               <h2 className="section-title">Active Proposals</h2>
               <Link to="/proposals">
-                <Button variant="ghost" size="small">View All</Button>
+                <Button variant="ghost" size="small">
+                  View All
+                </Button>
               </Link>
             </div>
 
@@ -171,7 +203,10 @@ const Dashboard = () => {
                 {activeProposals.map((proposal) => (
                   <div key={proposal.id} className="proposal-item">
                     <div className="proposal-item-content">
-                      <Link to={`/proposals/${proposal.id}`} className="proposal-item-title">
+                      <Link
+                        to={`/proposals/${proposal.id}`}
+                        className="proposal-item-title"
+                      >
                         {proposal.title}
                       </Link>
                       <div className="proposal-item-meta">
@@ -181,7 +216,9 @@ const Dashboard = () => {
                       </div>
                     </div>
                     <Link to={`/proposals/${proposal.id}`}>
-                      <Button variant="secondary" size="small">Vote</Button>
+                      <Button variant="secondary" size="small">
+                        Vote
+                      </Button>
                     </Link>
                   </div>
                 ))}
@@ -192,7 +229,7 @@ const Dashboard = () => {
           {/* Recent Activity */}
           <Card padding="large">
             <h2 className="section-title">Recent Activity</h2>
-            
+
             {recentActivity.length === 0 ? (
               <div className="empty-state">
                 <p>No recent activity</p>
@@ -202,14 +239,20 @@ const Dashboard = () => {
                 {recentActivity.map((activity, index) => (
                   <div key={index} className="activity-item">
                     <div className="activity-icon">
-                      {activity.type === 'create' ? '📝' : '🗳️'}
+                      {activity.type === "create" ? "📝" : "🗳️"}
                     </div>
                     <div className="activity-content">
                       <div className="activity-text">
-                        <span className="activity-action">{activity.action}</span>
-                        <span className="activity-proposal">{activity.proposal}</span>
+                        <span className="activity-action">
+                          {activity.action}
+                        </span>
+                        <span className="activity-proposal">
+                          {activity.proposal}
+                        </span>
                       </div>
-                      <div className="activity-time">{formatRelativeTime(activity.timestamp)}</div>
+                      <div className="activity-time">
+                        {formatRelativeTime(activity.timestamp)}
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -225,7 +268,7 @@ const Dashboard = () => {
             <VotingPower />
           </Card>
 
-          {/* ✅ NEW: Whale Analysis */}
+          {/* ✅ Whale Analysis - Only show if we have valid wallets */}
           {testWallets.length > 0 && (
             <Card padding="medium">
               <WhaleAnalysis testWallets={testWallets} />
@@ -252,7 +295,9 @@ const Dashboard = () => {
             <h3 className="sidebar-title">Quick Actions</h3>
             <div className="quick-actions">
               <Link to="/create-proposal">
-                <Button fullWidth icon="✏️">Create Proposal</Button>
+                <Button fullWidth icon="✏️">
+                  Create Proposal
+                </Button>
               </Link>
               <Link to="/proposals">
                 <Button fullWidth variant="secondary" icon="🔍">

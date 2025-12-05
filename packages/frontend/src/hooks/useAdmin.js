@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import { useAccount, useWriteContract, usePublicClient } from 'wagmi';
 import { useContract } from './useContract';
+import { useDeployment } from '../context/DeploymentContext'; // ✅ Import Context
 
 // ABIs
 import DAOVotingABI from '../abis/DAOVoting.json';
@@ -15,20 +16,23 @@ export const useAdmin = () => {
   const { address, chainId } = useAccount();
   const publicClient = usePublicClient();
   const { writeContractAsync } = useWriteContract();
+  const { mode } = useDeployment(); // ✅ Get Mode
 
   // Public Contract (Existing)
   const { contract: publicContract, read: readPublic, write: writePublic } = useContract('DAOVoting', DAOVotingABI.abi);
 
   // Helper to get ZKP Address safely
-  const getDIDRegistryAddress = () => {
+  const getDIDRegistryAddress = useCallback(() => {
     return ZKP_CONTRACT_ADDRESSES[chainId]?.DIDRegistry;
-  };
+  }, [chainId]);
 
   /**
    * Register a new voter (PUBLIC SYSTEM)
    */
   const registerVoter = useCallback(async (voterAddress) => {
+    if (mode === 'private') throw new Error("Use registerDID for Private mode"); // ✅ Safety Check
     if (!publicContract) throw new Error('Public Contract not ready');
+    
     setLoading(true);
     try {
       const result = await writePublic('registerVoter', [voterAddress]);
@@ -41,7 +45,7 @@ export const useAdmin = () => {
       setLoading(false);
       throw err;
     }
-  }, [publicContract, writePublic]);
+  }, [publicContract, writePublic, mode]);
 
   /**
    * ✅ NEW: Register a DID (PRIVATE SYSTEM)
@@ -77,40 +81,42 @@ export const useAdmin = () => {
       setLoading(false);
       throw err;
     }
-  }, [chainId, writeContractAsync]);
+  }, [chainId, writeContractAsync, getDIDRegistryAddress]);
 
   /**
    * Check if registered (HANDLES BOTH SYSTEMS)
    */
   const isRegisteredVoter = useCallback(async (voterAddress) => {
     // 1. Check Public System
-    if (publicContract) {
+    if (mode !== 'private' && publicContract) {
       try {
         const isPublic = await readPublic('registeredVoters', [voterAddress]);
         if (isPublic) return true;
       } catch (err) {
-        // Ignore errors, might be private mode
+        console.warn("Public check failed:", err);
       }
     }
 
     // 2. Check Private System (DID Registry)
-    const registryAddress = getDIDRegistryAddress();
-    if (registryAddress && publicClient) {
-      try {
-        const isActive = await publicClient.readContract({
-            address: registryAddress,
-            abi: DIDRegistryABI.abi,
-            functionName: 'hasDID',
-            args: [voterAddress]
-        });
-        if (isActive) return true;
-      } catch (err) {
-        console.warn("Error checking DID status:", err);
-      }
+    if (mode === 'private') {
+        const registryAddress = getDIDRegistryAddress();
+        if (registryAddress && publicClient) {
+        try {
+            const isActive = await publicClient.readContract({
+                address: registryAddress,
+                abi: DIDRegistryABI.abi,
+                functionName: 'hasDID',
+                args: [voterAddress]
+            });
+            if (isActive) return true;
+        } catch (err) {
+            console.warn("Error checking DID status:", err);
+        }
+        }
     }
 
     return false;
-  }, [publicContract, readPublic, chainId, publicClient]);
+  }, [publicContract, readPublic, chainId, publicClient, mode, getDIDRegistryAddress]);
 
   /**
    * Batch register (Smart Switching)
@@ -119,11 +125,14 @@ export const useAdmin = () => {
     const results = [];
     const errors = [];
 
+    // Force private mode flag if global mode is private
+    const usePrivate = isPrivateMode || mode === 'private';
+
     for (const addr of voterAddresses) {
       try {
         // Switch logic based on mode
         let result;
-        if (isPrivateMode) {
+        if (usePrivate) {
             result = await registerDID(addr);
         } else {
             result = await registerVoter(addr);
@@ -134,7 +143,7 @@ export const useAdmin = () => {
       }
     }
     return { results, errors };
-  }, [registerVoter, registerDID]);
+  }, [registerVoter, registerDID, mode]);
 
   /**
    * Check if current user is the owner
@@ -154,12 +163,32 @@ export const useAdmin = () => {
 
   /**
    * Get all registered voters count
+   * ✅ FIXED: Do not call 'registeredVoters' in Private Mode
    */
   const getRegisteredVotersCount = useCallback(async (addressesToCheck = []) => {
-    // This is primarily for the Public system dashboard
-    if (!publicContract) return 0;
-
     let count = 0;
+
+    // A. Private Mode: Check DID Registry
+    if (mode === 'private') {
+        const registryAddress = getDIDRegistryAddress();
+        if (!registryAddress || !publicClient) return 0;
+
+        for (const addr of addressesToCheck) {
+            try {
+                const hasDid = await publicClient.readContract({
+                    address: registryAddress,
+                    abi: DIDRegistryABI.abi,
+                    functionName: 'hasDID',
+                    args: [addr]
+                });
+                if (hasDid) count++;
+            } catch (e) { /* ignore */ }
+        }
+        return count;
+    }
+
+    // B. Public Mode: Check Voting Contract
+    if (!publicContract) return 0;
     
     for (const addr of addressesToCheck) {
       try {
@@ -171,7 +200,7 @@ export const useAdmin = () => {
     }
 
     return count;
-  }, [publicContract, readPublic]);
+  }, [publicContract, readPublic, mode, publicClient, getDIDRegistryAddress]);
 
   /**
    * Update voting parameters
@@ -210,7 +239,7 @@ export const useAdmin = () => {
 
   return {
     registerVoter,
-    registerDID, // Expose this new function
+    registerDID, 
     batchRegisterVoters,
     isRegisteredVoter,
     isOwner,

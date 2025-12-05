@@ -1,29 +1,45 @@
-// src/components/dashboard/WhaleAnalysis/WhaleAnalysis.jsx
 import React, { useState, useEffect } from 'react';
 import { useAccount } from 'wagmi';
 import { useContract } from '../../../hooks/useContract';
+import { useDeployment } from '../../../context/DeploymentContext';
 import DAOVotingABI from '../../../abis/DAOVoting.json';
+import PrivateDAOVotingABI from '../../../abis/PrivateDAOVoting.json'; // ✅ Import Private ABI
 import GovernanceTokenABI from '../../../abis/GovernanceToken.json';
 import Loader from '../../common/Loader/Loader';
 import './WhaleAnalysis.css';
 
 const WhaleAnalysis = ({ testWallets = [] }) => {
   const { address: connectedAddress } = useAccount();
+  const { mode } = useDeployment(); // ✅ Get current mode
   const [whaleData, setWhaleData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [totalPower, setTotalPower] = useState(0);
 
-  const { read: readDAO } = useContract('DAOVoting', DAOVotingABI.abi);
-  const { read: readToken } = useContract('GovernanceToken', GovernanceTokenABI.abi);
+  // ✅ Dynamic Contract Selection based on mode
+  const daoContractName = mode === 'private' ? 'PrivateDAOVoting' : 'DAOVoting';
+  const daoContractABI = mode === 'private' ? PrivateDAOVotingABI.abi : DAOVotingABI.abi;
+
+  const { contract: daoContract, read: readDAO } = useContract(daoContractName, daoContractABI);
+  const { contract: tokenContract, read: readToken } = useContract('GovernanceToken', GovernanceTokenABI.abi);
 
   useEffect(() => {
     loadWhaleAnalysis();
-  }, [testWallets, connectedAddress]);
+    // ✅ Re-run when contracts or mode change
+  }, [testWallets, connectedAddress, daoContract, tokenContract, mode]);
+
+  // Helper to check if function exists in ABI to prevent "Function not found" errors
+  const hasFunction = (abi, funcName) => {
+    return abi?.some(item => item.name === funcName && item.type === 'function');
+  };
 
   const loadWhaleAnalysis = async () => {
+    // ✅ Safety Check: Don't run if contracts aren't ready
+    if (!tokenContract || !daoContract) {
+        return;
+    }
+
     setLoading(true);
     try {
-      // Get all unique wallets to analyze
       const walletsToAnalyze = testWallets.length > 0 
         ? testWallets 
         : [connectedAddress];
@@ -32,15 +48,38 @@ const WhaleAnalysis = ({ testWallets = [] }) => {
         if (!wallet) return null;
 
         try {
-          const [votingPower, tokenBalance] = await Promise.all([
-            readDAO('calculateVotingWeight', [wallet]).catch(() => 0),
-            readToken('balanceOf', [wallet]).catch(() => 0n)
-          ]);
+          // 1. Fetch Token Balance (Always needed)
+          const balanceBigInt = await readToken('balanceOf', [wallet]).catch(() => 0n);
+          // Convert to readable number (assuming 18 decimals)
+          const balanceNum = Number(balanceBigInt) / 1e18;
+
+          let votingPower = 0;
+
+          // 2. Fetch Voting Power based on Mode
+          if (mode === 'private') {
+             // 🔒 Private Mode
+             // Check if function exists in ABI first to avoid "AbiFunctionNotFoundError"
+             if (hasFunction(daoContractABI, 'calculateVotingWeight')) {
+                 const weight = await readDAO('calculateVotingWeight', [wallet]).catch((err) => {
+                     console.warn(`Weight calc failed for ${wallet}:`, err.message);
+                     return 0;
+                 });
+                 votingPower = Number(weight);
+             } else {
+                 // Fallback: If ABI is missing function (e.g. old ABI), default to 0 or logic
+                 // For now, we avoid crashing. We could use balanceNum as a loose proxy if needed.
+                 // console.warn("calculateVotingWeight missing from PrivateDAO ABI");
+                 votingPower = 0; 
+             }
+          } else {
+             // 🌐 Baseline Mode: Voting Power = Token Balance
+             votingPower = balanceNum; 
+          }
 
           return {
             address: wallet,
-            votingPower: Number(votingPower),
-            tokenBalance: Number(tokenBalance) / 1e18,
+            votingPower: votingPower,
+            tokenBalance: balanceNum,
             isConnected: wallet.toLowerCase() === connectedAddress?.toLowerCase()
           };
         } catch (err) {
@@ -73,6 +112,7 @@ const WhaleAnalysis = ({ testWallets = [] }) => {
   };
 
   const formatAddress = (addr) => {
+    if (!addr) return 'Unknown';
     return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
   };
 
@@ -177,7 +217,6 @@ const WhaleAnalysis = ({ testWallets = [] }) => {
         })}
       </div>
 
-      {/* Warning for high concentration */}
       {whaleData.length > 0 && whaleData[0].percentage > 30 && (
         <div className="whale-warning">
           <span className="warning-icon">⚠️</span>
@@ -188,7 +227,6 @@ const WhaleAnalysis = ({ testWallets = [] }) => {
         </div>
       )}
 
-      {/* Distribution Summary */}
       <div className="whale-summary">
         <div className="summary-item">
           <span className="summary-icon">👥</span>

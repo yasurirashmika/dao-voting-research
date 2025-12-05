@@ -27,7 +27,7 @@ const retryOperation = async (operation, maxRetries = 3, delay = 2000) => {
 
 export const useProposals = () => {
   const [proposals, setProposals] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true); // Default to true to prevent flickering
   const [error, setError] = useState(null);
   const { address } = useAccount();
   const { mode } = useDeployment();
@@ -37,13 +37,16 @@ export const useProposals = () => {
   const contractName = mode === "private" ? "PrivateDAOVoting" : "DAOVoting";
   const abi = mode === "private" ? PrivateDAOVotingABI.abi : DAOVotingABI.abi;
 
-  console.log(`🔄 useProposals using ${contractName} in ${mode} mode`);
+  // console.log(`🔄 useProposals using ${contractName} in ${mode} mode`);
 
   const { contract, read, write } = useContract(contractName, abi);
 
+  // ✅ EXPORT THIS: Used by components to prevent "Contract not initialized" errors
+  const isContractReady = !!contract;
+
   const fetchProposals = useCallback(async () => {
     if (!contract) {
-      console.warn("⚠️ Contract not ready for fetchProposals");
+      // console.warn("⚠️ Contract not ready for fetchProposals");
       return;
     }
 
@@ -166,9 +169,10 @@ export const useProposals = () => {
 
   const getProposal = useCallback(
     async (proposalId) => {
+      // ✅ SAFETY CHECK: Return null instead of throwing if contract isn't ready
       if (!contract) {
-        console.error("❌ Contract not initialized for getProposal");
-        throw new Error("Contract not initialized");
+        console.warn("⏳ Contract not initialized yet, skipping getProposal");
+        return null; 
       }
 
       try {
@@ -373,6 +377,7 @@ export const useProposals = () => {
   }, [contract, fetchProposals]);
 
   return {
+    isContractReady, // ✅ Export this!
     proposals,
     loading,
     error,

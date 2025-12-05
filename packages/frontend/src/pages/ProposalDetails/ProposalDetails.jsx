@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useAccount } from "wagmi";
 import { useProposals } from "../../hooks/useProposals";
-import { useContract } from "../../hooks/useContract";
+import { useContract } from "../../hooks/useContract"; 
 import { useDeployment } from "../../context/DeploymentContext";
 import DAOVotingABI from "../../abis/DAOVoting.json";
 import PrivateDAOVotingABI from "../../abis/PrivateDAOVoting.json";
@@ -13,15 +13,16 @@ import Modal from "../../components/common/Modal/Modal";
 import Loader from "../../components/common/Loader/Loader";
 import Alert from "../../components/common/Alert/Alert";
 import ReactMarkdown from "react-markdown";
+import ZKVotingModule from "../../components/voting/ZKVotingModule/ZKVotingModule"; // ✅ Import ZK Module
 import {
   formatAddress,
   formatDate,
   formatLargeNumber,
-  formatNumber
+  formatNumber,
 } from "../../utils/formatters";
 import {
   getProposalStateLabel,
-  getProposalStateColor 
+  getProposalStateColor,
 } from "../../utils/helpers";
 import "./ProposalDetails.css";
 
@@ -31,10 +32,11 @@ const ProposalDetails = () => {
   const { address, isConnected } = useAccount();
   const { mode } = useDeployment();
 
-  const { getProposal, castVote, hasVoted } = useProposals();
+  const { getProposal, castVote, hasVoted, isContractReady } = useProposals();
 
   const contractName = mode === "private" ? "PrivateDAOVoting" : "DAOVoting";
-  const contractAbi = mode === "private" ? PrivateDAOVotingABI.abi : DAOVotingABI.abi;
+  const contractAbi =
+    mode === "private" ? PrivateDAOVotingABI.abi : DAOVotingABI.abi;
   const { write, read, contract } = useContract(contractName, contractAbi);
 
   const [proposal, setProposal] = useState(null);
@@ -49,37 +51,27 @@ const ProposalDetails = () => {
 
   const showAlert = (type, title, message, duration = 5000) => {
     setAlert({ type, title, message });
-    if (duration) {
-      setTimeout(() => setAlert(null), duration);
-    }
+    if (duration) setTimeout(() => setAlert(null), duration);
   };
 
   const parseError = (error) => {
     const errorString = error?.message || error?.toString() || "Unknown error";
     if (errorString.includes("User denied"))
-      return {
-        title: "Transaction Cancelled",
-        message: "You cancelled the transaction.",
-      };
+      return { title: "Cancelled", message: "Transaction cancelled." };
     if (errorString.includes("Already voted"))
-      return {
-        title: "Already Voted",
-        message: "You have already voted on this proposal.",
-      };
+      return { title: "Already Voted", message: "You have already voted." };
     return {
-      title: "Transaction Failed",
+      title: "Failed",
       message: errorString.length > 100 ? "An error occurred." : errorString,
     };
   };
 
   const checkRegistration = useCallback(async () => {
     if (!contract || !address) return;
-    
     if (mode === "private") {
       setIsRegistered(true);
       return;
     }
-
     try {
       const status = await read("registeredVoters", [address]);
       setIsRegistered(status);
@@ -90,16 +82,17 @@ const ProposalDetails = () => {
   }, [contract, address, read, mode]);
 
   const loadProposalData = useCallback(async () => {
-    if (!id) return;
-    
+    if (!id || !isContractReady) return;
+
     setLoading(true);
     try {
       const data = await getProposal(id);
+      if (!data) return;
+
       setProposal(data);
 
       if (address && isConnected) {
         const voted = await hasVoted(id, address);
-
         if (voted === true) {
           setUserVote({ hasVoted: true, support: null });
         } else if (Array.isArray(voted)) {
@@ -116,7 +109,7 @@ const ProposalDetails = () => {
     } finally {
       setLoading(false);
     }
-  }, [id, address, isConnected, getProposal, hasVoted]);
+  }, [id, address, isConnected, getProposal, hasVoted, isContractReady]);
 
   useEffect(() => {
     if (contract && address) {
@@ -125,10 +118,8 @@ const ProposalDetails = () => {
   }, [contract, address, checkRegistration]);
 
   useEffect(() => {
-    if (id) {
-      loadProposalData();
-    }
-  }, [id, loadProposalData]);
+    loadProposalData();
+  }, [loadProposalData]);
 
   const handleVoteClick = (support) => {
     if (!isConnected) {
@@ -158,12 +149,7 @@ const ProposalDetails = () => {
       await castVote(proposal.id, selectedVote);
       setShowVoteModal(false);
       setVoteReason("");
-
-      setUserVote({
-        hasVoted: true,
-        support: selectedVote,
-      });
-
+      setUserVote({ hasVoted: true, support: selectedVote });
       showAlert(
         "success",
         "Vote Cast Successfully!",
@@ -251,7 +237,7 @@ const ProposalDetails = () => {
         />
       </div>
     );
-    
+
   if (!proposal)
     return (
       <Card padding="large">
@@ -322,20 +308,22 @@ const ProposalDetails = () => {
 
                 {userVote.hasVoted ? (
                   <div className="voted-notice">
-                    {userVote.support ? "👍" : "👎"} You voted {userVote.support ? "YES" : "NO"}
+                    {userVote.support ? "👍" : "👎"} You voted{" "}
+                    {userVote.support ? "YES" : "NO"}
                   </div>
                 ) : (
                   <>
                     {!isRegistered && mode === "baseline" && (
                       <div className="voting-closed-notice">
-                        ⚠️ Voting Restricted - You are not registered in the DAO. Only registered members can vote.
+                        ⚠️ Voting Restricted - You are not registered in the
+                        DAO. Only registered members can vote.
                       </div>
                     )}
 
-                    {/* CONDITIONAL VOTING INTERFACE */}
+                    {/* ✅ SWITCHED: Embed ZK Module directly instead of text notice */}
                     {mode === "private" ? (
-                      <div className="info-notice">
-                        🔒 <strong>Private Voting:</strong> Voting on this proposal requires generating a Zero-Knowledge Proof. Please use the <strong>ZK Voting Module</strong> on your Dashboard to cast your vote anonymously.
+                      <div className="zk-voting-container" style={{ marginTop: '20px' }}>
+                        <ZKVotingModule preselectedProposalId={proposal.id} />
                       </div>
                     ) : (
                       <div className="vote-buttons">
@@ -364,7 +352,7 @@ const ProposalDetails = () => {
               </div>
             )}
 
-            {/* Other States (Pending, Ended) */}
+            {/* Other States */}
             {proposal.state === 0 && (
               <div className="proposal-status-section">
                 <Alert type="info" title="⏳ Proposal is Pending">
@@ -410,7 +398,6 @@ const ProposalDetails = () => {
               </div>
             )}
 
-            {/* Cancel Button */}
             {(proposal.state === 0 || proposal.state === 1) && isProposer && (
               <div className="proposal-status-section">
                 <Button
@@ -499,7 +486,6 @@ const ProposalDetails = () => {
                 {formatLargeNumber(totalVotes)}
               </span>
             </div>
-            {/* Quorum Warning */}
             <div className="info-item">
               <span className="info-label">Quorum Required</span>
               <span className="info-value">{formatLargeNumber(40000)}</span>
@@ -542,6 +528,7 @@ const ProposalDetails = () => {
         </div>
       </div>
 
+      {/* Standard Public Vote Modal (Not used in Private Mode) */}
       <Modal
         isOpen={showVoteModal}
         onClose={() => setShowVoteModal(false)}
