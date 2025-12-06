@@ -1,7 +1,83 @@
-/* src/pages/Register/Register.css */
-
+/* Register Page Styles */
 .register-page {
-  max-width: 600px;
-  margin: 0 auto;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   padding: 2rem;
+  background: var(--bg-primary);
+}
+
+.register-container {
+  width: 100%;
+  max-width: 600px;
+  background: var(--bg-card);
+  border-radius: 16px;
+  padding: 3rem;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+}
+
+/* ✅ Header Styles - FIXED for Light Mode */
+.register-header {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.register-title {
+  color: var(--text-primary) !important; /* ✅ Force theme color */
+  font-size: 2.5rem;
+  font-weight: 700;
+  margin-bottom: 0.5rem;
+  line-height: 1.2;
+}
+
+.register-subtitle {
+  color: var(--text-secondary) !important; /* ✅ Force theme color */
+  font-size: 1.1rem;
+  font-weight: 400;
+}
+
+/* Admin Notice */
+.admin-register-notice {
+  margin-bottom: 2rem;
+}
+
+/* Footer */
+.register-footer {
+  margin-top: 2rem;
+  text-align: center;
+  padding-top: 2rem;
+  border-top: 1px solid var(--border-color);
+}
+
+.register-footer p {
+  color: var(--text-secondary);
+  font-size: 0.95rem;
+}
+
+.register-footer .link {
+  color: var(--color-primary);
+  cursor: pointer;
+  text-decoration: underline;
+  font-weight: 600;
+  transition: color 0.2s ease;
+}
+
+.register-footer .link:hover {
+  color: var(--color-primary-dark);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .register-container {
+    padding: 2rem;
+  }
+
+  .register-title {
+    font-size: 2rem;
+  }
+
+  .register-subtitle {
+    font-size: 1rem;
+  }
 }

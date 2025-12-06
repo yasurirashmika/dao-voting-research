@@ -108,3 +108,40 @@
 .did-registration-info li {
   margin-bottom: 0.5rem;
 }
+
+/* Wrapper to hold input + button */
+.input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+/* Ensure input takes full width */
+.input-wrapper .form-input {
+  width: 100%;
+  padding-right: 40px; /* Make space for the eye icon */
+}
+
+/* The Eye Button */
+.password-toggle-btn {
+  position: absolute;
+  right: 10px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 1.2rem;
+  padding: 0;
+  color: var(--color-text-secondary, #757575);
+  transition: color 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.password-toggle-btn:hover {
+  color: var(--primary, #667eea);
+}
+
+.password-toggle-btn:focus {
+  outline: none;
+}

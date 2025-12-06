@@ -1,4 +1,3 @@
-// src/components/voting/DIDRegistration/DIDRegistration.jsx
 import React, { useState, useEffect } from 'react';
 import { useAccount } from 'wagmi';
 import { useContract } from '../../../hooks/useContract';
@@ -15,6 +14,8 @@ const DIDRegistration = () => {
 
   const [secret, setSecret] = useState('');
   const [confirmSecret, setConfirmSecret] = useState('');
+  const [showSecret, setShowSecret] = useState(false); // ✅ NEW: State for Eye Toggle
+  
   const [isRegistered, setIsRegistered] = useState(false);
   const [loading, setLoading] = useState(false);
   const [checkingStatus, setCheckingStatus] = useState(true);
@@ -32,7 +33,6 @@ const DIDRegistration = () => {
 
     setCheckingStatus(true);
     try {
-      // Check if user has registered for voting
       const registered = await readDID('hasRegisteredForVoting', [address]);
       setIsRegistered(registered);
     } catch (err) {
@@ -44,24 +44,25 @@ const DIDRegistration = () => {
 
   const showAlert = (type, title, message) => {
     setAlert({ type, title, message });
-    setTimeout(() => setAlert(null), 5000);
+    // Auto-dismiss after 7 seconds
+    setTimeout(() => setAlert(null), 7000);
   };
 
   const generateCommitment = (userSecret) => {
-    // Hash the secret to create a commitment
-    // In production, this should be: hash(secret + salt)
-    const commitment = keccak256(toUtf8Bytes(userSecret));
-    return commitment;
+    return keccak256(toUtf8Bytes(userSecret));
   };
 
   const handleRegister = async () => {
+    setAlert(null); // Clear previous alerts
+
+    // 1. Validation
     if (!secret || !confirmSecret) {
       showAlert('warning', 'Missing Fields', 'Please enter your secret in both fields');
       return;
     }
 
     if (secret !== confirmSecret) {
-      showAlert('error', 'Mismatch', 'Secrets do not match!');
+      showAlert('error', 'Mismatch', 'Secrets do not match! Please re-type them.');
       return;
     }
 
@@ -73,40 +74,53 @@ const DIDRegistration = () => {
     setLoading(true);
 
     try {
-      // 1. Generate commitment from secret
+      // 2. Generate commitment
       const commitment = generateCommitment(secret);
       console.log('📝 Generated commitment:', commitment);
 
-      // 2. Call self-registration function
+      // 3. Call Contract
+      // ✅ FIX: Removed the second argument ('GovernanceCredential') 
+      // because the updated Solidity contract only accepts [commitment].
       const { hash } = await writeDID('selfRegisterForVoting', [
-        commitment,
-        'GovernanceCredential' // Credential type
+        commitment
       ]);
 
       console.log('✅ Registration transaction:', hash);
 
       showAlert('success', 'Registration Successful!', 
-        'Your DID has been created and you are registered for private voting. ' +
-        'IMPORTANT: Save your secret securely - you will need it to vote!'
+        'Your Decentralized Identity is created! We are downloading your Secret Key backup now. KEEP IT SAFE.'
       );
 
-      // Download secret as a backup
       downloadSecretBackup(secret, commitment);
 
-      // Refresh status
       setTimeout(() => {
         checkRegistrationStatus();
       }, 2000);
 
     } catch (err) {
       console.error('Registration error:', err);
-      const message = err.message?.includes('Sybil')
-        ? 'You are already registered for voting'
-        : err.message?.includes('user rejected')
-        ? 'Transaction was rejected'
-        : 'Registration failed. Please try again.';
       
-      showAlert('error', 'Registration Failed', message);
+      // ✅ IMPROVED Error Handling
+      let title = 'Registration Failed';
+      let message = 'An unexpected error occurred. Please check console.';
+
+      if (err.message) {
+        if (err.message.includes('User rejected') || err.message.includes('rejected the request')) {
+          title = 'Transaction Cancelled';
+          message = 'You rejected the transaction in your wallet.';
+        } else if (err.message.includes('Sybil') || err.message.includes('Already registered')) {
+          title = 'Already Registered';
+          message = 'This wallet address is already registered for voting.';
+        } else if (err.message.includes('length mismatch')) {
+          // This specific error should be fixed now, but keeping a catch for it is safe
+          message = 'Data format error. Please refresh the page and try again.';
+        } else {
+           // Clean up raw error messages for display
+           message = err.message.slice(0, 100) + '...';
+        }
+      }
+      
+      showAlert('error', title, message);
     } finally {
       setLoading(false);
     }
@@ -125,7 +139,7 @@ const DIDRegistration = () => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `dao-voting-secret-${address.slice(0, 6)}.json`;
+    a.download = `dao-secret-${address.slice(0, 6)}.json`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -135,7 +149,7 @@ const DIDRegistration = () => {
       <Card padding="large">
         <div className="did-registration-loading">
           <div className="spinner"></div>
-          <p>Checking registration status...</p>
+          <p>Verifying identity status...</p>
         </div>
       </Card>
     );
@@ -156,10 +170,10 @@ const DIDRegistration = () => {
       <Card padding="large">
         <div className="did-registration-success">
           <div className="success-icon">✅</div>
-          <h3>Already Registered</h3>
-          <p>Your wallet is registered for private voting.</p>
-          <Alert type="info" title="Remember Your Secret">
-            You need to enter the same secret you used during registration when casting private votes.
+          <h3>Identity Verified</h3>
+          <p>You are already registered for private voting.</p>
+          <Alert type="info" title="Important">
+            When voting, you will be asked for the <strong>Secret</strong> you created during registration.
           </Alert>
         </div>
       </Card>
@@ -170,9 +184,9 @@ const DIDRegistration = () => {
     <Card padding="large">
       <div className="did-registration">
         <div className="did-registration-header">
-          <h2 className="did-registration-title">🔐 Register for Private Voting</h2>
+          <h2 className="did-registration-title">🔐 Private Identity Setup</h2>
           <p className="did-registration-description">
-            Create your decentralized identity (DID) and register for anonymous voting
+            Create a secure secret to vote anonymously. We do not store this secret.
           </p>
         </div>
 
@@ -184,30 +198,42 @@ const DIDRegistration = () => {
 
         <div className="did-registration-form">
           <div className="form-group">
-            <label className="form-label">Choose a Secret</label>
-            <input
-              type="password"
-              className="form-input"
-              value={secret}
-              onChange={(e) => setSecret(e.target.value)}
-              placeholder="Enter a secret (min 6 characters)"
-              disabled={loading}
-            />
+            <label className="form-label">Create Secret Password</label>
+            <div className="input-wrapper">
+                <input
+                  type={showSecret ? "text" : "password"} // ✅ Toggles Type
+                  className="form-input"
+                  value={secret}
+                  onChange={(e) => setSecret(e.target.value)}
+                  placeholder="Min 6 characters"
+                  disabled={loading}
+                />
+                <button 
+                  type="button"
+                  className="password-toggle-btn"
+                  onClick={() => setShowSecret(!showSecret)}
+                  title={showSecret ? "Hide secret" : "Show secret"}
+                >
+                  {showSecret ? '🙈' : '👁️'}
+                </button>
+            </div>
             <small className="form-helper">
-              This secret will be used to generate your anonymous voting credential. Keep it secure!
+              Write this down or save the backup file. It cannot be recovered.
             </small>
           </div>
 
           <div className="form-group">
             <label className="form-label">Confirm Secret</label>
-            <input
-              type="password"
-              className="form-input"
-              value={confirmSecret}
-              onChange={(e) => setConfirmSecret(e.target.value)}
-              placeholder="Re-enter your secret"
-              disabled={loading}
-            />
+            <div className="input-wrapper">
+                <input
+                  type={showSecret ? "text" : "password"} // ✅ Toggles Type
+                  className="form-input"
+                  value={confirmSecret}
+                  onChange={(e) => setConfirmSecret(e.target.value)}
+                  placeholder="Re-enter secret"
+                  disabled={loading}
+                />
+            </div>
           </div>
 
           <Button
@@ -216,19 +242,8 @@ const DIDRegistration = () => {
             disabled={loading || !secret || !confirmSecret}
             fullWidth
           >
-            {loading ? 'Registering...' : 'Register for Private Voting'}
+            {loading ? 'Registering on Blockchain...' : 'Create Identity & Register'}
           </Button>
-        </div>
-
-        <div className="did-registration-info">
-          <Alert type="info" title="Important Information">
-            <ul>
-              <li>Your secret will be used to generate a cryptographic commitment</li>
-              <li>You will need this same secret every time you want to vote privately</li>
-              <li>A backup file will be downloaded - store it securely</li>
-              <li>Registration is a one-time process per wallet address</li>
-            </ul>
-          </Alert>
         </div>
       </div>
     </Card>

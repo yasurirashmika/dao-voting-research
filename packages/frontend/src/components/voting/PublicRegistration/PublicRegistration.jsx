@@ -1,3 +1,4 @@
+// src/components/voting/PublicRegistration/PublicRegistration.jsx (FIXED)
 import React, { useState, useEffect } from 'react';
 import { useAccount } from 'wagmi';
 import { useContract } from '../../../hooks/useContract';
@@ -14,8 +15,9 @@ const PublicRegistration = () => {
   const { address, isConnected } = useAccount();
   const { balance } = useWallet();
   
-  const { read: readVoting, write: writeVoting } = useContract('DAOVoting', DAOVotingABI.abi);
-  const { read: readToken } = useContract('GovernanceToken', GovernanceTokenABI.abi);
+  // ✅ Get contract instances
+  const { contract: votingContract, read: readVoting, write: writeVoting } = useContract('DAOVoting', DAOVotingABI.abi);
+  const { contract: tokenContract, read: readToken } = useContract('GovernanceToken', GovernanceTokenABI.abi);
 
   const [isRegistered, setIsRegistered] = useState(false);
   const [minTokensRequired, setMinTokensRequired] = useState(0);
@@ -24,28 +26,46 @@ const PublicRegistration = () => {
   const [checkingStatus, setCheckingStatus] = useState(true);
   const [alert, setAlert] = useState(null);
 
+  // ✅ Add contracts to dependency array
   useEffect(() => {
     checkRegistrationStatus();
-  }, [address]);
+  }, [address, votingContract, tokenContract, isConnected]);
 
   const checkRegistrationStatus = async () => {
-    if (!address) {
+    // ✅ CRITICAL: Check if wallet is connected
+    if (!address || !isConnected) {
       setCheckingStatus(false);
+      return;
+    }
+
+    // ✅ CRITICAL: Check if contracts are initialized
+    if (!votingContract || !tokenContract) {
+      console.log('⏳ PublicRegistration: Waiting for contracts to initialize...');
+      setCheckingStatus(true);
       return;
     }
 
     setCheckingStatus(true);
     try {
       // Check if user is registered
-      const registered = await readVoting('registeredVoters', [address]);
+      const registered = await readVoting('registeredVoters', [address]).catch(err => {
+        console.warn('Failed to check registration:', err.message);
+        return false;
+      });
       setIsRegistered(registered);
 
       // Get minimum tokens required
-      const minTokens = await readVoting('minTokensToRegister', []);
+      const minTokens = await readVoting('minTokensToRegister', []).catch(err => {
+        console.warn('Failed to get min tokens:', err.message);
+        return 0n;
+      });
       setMinTokensRequired(Number(minTokens) / 1e18);
 
       // Get user's token balance
-      const tokenBalance = await readToken('balanceOf', [address]);
+      const tokenBalance = await readToken('balanceOf', [address]).catch(err => {
+        console.warn('Failed to get token balance:', err.message);
+        return 0n;
+      });
       setUserBalance(Number(tokenBalance) / 1e18);
 
     } catch (err) {
