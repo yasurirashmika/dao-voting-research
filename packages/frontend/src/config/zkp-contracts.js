@@ -1,15 +1,15 @@
 // Auto-generated ZKP contract addresses
-// Generated on: 2025-12-05T16:34:55.638Z
+// Generated on: 2025-12-07T01:21:50.866Z
 // Network: sepolia
 
 export const ZKP_CONTRACT_ADDRESSES = {
   11155111: {
-    VoteVerifier: "0xCd663E258c61386D24549C43D3A1ee532D09abaF",
-    DIDRegistry: "0xfAC0e408Eed2528ef6BF58968d5B6405d07Fb9a4",
-    PrivateDAOVoting: "0xC594973F437b8146c561bfFC8Bcd7f6B22b5B930",
+    VoteVerifier: "0x0DDb97c00B5fa1bA206A1F90C58ECc96b171119C",
+    DIDRegistry: "0x586AB49ADc3a5E365766E7567F4C747D67Dd4320",
+    PrivateDAOVoting: "0x8Caa0EC42385006048359A767EFA75FCD6e8086a",
     // Re-exporting these for convenience if needed by Private mode
-    GovernanceToken: "0x92aDA13a738C9069eC44a7B5C65b5dBC5Bd0a881", 
-    ReputationManager: "0xEfcAEac1af83762889207e5aDC458774618515EE",
+    GovernanceToken: "0xCF77340B958dA7D9ddB0A5976BE7972770d8233e", 
+    ReputationManager: "0xC46aEfD592d2C4Ab1c5203edA28f3b0cBec3f772",
   },
 };
 

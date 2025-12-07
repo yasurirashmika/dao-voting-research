@@ -23,7 +23,7 @@ contract PrivateDAOVoting is Ownable, ReentrancyGuard {
         uint256 votingStart;
         uint256 votingEnd;
         bytes32 voterSetRoot;
-        // ✅ NEW: Reputation Requirement for VOTERS
+        // Reputation Requirement for VOTERS
         uint256 minReputationRequired;
     }
 
@@ -43,14 +43,16 @@ contract PrivateDAOVoting is Ownable, ReentrancyGuard {
     mapping(uint256 => Proposal) public proposals;
     mapping(uint256 => mapping(bytes32 => bool)) public nullifiers;
     mapping(bytes32 => bool) public voterCommitments;
+    // Array to track all voter commitments for Merkle tree construction
+    bytes32[] public voterCommitmentsArray;
 
     uint256 public proposalCount;
     uint256 public votingDelay = 1 hours;
     uint256 public votingPeriod = 7 days;
     uint256 public quorumPercentage = 40;
     
-    // ✅ NEW: Score required to CREATE a proposal (Proposer Gate)
-    uint256 public minReputationToPropose = 50; 
+    // Score required to CREATE a proposal (Proposer Gate)
+    uint256 public minReputationToPropose = 50;
 
     bytes32 public currentVoterSetRoot;
 
@@ -107,13 +109,16 @@ contract PrivateDAOVoting is Ownable, ReentrancyGuard {
         minReputationToPropose = _amount;
     }
 
+    // Modified to also add commitment to array for indexing
     function registerVoter(bytes32 commitment) external onlyRegistrar {
         require(commitment != bytes32(0), "Invalid commitment");
         require(!voterCommitments[commitment], "Already registered");
         voterCommitments[commitment] = true;
+        voterCommitmentsArray.push(commitment);
         emit VoterRegistered(commitment);
     }
 
+    // Modified to also add commitments to array for indexing
     function batchRegisterVoters(
         bytes32[] calldata commitments
     ) external onlyOwner {
@@ -121,6 +126,7 @@ contract PrivateDAOVoting is Ownable, ReentrancyGuard {
             require(commitments[i] != bytes32(0), "Invalid commitment");
             if (!voterCommitments[commitments[i]]) {
                 voterCommitments[commitments[i]] = true;
+                voterCommitmentsArray.push(commitments[i]);
                 emit VoterRegistered(commitments[i]);
             }
         }
@@ -138,14 +144,13 @@ contract PrivateDAOVoting is Ownable, ReentrancyGuard {
     function submitProposal(
         string memory _title,
         string memory _description,
-        uint256 _minReputationRequired // Requirement for VOTERS
+        uint256 _minReputationRequired
     ) external nonReentrant {
         require(bytes(_title).length > 0, "Title required");
         require(bytes(_description).length > 0, "Description required");
         require(currentVoterSetRoot != bytes32(0), "Voter set not initialized");
 
-        // ✅ FIXED: Enforce Reputation Check for PROPOSER
-        // Uses the correct interface function 'getReputationScore'
+        // Enforce Reputation Check for PROPOSER
         require(
             reputationManager.getReputationScore(msg.sender) >= minReputationToPropose, 
             "Insufficient reputation to create proposal"
@@ -275,5 +280,21 @@ contract PrivateDAOVoting is Ownable, ReentrancyGuard {
         bytes32 _commitment
     ) external view returns (bool) {
         return voterCommitments[_commitment];
+    }
+
+    // Get total number of registered voters
+    function getRegisteredVoterCount() external view returns (uint256) {
+        return voterCommitmentsArray.length;
+    }
+
+    // Get voter commitment by index
+    function getVoterCommitmentByIndex(uint256 index) external view returns (bytes32) {
+        require(index < voterCommitmentsArray.length, "Index out of bounds");
+        return voterCommitmentsArray[index];
+    }
+
+    // Get all voter commitments (useful for debugging/admin)
+    function getAllVoterCommitments() external view returns (bytes32[] memory) {
+        return voterCommitmentsArray;
     }
 }

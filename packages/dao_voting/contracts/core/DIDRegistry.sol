@@ -79,7 +79,7 @@ contract DIDRegistry is Ownable {
     }
 
     /**
-     * @dev ✅ NEW: Self-registration function for users
+     * @dev Self-registration function for users
      * Anyone can create their own DID and register for voting in one transaction
      */
     function selfRegisterForVoting(

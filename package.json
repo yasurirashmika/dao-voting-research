@@ -20,8 +20,12 @@
     "@openzeppelin/contracts": "^5.4.0",
     "@rainbow-me/rainbowkit": "2.1.7",
     "@tanstack/react-query": "5.59.16",
+    "assert": "^2.1.0",
+    "buffer": "^6.0.3",
     "circomlib": "^2.0.5",
     "circomlibjs": "^0.1.7",
+    "process": "^0.11.10",
+    "stream-browserify": "^3.0.0",
     "viem": "2.21.1",
     "wagmi": "2.12.9"
   },

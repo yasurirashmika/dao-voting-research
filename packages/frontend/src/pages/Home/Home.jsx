@@ -5,12 +5,51 @@ import { useConnectModal } from '@rainbow-me/rainbowkit';
 import Button from '../../components/common/Button/Button';
 import Card from '../../components/common/Card/Card';
 import { useProposals } from '../../hooks/useProposals';
+import { useContract } from '../../hooks/useContract';
+import { useDeployment } from '../../context/DeploymentContext';
+import DAOVotingABI from '../../abis/DAOVoting.json';
+import PrivateDAOVotingABI from '../../abis/PrivateDAOVoting.json';
 import './Home.css';
 
 const Home = () => {
   const { isConnected } = useAccount();
   const { openConnectModal } = useConnectModal();
   const { proposals, loading: proposalsLoading } = useProposals();
+  const { mode } = useDeployment();
+  
+  const [registeredVoters, setRegisteredVoters] = useState(null);
+  const [loadingVoters, setLoadingVoters] = useState(true);
+
+  // ✅ FIX 1: Destructure 'contract' so we can check if it exists
+  const { contract: publicContract, read: readPublicVoting } = useContract('DAOVoting', DAOVotingABI.abi);
+  const { contract: privateContract, read: readPrivateVoting } = useContract('PrivateDAOVoting', PrivateDAOVotingABI.abi);
+
+  // Fetch registered voter count
+  useEffect(() => {
+    const fetchVoterCount = async () => {
+      // ✅ FIX 2: Check if the specific contract for the current mode is ready
+      if (mode === 'public' && !publicContract) return;
+      if (mode === 'private' && !privateContract) return;
+
+      setLoadingVoters(true);
+      try {
+        if (mode === 'public') {
+          const count = await readPublicVoting('voterCount', []);
+          setRegisteredVoters(Number(count));
+        } else if (mode === 'private') {
+          const count = await readPrivateVoting('getRegisteredVoterCount', []);
+          setRegisteredVoters(Number(count));
+        }
+      } catch (error) {
+        console.error('Error fetching voter count:', error);
+        setRegisteredVoters(0);
+      } finally {
+        setLoadingVoters(false);
+      }
+    };
+
+    fetchVoterCount();
+  }, [mode, publicContract, privateContract, readPublicVoting, readPrivateVoting]); // ✅ Dependencies updated
 
   // Calculate total votes cast across all proposals
   const totalVotesCast = proposals.reduce((sum, p) => {
@@ -30,16 +69,14 @@ const Home = () => {
       loading: proposalsLoading
     },
     { 
-      label: 'Registered voters who can participate in governance', 
-      value: '—',
-      loading: false,
-      tooltip: 'Go to Admin panel to register voters'
+      label: 'Registered Voters', 
+      value: loadingVoters ? '...' : registeredVoters !== null ? registeredVoters.toLocaleString() : '0',
+      loading: loadingVoters
     },
     { 
       label: 'Total Votes Cast', 
       value: proposalsLoading ? '...' : totalVotesCast.toLocaleString(),
-      loading: proposalsLoading,
-      tooltip: 'Sum of all Yes and No votes across all proposals'
+      loading: proposalsLoading
     }
   ];
 
@@ -118,7 +155,7 @@ const Home = () => {
       {/* Stats Section */}
       <section className="stats-section">
         {stats.map((stat, index) => (
-          <Card key={index} padding="medium" className="stat-card" title={stat.tooltip}>
+          <Card key={index} padding="medium" className="stat-card">
             {stat.loading ? (
               <div className="stat-value">...</div>
             ) : (

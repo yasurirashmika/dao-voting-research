@@ -49,8 +49,8 @@ contract DAOVoting is Ownable, ReentrancyGuard {
 
     // --- STATE VARIABLES ---
     uint256 public proposalCount;
-    uint256 public voterCount; // ✅ ADDED THIS (Fixes the error)
-    uint256 public minTokensToRegister = 1 ether; // ✅ MOVED UP (Cleaner code)
+    uint256 public voterCount;
+    uint256 public minTokensToRegister = 1 ether;
 
     uint256 public votingDelay = 1 hours;
     uint256 public votingPeriod = 7 days;
@@ -133,7 +133,7 @@ contract DAOVoting is Ownable, ReentrancyGuard {
         );
 
         registeredVoters[msg.sender] = true;
-        voterCount++; // ✅ Now this variable exists!
+        voterCount++;
 
         // Note: Emitting with 2 arguments (address, timestamp) implies you might need to update the event definition
         // The event VoterRegistered currently only takes (address).

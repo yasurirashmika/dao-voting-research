@@ -3,48 +3,50 @@ const fs = require("fs");
 const path = require("path");
 
 async function main() {
-  console.log("🚀 Deploying ZKP Voting System (Private)...");
+  console.log("Deploying ZKP Voting System (Private)...");
 
   const [deployer] = await hre.ethers.getSigners();
   console.log("Deploying with account:", deployer.address);
 
+  // Check for required environment variables
   const REPUTATION_MANAGER_ADDRESS = process.env.REPUTATION_MANAGER_ADDRESS;
   const GOVERNANCE_TOKEN_ADDRESS = process.env.GOVERNANCE_TOKEN_ADDRESS;
 
   if (!REPUTATION_MANAGER_ADDRESS) {
-      console.error("❌ Error: REPUTATION_MANAGER_ADDRESS is missing.");
-      console.error("👉 Please add 'REPUTATION_MANAGER_ADDRESS=0x...' to your packages/dao_voting/.env file");
+      console.error("Error: REPUTATION_MANAGER_ADDRESS is missing.");
+      console.error("Please add 'REPUTATION_MANAGER_ADDRESS=0x...' to your packages/dao_voting/.env file");
       process.exit(1);
   }
-  console.log("Using Reputation Manager at:", REPUTATION_MANAGER_ADDRESS);
 
-  // ============================================
-  // 1. Deploy VoteVerifier (Generated from Circuit)
-  // ============================================
-  console.log("\n📝 [1/3] Deploying VoteVerifier...");
+  if (!GOVERNANCE_TOKEN_ADDRESS) {
+      console.error("Error: GOVERNANCE_TOKEN_ADDRESS is missing.");
+      console.error("Please add 'GOVERNANCE_TOKEN_ADDRESS=0x...' to your packages/dao_voting/.env file");
+      process.exit(1);
+  }
+
+  console.log("Using Reputation Manager at:", REPUTATION_MANAGER_ADDRESS);
+  console.log("Using Governance Token at:", GOVERNANCE_TOKEN_ADDRESS);
+
+  // Deploy VoteVerifier (Generated from Circuit)
+  console.log("\n[1/3] Deploying VoteVerifier...");
   const VoteVerifier = await hre.ethers.getContractFactory("Groth16Verifier");
   const verifier = await VoteVerifier.deploy();
   await verifier.waitForDeployment();
   const verifierAddress = await verifier.getAddress();
-  console.log("✅ VoteVerifier deployed to:", verifierAddress);
+  console.log("VoteVerifier deployed to:", verifierAddress);
 
-  // ============================================
-  // 2. Deploy DIDRegistry
-  // ============================================
-  console.log("\n📝 [2/3] Deploying DIDRegistry...");
+  // Deploy DIDRegistry
+  console.log("\n[2/3] Deploying DIDRegistry...");
   const DIDRegistry = await hre.ethers.getContractFactory("DIDRegistry");
   const didRegistry = await DIDRegistry.deploy(deployer.address);
   await didRegistry.waitForDeployment();
   const didRegistryAddress = await didRegistry.getAddress();
-  console.log("✅ DIDRegistry deployed to:", didRegistryAddress);
+  console.log("DIDRegistry deployed to:", didRegistryAddress);
 
-  // ============================================
-  // 3. Deploy PrivateDAOVoting
-  // ============================================
-  console.log("\n📝 [3/3] Deploying PrivateDAOVoting...");
+  // Deploy PrivateDAOVoting
+  console.log("\n[3/3] Deploying PrivateDAOVoting...");
   const PrivateDAOVoting = await hre.ethers.getContractFactory("PrivateDAOVoting");
   
-  // ✅ UPDATED: Now passing Reputation Manager Address
   const privateVoting = await PrivateDAOVoting.deploy(
     verifierAddress,
     REPUTATION_MANAGER_ADDRESS, 
@@ -52,17 +54,15 @@ async function main() {
   );
   await privateVoting.waitForDeployment();
   const privateVotingAddress = await privateVoting.getAddress();
-  console.log("✅ PrivateDAOVoting deployed to:", privateVotingAddress);
+  console.log("PrivateDAOVoting deployed to:", privateVotingAddress);
 
-  // ============================================
-  // 4. Initial Configuration
-  // ============================================
-  console.log("\n⚙️  Configuring system...");
+  // Initial Configuration
+  console.log("\nConfiguring system...");
   
   // Authorize deployer as DID issuer
   const authTx = await didRegistry.authorizeIssuer(deployer.address);
   await authTx.wait();
-  console.log("✅ Authorized deployer as DID issuer");
+  console.log("Authorized deployer as DID issuer");
 
   // LINKING STEPS
   console.log("   -> Linking PrivateDAOVoting to DIDRegistry...");
@@ -72,11 +72,9 @@ async function main() {
   console.log("   -> Linking DIDRegistry to PrivateDAOVoting...");
   const txLinkVoting = await privateVoting.setDIDRegistry(didRegistryAddress);
   await txLinkVoting.wait();
-  console.log("✅ Contracts linked successfully");
+  console.log("Contracts linked successfully");
 
-  // ============================================
-  // 5. Save Deployment Info & Update Config
-  // ============================================
+  // Save Deployment Info & Update Config
   const deployment = {
     network: hre.network.name,
     chainId: (await hre.ethers.provider.getNetwork()).chainId.toString(),
@@ -139,7 +137,24 @@ export const getAllZKPContracts = (chainId) => {
 export default ZKP_CONTRACT_ADDRESSES;
 `;
       fs.writeFileSync(frontendConfigPath, frontendConfig);
-      console.log("✅ Frontend config updated:", frontendConfigPath);
+      console.log("Frontend config updated:", frontendConfigPath);
+  }
+
+  // Summary
+  console.log("\n" + "=".repeat(60));
+  console.log("ZKP SYSTEM DEPLOYMENT COMPLETE");
+  console.log("=".repeat(60));
+  console.log(`Network:           ${hre.network.name}`);
+  console.log(`VoteVerifier:      ${verifierAddress}`);
+  console.log(`DIDRegistry:       ${didRegistryAddress}`);
+  console.log(`PrivateDAOVoting:  ${privateVotingAddress}`);
+  console.log("=".repeat(60));
+
+  if (hre.network.name === "sepolia") {
+    console.log("\nView on Etherscan:");
+    console.log(`https://sepolia.etherscan.io/address/${verifierAddress}`);
+    console.log(`https://sepolia.etherscan.io/address/${didRegistryAddress}`);
+    console.log(`https://sepolia.etherscan.io/address/${privateVotingAddress}`);
   }
 
   // Return for tests
