@@ -10,6 +10,7 @@ import Button from "../../common/Button/Button";
 import Alert from "../../common/Alert/Alert";
 import "./ZKVotingModule.css";
 import { ethers } from "ethers";
+// ✅ Poseidon Import
 import { buildPoseidon } from "circomlibjs";
 
 const snarkjs = window.snarkjs || require("snarkjs");
@@ -24,6 +25,7 @@ const ZKVotingModule = ({ preselectedProposalId, onVoteSuccess }) => {
     read: readPrivateVoting,
     contract: privateVotingContract,
   } = useContract("PrivateDAOVoting", PrivateDAOVotingABI.abi);
+  
   const { read: readDID, contract: didContract } = useContract(
     "DIDRegistry",
     DIDRegistryABI.abi
@@ -125,7 +127,6 @@ const ZKVotingModule = ({ preselectedProposalId, onVoteSuccess }) => {
     return tree;
   };
 
-  // ✅ CRITICAL FIX: Corrected getMerklePath to match circuit logic
   const getMerklePath = (tree, leafIndex, depth = 20) => {
     const pathElements = [];
     const pathIndices = [];
@@ -142,9 +143,7 @@ const ZKVotingModule = ({ preselectedProposalId, onVoteSuccess }) => {
       
       pathElements.push(sibling);
       
-      // ✅ CRITICAL FIX: Circuit expects:
-      // pathIndices[i] = 0 means current node is LEFT child (sibling is RIGHT)
-      // pathIndices[i] = 1 means current node is RIGHT child (sibling is LEFT)
+      // Circuit expects: 0 for left, 1 for right
       pathIndices.push(isRightNode ? 1 : 0);
 
       currentIndex = Math.floor(currentIndex / 2);
@@ -290,6 +289,11 @@ const ZKVotingModule = ({ preselectedProposalId, onVoteSuccess }) => {
         throw new Error(`Cannot convert value to BigInt: ${val}`);
       };
 
+      // ✅ FIX: Convert BigInt to 32-byte Hex string for bytes32 arguments
+      const toHex32 = (val) => {
+        return "0x" + BigInt(val).toString(16).padStart(64, "0");
+      };
+
       const solArgs = {
         a: [formatProofValue(proof.pi_a[0]), formatProofValue(proof.pi_a[1])],
         b: [
@@ -310,7 +314,7 @@ const ZKVotingModule = ({ preselectedProposalId, onVoteSuccess }) => {
       const { hash } = await writePrivateVote("castPrivateVote", [
         BigInt(selectedProposal),
         selectedVote === "yes",
-        solArgs.publicSignals[0], // nullifier
+        toHex32(solArgs.publicSignals[0]), // ✅ FIX: Send Nullifier as Hex String (bytes32)
         solArgs.a,
         solArgs.b,
         solArgs.c,
@@ -337,6 +341,8 @@ const ZKVotingModule = ({ preselectedProposalId, onVoteSuccess }) => {
       } else if (msg.includes("Merkle root mismatch")) {
         msg =
           "The voter set may have been updated. Please refresh and try again.";
+      } else if (msg.includes("AbiEncodingBytesSizeMismatchError")) {
+        msg = "Frontend encoding error: Failed to convert Nullifier to bytes32.";
       }
 
       showAlert("error", `Vote Failed: ${msg}`);
