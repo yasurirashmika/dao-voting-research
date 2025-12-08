@@ -1,3 +1,4 @@
+/* global BigInt */
 import React, { useState, useEffect } from 'react';
 import { useAccount } from 'wagmi';
 import { useContract } from '../../../hooks/useContract';
@@ -5,7 +6,7 @@ import DIDRegistryABI from '../../../abis/DIDRegistry.json';
 import Button from '../../common/Button/Button';
 import Alert from '../../common/Alert/Alert';
 import Card from '../../common/Card/Card';
-import { keccak256, toUtf8Bytes } from 'ethers';
+import { buildPoseidon } from 'circomlibjs';
 import './DIDRegistration.css';
 
 const DIDRegistration = () => {
@@ -14,7 +15,7 @@ const DIDRegistration = () => {
 
   const [secret, setSecret] = useState('');
   const [confirmSecret, setConfirmSecret] = useState('');
-  const [showSecret, setShowSecret] = useState(false); // ✅ NEW: State for Eye Toggle
+  const [showSecret, setShowSecret] = useState(false);
   
   const [isRegistered, setIsRegistered] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -44,18 +45,31 @@ const DIDRegistration = () => {
 
   const showAlert = (type, title, message) => {
     setAlert({ type, title, message });
-    // Auto-dismiss after 7 seconds
     setTimeout(() => setAlert(null), 7000);
   };
 
-  const generateCommitment = (userSecret) => {
-    return keccak256(toUtf8Bytes(userSecret));
+  // ✅ CRITICAL FIX: Convert string to number (same algorithm as voting module)
+  const stringToNumber = (str) => {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+      hash = ((hash << 5) - hash) + str.charCodeAt(i);
+      hash = hash & hash;
+    }
+    return Math.abs(hash);
+  };
+
+  // ✅ CRITICAL FIX: Use Poseidon instead of Keccak256
+  const generateCommitment = async (userSecret) => {
+    const poseidon = await buildPoseidon();
+    const secretNumber = stringToNumber(userSecret);
+    const poseidonHash = poseidon.F.toString(poseidon([secretNumber]));
+    const commitment = '0x' + BigInt(poseidonHash).toString(16).padStart(64, '0');
+    return commitment;
   };
 
   const handleRegister = async () => {
-    setAlert(null); // Clear previous alerts
+    setAlert(null);
 
-    // 1. Validation
     if (!secret || !confirmSecret) {
       showAlert('warning', 'Missing Fields', 'Please enter your secret in both fields');
       return;
@@ -74,16 +88,11 @@ const DIDRegistration = () => {
     setLoading(true);
 
     try {
-      // 2. Generate commitment
-      const commitment = generateCommitment(secret);
-      console.log('📝 Generated commitment:', commitment);
+      // Generate Poseidon commitment
+      const commitment = await generateCommitment(secret);
+      console.log('📝 Generated Poseidon commitment:', commitment);
 
-      // 3. Call Contract
-      // ✅ FIX: Removed the second argument ('GovernanceCredential') 
-      // because the updated Solidity contract only accepts [commitment].
-      const { hash } = await writeDID('selfRegisterForVoting', [
-        commitment
-      ]);
+      const { hash } = await writeDID('selfRegisterForVoting', [commitment]);
 
       console.log('✅ Registration transaction:', hash);
 
@@ -100,7 +109,6 @@ const DIDRegistration = () => {
     } catch (err) {
       console.error('Registration error:', err);
       
-      // ✅ IMPROVED Error Handling
       let title = 'Registration Failed';
       let message = 'An unexpected error occurred. Please check console.';
 
@@ -112,10 +120,8 @@ const DIDRegistration = () => {
           title = 'Already Registered';
           message = 'This wallet address is already registered for voting.';
         } else if (err.message.includes('length mismatch')) {
-          // This specific error should be fixed now, but keeping a catch for it is safe
           message = 'Data format error. Please refresh the page and try again.';
         } else {
-           // Clean up raw error messages for display
            message = err.message.slice(0, 100) + '...';
         }
       }
@@ -201,7 +207,7 @@ const DIDRegistration = () => {
             <label className="form-label">Create Secret Password</label>
             <div className="input-wrapper">
                 <input
-                  type={showSecret ? "text" : "password"} // ✅ Toggles Type
+                  type={showSecret ? "text" : "password"}
                   className="form-input"
                   value={secret}
                   onChange={(e) => setSecret(e.target.value)}
@@ -226,7 +232,7 @@ const DIDRegistration = () => {
             <label className="form-label">Confirm Secret</label>
             <div className="input-wrapper">
                 <input
-                  type={showSecret ? "text" : "password"} // ✅ Toggles Type
+                  type={showSecret ? "text" : "password"}
                   className="form-input"
                   value={confirmSecret}
                   onChange={(e) => setConfirmSecret(e.target.value)}

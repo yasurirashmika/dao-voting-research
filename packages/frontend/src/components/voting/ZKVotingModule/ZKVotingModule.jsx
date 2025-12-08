@@ -89,40 +89,43 @@ const ZKVotingModule = ({ preselectedProposalId, onVoteSuccess }) => {
     if (type === "success") setTimeout(() => setAlert(null), 5000);
   };
 
-  // MUST MATCH registration script exactly
-  const stringToFieldElement = (str) => {
-    let hash = 0;
-    for (let i = 0; i < str.length; i++) {
-      hash = (hash << 5) - hash + str.charCodeAt(i);
-      hash = hash & hash;
-    }
-    return Math.abs(hash);
-  };
+  // ✅ Build Merkle Tree using Poseidon
+  const buildPoseidonMerkleTree = async (leaves, poseidon, depth = 20) => {
+    const leafBigInts = leaves.map((leaf) => {
+      const cleaned = leaf.startsWith("0x") ? leaf.slice(2) : leaf;
+      return BigInt("0x" + cleaned);
+    });
 
-  const buildMerkleTree = (leaves, depth = 20) => {
-    const paddedLeaves = [...leaves];
+    // Pad to full tree size
+    const paddedLeaves = [...leafBigInts];
     const targetSize = 2 ** depth;
     while (paddedLeaves.length < targetSize) {
-      paddedLeaves.push(ethers.ZeroHash);
+      paddedLeaves.push(BigInt(0));
     }
 
     let currentLevel = paddedLeaves;
     const tree = [currentLevel];
 
+    // Build tree using Poseidon
     for (let level = 0; level < depth; level++) {
       const nextLevel = [];
       for (let i = 0; i < currentLevel.length; i += 2) {
         const left = currentLevel[i];
         const right = currentLevel[i + 1];
-        const parent = ethers.keccak256(ethers.concat([left, right]));
-        nextLevel.push(parent);
+
+        // Hash using Poseidon
+        const hash = poseidon([left, right]);
+        const hashBigInt = poseidon.F.toString(hash);
+        nextLevel.push(BigInt(hashBigInt));
       }
       currentLevel = nextLevel;
       tree.push(currentLevel);
     }
+
     return tree;
   };
 
+  // ✅ CRITICAL FIX: Corrected getMerklePath to match circuit logic
   const getMerklePath = (tree, leafIndex, depth = 20) => {
     const pathElements = [];
     const pathIndices = [];
@@ -132,12 +135,21 @@ const ZKVotingModule = ({ preselectedProposalId, onVoteSuccess }) => {
       const isRightNode = currentIndex % 2 === 1;
       const siblingIndex = isRightNode ? currentIndex - 1 : currentIndex + 1;
 
-      const sibling = tree[level][siblingIndex] || tree[level][currentIndex];
+      // Get sibling or use 0 for missing nodes
+      const sibling = tree[level][siblingIndex] !== undefined 
+        ? tree[level][siblingIndex] 
+        : BigInt(0);
+      
       pathElements.push(sibling);
+      
+      // ✅ CRITICAL FIX: Circuit expects:
+      // pathIndices[i] = 0 means current node is LEFT child (sibling is RIGHT)
+      // pathIndices[i] = 1 means current node is RIGHT child (sibling is LEFT)
       pathIndices.push(isRightNode ? 1 : 0);
 
       currentIndex = Math.floor(currentIndex / 2);
     }
+    
     return { pathElements, pathIndices };
   };
 
@@ -166,10 +178,26 @@ const ZKVotingModule = ({ preselectedProposalId, onVoteSuccess }) => {
     });
 
     try {
-      // Generate commitment - direct hash of string (matches original registration)
-      const commitment = ethers.keccak256(ethers.toUtf8Bytes(secret));
+      // Convert string to number
+      const stringToNumber = (str) => {
+        let hash = 0;
+        for (let i = 0; i < str.length; i++) {
+          hash = (hash << 5) - hash + str.charCodeAt(i);
+          hash = hash & hash;
+        }
+        return Math.abs(hash);
+      };
+
+      const secretNumber = stringToNumber(secret);
       console.log("Original secret:", secret);
-      console.log("Your commitment:", commitment);
+      console.log("Secret number:", secretNumber);
+
+      // Generate Poseidon commitment
+      const poseidon = await buildPoseidon();
+      const poseidonHash = poseidon.F.toString(poseidon([secretNumber]));
+      const commitment =
+        "0x" + BigInt(poseidonHash).toString(16).padStart(64, "0");
+      console.log("Your Poseidon commitment:", commitment);
 
       // Fetch Commitments
       const voterCount = await readPrivateVoting("getRegisteredVoterCount", []);
@@ -194,11 +222,20 @@ const ZKVotingModule = ({ preselectedProposalId, onVoteSuccess }) => {
       }
       console.log("Your leaf index:", leafIndex);
 
-      // Build Merkle Tree
+      // Build Poseidon Merkle Tree
       const MERKLE_TREE_DEPTH = 20;
-      const tree = buildMerkleTree(commitments, MERKLE_TREE_DEPTH);
-      const calculatedRoot = tree[tree.length - 1][0];
-      console.log("Calculated root:", calculatedRoot);
+      const tree = await buildPoseidonMerkleTree(
+        commitments,
+        poseidon,
+        MERKLE_TREE_DEPTH
+      );
+
+      // Verify calculated root matches contract root
+      const calculatedRootBigInt = tree[tree.length - 1][0];
+      const calculatedRoot =
+        "0x" + calculatedRootBigInt.toString(16).padStart(64, "0");
+
+      console.log("Calculated Poseidon root:", calculatedRoot);
       console.log("Contract root:", merkleRoot);
 
       if (calculatedRoot.toLowerCase() !== merkleRoot.toLowerCase()) {
@@ -213,48 +250,41 @@ const ZKVotingModule = ({ preselectedProposalId, onVoteSuccess }) => {
         MERKLE_TREE_DEPTH
       );
 
-      // Convert hex values to decimal strings for circuit input
-      const hexToDec = (hex) => {
-        const cleaned = hex.startsWith("0x") ? hex.slice(2) : hex;
-        return BigInt("0x" + cleaned).toString(10);
-      };
-
-      // For circuit input, convert commitment to number
-      const secretForCircuit = hexToDec(commitment);
-
+      // Prepare circuit input
       const input = {
-        root: hexToDec(merkleRoot),
+        root: calculatedRootBigInt.toString(10),
         proposalId: selectedProposal.toString(),
         voteChoice: selectedVote === "yes" ? "1" : "0",
-        secret: secretForCircuit,
-        pathElements: pathElements.map((pe) => hexToDec(pe)),
+        secret: secretNumber.toString(),
+        pathElements: pathElements.map((pe) => pe.toString(10)),
         pathIndices: pathIndices.map((pi) => pi.toString()),
       };
-      console.log("Circuit input preview:", {
+
+      console.log("Circuit input:", {
         root: input.root.slice(0, 20) + "...",
         proposalId: input.proposalId,
         voteChoice: input.voteChoice,
         secret: input.secret,
         pathElementsLen: input.pathElements.length,
-        firstPathElement: input.pathElements[0].slice(0, 20) + "...",
+        pathIndicesLen: input.pathIndices.length,
+        leafIndex: leafIndex,
       });
 
+      // Generate proof
       const { proof, publicSignals } = await snarkjs.groth16.fullProve(
         input,
         "/circuits/vote.wasm",
         "/circuits/vote_final.zkey"
       );
 
-      console.log("Proof Generated! Public Signals:", publicSignals);
+      console.log("✅ Proof Generated! Public Signals:", publicSignals);
 
-      // Format proof for Solidity (all values must be BigInt)
+      // Format proof for Solidity
       const formatProofValue = (val) => {
         if (typeof val === "bigint") return val;
         if (typeof val === "number") return BigInt(val);
         if (typeof val === "string") {
-          if (val.startsWith("0x")) {
-            return BigInt(val);
-          }
+          if (val.startsWith("0x")) return BigInt(val);
           return BigInt(val);
         }
         throw new Error(`Cannot convert value to BigInt: ${val}`);
@@ -276,9 +306,7 @@ const ZKVotingModule = ({ preselectedProposalId, onVoteSuccess }) => {
         publicSignals: publicSignals.map(formatProofValue),
       };
 
-      console.log("Formatted proof args");
-
-      // Submit Transaction
+      // Submit vote transaction
       const { hash } = await writePrivateVote("castPrivateVote", [
         BigInt(selectedProposal),
         selectedVote === "yes",
@@ -289,14 +317,14 @@ const ZKVotingModule = ({ preselectedProposalId, onVoteSuccess }) => {
         solArgs.publicSignals,
       ]);
 
-      console.log("Tx Hash:", hash);
+      console.log("✅ Tx Hash:", hash);
       showAlert(
         "success",
         "Vote Submitted Successfully! Your vote is anonymous and verifiable."
       );
       if (onVoteSuccess) onVoteSuccess(selectedVote);
     } catch (error) {
-      console.error("ZK Vote Error:", error);
+      console.error("❌ ZK Vote Error:", error);
       let msg = (error && error.message) || String(error) || "Unknown Error";
 
       if (msg.includes("commitment not found")) {
@@ -305,7 +333,7 @@ const ZKVotingModule = ({ preselectedProposalId, onVoteSuccess }) => {
       } else if (msg.includes("Circuit files") || msg.includes("fetch")) {
         msg = "Circuit files (.wasm or .zkey) not found in /public/circuits/";
       } else if (msg.includes("Assert Failed")) {
-        msg = "Proof verification failed. Your Merkle path may be incorrect.";
+        msg = "Proof verification failed. Check that your secret matches your registration.";
       } else if (msg.includes("Merkle root mismatch")) {
         msg =
           "The voter set may have been updated. Please refresh and try again.";
