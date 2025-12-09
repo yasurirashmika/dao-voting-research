@@ -40,8 +40,8 @@ async function main() {
     return BigInt("0x" + cleaned);
   });
   
-  // Pad to full tree size (depth 20)
-  const DEPTH = 20;
+  // Pad to full tree size (depth 5)
+  const DEPTH = 5;
   const targetSize = 2 ** DEPTH;
   const paddedLeaves = [...leafBigInts];
   

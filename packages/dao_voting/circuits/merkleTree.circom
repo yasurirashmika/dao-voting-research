@@ -6,7 +6,6 @@ include "circomlib/circuits/bitify.circom";
 /**
  * @title MerkleTreeChecker
  * @dev Verifies Merkle tree membership proof
- * @notice Used to prove a voter is in the registered voter set without revealing their identity
  */
 template MerkleTreeChecker(levels) {
     // Public inputs
@@ -48,4 +47,5 @@ template MerkleTreeChecker(levels) {
  * @title MerkleTreeInclusionProof
  * @dev Main component for Merkle tree inclusion proof
  */
-component main {public [root]} = MerkleTreeChecker(20); // 20 levels = 2^20 = ~1 million voters
+// depth to 5
+component main {public [root]} = MerkleTreeChecker(5);

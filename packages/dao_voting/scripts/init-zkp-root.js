@@ -56,7 +56,7 @@ async function main() {
   // Build Poseidon Merkle Tree
   console.log("\n🌳 Building Poseidon Merkle Tree...");
   const poseidon = await buildPoseidon();
-  const MERKLE_DEPTH = 20;
+  const MERKLE_DEPTH = 5;
 
   // Convert hex commitments to BigInt
   const leafBigInts = commitments.map((leaf) => {

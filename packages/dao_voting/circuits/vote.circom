@@ -11,6 +11,7 @@ template PrivateVote(levels) {
     signal input proposalId;        // Public: Proposal ID
     signal input voteChoice;        // Public: 0 or 1
     
+    
     signal input secret;            // Private: Voter's Secret
     signal input pathElements[levels]; // Private: Merkle Proof
     signal input pathIndices[levels];  // Private: Merkle Path
@@ -29,7 +30,6 @@ template PrivateVote(levels) {
     commitment <== commitmentHasher.out;
 
     // --- 3. Verify Merkle Proof (Identity Check) ---
-    // FIXED: All components and signals declared OUTSIDE the loop
     component merkleHashers[levels];
     component indexBits[levels];
     signal leftChild[levels];
@@ -45,9 +45,7 @@ template PrivateVote(levels) {
 
         merkleHashers[i] = Poseidon(2);
         
-        // Swapping logic: Selects which is left vs right based on index bit
-        // If index is 0: left = current, right = pathElement
-        // If index is 1: left = pathElement, right = current
+        // Swapping logic
         leftChild[i] <== currentHash[i] - indexBits[i].out[0] * (currentHash[i] - pathElements[i]);
         rightChild[i] <== pathElements[i] - indexBits[i].out[0] * (pathElements[i] - currentHash[i]);
         
@@ -75,5 +73,5 @@ template PrivateVote(levels) {
     voteBinding <== voteBindingHasher.out;
 }
 
-// Main Component Definition
-component main {public [root, proposalId, voteChoice]} = PrivateVote(20);
+// depth to 5
+component main {public [root, proposalId, voteChoice]} = PrivateVote(5);

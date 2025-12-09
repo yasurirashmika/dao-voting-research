@@ -10,7 +10,6 @@ import Button from "../../common/Button/Button";
 import Alert from "../../common/Alert/Alert";
 import "./ZKVotingModule.css";
 import { ethers } from "ethers";
-// ✅ Poseidon Import
 import { buildPoseidon } from "circomlibjs";
 
 const snarkjs = window.snarkjs || require("snarkjs");
@@ -25,7 +24,7 @@ const ZKVotingModule = ({ preselectedProposalId, onVoteSuccess }) => {
     read: readPrivateVoting,
     contract: privateVotingContract,
   } = useContract("PrivateDAOVoting", PrivateDAOVotingABI.abi);
-  
+
   const { read: readDID, contract: didContract } = useContract(
     "DIDRegistry",
     DIDRegistryABI.abi
@@ -50,9 +49,9 @@ const ZKVotingModule = ({ preselectedProposalId, onVoteSuccess }) => {
       try {
         const root = await readPrivateVoting("currentVoterSetRoot", []);
         setMerkleRoot(root);
-        console.log("Auto-fetched Merkle Root:", root);
+        console.log("📥 Auto-fetched Merkle Root:", root);
       } catch (error) {
-        console.error("Failed to fetch merkle root:", error);
+        console.error("❌ Failed to fetch merkle root:", error);
       } finally {
         setFetchingRoot(false);
       }
@@ -91,14 +90,14 @@ const ZKVotingModule = ({ preselectedProposalId, onVoteSuccess }) => {
     if (type === "success") setTimeout(() => setAlert(null), 5000);
   };
 
-  // ✅ Build Merkle Tree using Poseidon
-  const buildPoseidonMerkleTree = async (leaves, poseidon, depth = 20) => {
+  // Build Merkle Tree using Poseidon
+  const buildPoseidonMerkleTree = async (leaves, poseidon, depth = 5) => {
     const leafBigInts = leaves.map((leaf) => {
       const cleaned = leaf.startsWith("0x") ? leaf.slice(2) : leaf;
       return BigInt("0x" + cleaned);
     });
 
-    // Pad to full tree size
+    // Pad to full tree size (2^depth)
     const paddedLeaves = [...leafBigInts];
     const targetSize = 2 ** depth;
     while (paddedLeaves.length < targetSize) {
@@ -127,7 +126,7 @@ const ZKVotingModule = ({ preselectedProposalId, onVoteSuccess }) => {
     return tree;
   };
 
-  const getMerklePath = (tree, leafIndex, depth = 20) => {
+  const getMerklePath = (tree, leafIndex, depth = 5) => {
     const pathElements = [];
     const pathIndices = [];
     let currentIndex = leafIndex;
@@ -137,18 +136,19 @@ const ZKVotingModule = ({ preselectedProposalId, onVoteSuccess }) => {
       const siblingIndex = isRightNode ? currentIndex - 1 : currentIndex + 1;
 
       // Get sibling or use 0 for missing nodes
-      const sibling = tree[level][siblingIndex] !== undefined 
-        ? tree[level][siblingIndex] 
-        : BigInt(0);
-      
+      const sibling =
+        tree[level][siblingIndex] !== undefined
+          ? tree[level][siblingIndex]
+          : BigInt(0);
+
       pathElements.push(sibling);
-      
+
       // Circuit expects: 0 for left, 1 for right
       pathIndices.push(isRightNode ? 1 : 0);
 
       currentIndex = Math.floor(currentIndex / 2);
     }
-    
+
     return { pathElements, pathIndices };
   };
 
@@ -188,15 +188,15 @@ const ZKVotingModule = ({ preselectedProposalId, onVoteSuccess }) => {
       };
 
       const secretNumber = stringToNumber(secret);
-      console.log("Original secret:", secret);
-      console.log("Secret number:", secretNumber);
+      console.log("🔑 Original secret:", secret);
+      console.log("🔢 Secret number:", secretNumber);
 
       // Generate Poseidon commitment
       const poseidon = await buildPoseidon();
       const poseidonHash = poseidon.F.toString(poseidon([secretNumber]));
       const commitment =
         "0x" + BigInt(poseidonHash).toString(16).padStart(64, "0");
-      console.log("Your Poseidon commitment:", commitment);
+      console.log("✅ Your Poseidon commitment:", commitment);
 
       // Fetch Commitments
       const voterCount = await readPrivateVoting("getRegisteredVoterCount", []);
@@ -209,7 +209,7 @@ const ZKVotingModule = ({ preselectedProposalId, onVoteSuccess }) => {
         const comm = await readPrivateVoting("getVoterCommitmentByIndex", [i]);
         commitments.push(comm);
       }
-      console.log("Fetched commitments:", commitments);
+      console.log("📋 Fetched commitments:", commitments);
 
       const leafIndex = commitments.findIndex(
         (c) => c.toLowerCase() === commitment.toLowerCase()
@@ -219,10 +219,10 @@ const ZKVotingModule = ({ preselectedProposalId, onVoteSuccess }) => {
           `Your commitment (${commitment}) not found in voter set. Did you register with this secret?`
         );
       }
-      console.log("Your leaf index:", leafIndex);
+      console.log("📍 Your leaf index:", leafIndex);
 
-      // Build Poseidon Merkle Tree
-      const MERKLE_TREE_DEPTH = 20;
+      // Build Poseidon Merkle Tree (depth = 5 to match circuit)
+      const MERKLE_TREE_DEPTH = 5;
       const tree = await buildPoseidonMerkleTree(
         commitments,
         poseidon,
@@ -234,8 +234,8 @@ const ZKVotingModule = ({ preselectedProposalId, onVoteSuccess }) => {
       const calculatedRoot =
         "0x" + calculatedRootBigInt.toString(16).padStart(64, "0");
 
-      console.log("Calculated Poseidon root:", calculatedRoot);
-      console.log("Contract root:", merkleRoot);
+      console.log("🌳 Calculated Poseidon root:", calculatedRoot);
+      console.log("📜 Contract root:", merkleRoot);
 
       if (calculatedRoot.toLowerCase() !== merkleRoot.toLowerCase()) {
         throw new Error(
@@ -259,16 +259,6 @@ const ZKVotingModule = ({ preselectedProposalId, onVoteSuccess }) => {
         pathIndices: pathIndices.map((pi) => pi.toString()),
       };
 
-      console.log("Circuit input:", {
-        root: input.root.slice(0, 20) + "...",
-        proposalId: input.proposalId,
-        voteChoice: input.voteChoice,
-        secret: input.secret,
-        pathElementsLen: input.pathElements.length,
-        pathIndicesLen: input.pathIndices.length,
-        leafIndex: leafIndex,
-      });
-
       // Generate proof
       const { proof, publicSignals } = await snarkjs.groth16.fullProve(
         input,
@@ -276,22 +266,19 @@ const ZKVotingModule = ({ preselectedProposalId, onVoteSuccess }) => {
         "/circuits/vote_final.zkey"
       );
 
-      console.log("✅ Proof Generated! Public Signals:", publicSignals);
+      console.log("✅ Proof Generated!");
+      console.log("📊 Public Signals (Raw):", publicSignals);
 
-      // Format proof for Solidity
+      // ✅ CRITICAL: Format proof values correctly
       const formatProofValue = (val) => {
         if (typeof val === "bigint") return val;
         if (typeof val === "number") return BigInt(val);
         if (typeof val === "string") {
           if (val.startsWith("0x")) return BigInt(val);
+          if (/[a-fA-F]/.test(val)) return BigInt("0x" + val);
           return BigInt(val);
         }
         throw new Error(`Cannot convert value to BigInt: ${val}`);
-      };
-
-      // ✅ FIX: Convert BigInt to 32-byte Hex string for bytes32 arguments
-      const toHex32 = (val) => {
-        return "0x" + BigInt(val).toString(16).padStart(64, "0");
       };
 
       const solArgs = {
@@ -310,15 +297,44 @@ const ZKVotingModule = ({ preselectedProposalId, onVoteSuccess }) => {
         publicSignals: publicSignals.map(formatProofValue),
       };
 
+      // Helper for converting to bytes32 hex string
+      const toHex32 = (val) => {
+        return "0x" + BigInt(val).toString(16).padStart(64, "0");
+      };
+
+      // =================================================================
+      // 🛠️ FIX APPLIED HERE: Correct mapping of Groth16 Public Signals
+      // Groth16 order: [ Outputs..., PublicInputs... ]
+      // Our Circuit: Nullifier (Output), Root (Input), ProposalId (Input), VoteChoice (Input)
+      // =================================================================
+      
+      const nullifierFromProof = toHex32(solArgs.publicSignals[0]);
+      const rootFromProof = toHex32(solArgs.publicSignals[1]);
+      const proposalIdFromProof = solArgs.publicSignals[2];
+      const voteChoiceFromProof = solArgs.publicSignals[3];
+
+      console.log("🔍 Extracted values for contract call:");
+      console.log("   Nullifier:", nullifierFromProof);
+      console.log("   Root from proof:", rootFromProof);
+      console.log("   Contract root:", merkleRoot);
+      
+      // ✅ VERIFY: Root from proof must match contract root
+      if (rootFromProof.toLowerCase() !== merkleRoot.toLowerCase()) {
+        throw new Error(
+          `Root mismatch! Proof: ${rootFromProof}, Contract: ${merkleRoot}`
+        );
+      }
+
       // Submit vote transaction
+      console.log("📤 Submitting vote to contract...");
       const { hash } = await writePrivateVote("castPrivateVote", [
         BigInt(selectedProposal),
         selectedVote === "yes",
-        toHex32(solArgs.publicSignals[0]), // ✅ FIX: Send Nullifier as Hex String (bytes32)
+        nullifierFromProof,
         solArgs.a,
         solArgs.b,
         solArgs.c,
-        solArgs.publicSignals,
+        solArgs.publicSignals, // Send full array to contract (Verifier.sol usually parses this automatically)
       ]);
 
       console.log("✅ Tx Hash:", hash);
@@ -332,17 +348,13 @@ const ZKVotingModule = ({ preselectedProposalId, onVoteSuccess }) => {
       let msg = (error && error.message) || String(error) || "Unknown Error";
 
       if (msg.includes("commitment not found")) {
-        msg =
-          "Your secret doesn't match your registration. Please use the exact secret from your registration.";
-      } else if (msg.includes("Circuit files") || msg.includes("fetch")) {
-        msg = "Circuit files (.wasm or .zkey) not found in /public/circuits/";
-      } else if (msg.includes("Assert Failed")) {
-        msg = "Proof verification failed. Check that your secret matches your registration.";
+        msg = "Your secret doesn't match your registration.";
+      } else if (msg.includes("Circuit files")) {
+        msg = "Circuit files not found.";
       } else if (msg.includes("Merkle root mismatch")) {
-        msg =
-          "The voter set may have been updated. Please refresh and try again.";
-      } else if (msg.includes("AbiEncodingBytesSizeMismatchError")) {
-        msg = "Frontend encoding error: Failed to convert Nullifier to bytes32.";
+        msg = "The voter set may have been updated. Refresh and try again.";
+      } else if (msg.includes("Cannot convert")) {
+        msg = "Proof formatting error.";
       }
 
       showAlert("error", `Vote Failed: ${msg}`);

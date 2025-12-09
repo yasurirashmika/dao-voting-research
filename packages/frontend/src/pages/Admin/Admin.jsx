@@ -10,6 +10,7 @@ import { formatAddress } from '../../utils/formatters';
 import './Admin.css';
 import TokenMinting from '../../components/admin/TokenMinting/TokenMinting';
 import TokenBalance from '../../components/admin/TokenBalance/TokenBalance';
+import RootSync from '../../components/admin/RootSync/RootSync';
 
 const Admin = () => {
   const { address, isConnected } = useAccount();
@@ -19,7 +20,7 @@ const Admin = () => {
     isOwner,
     loading,
     error,
-    contract // ✅ Get contract status
+    contract // Get contract status
   } = useAdmin();
 
   const [isAdmin, setIsAdmin] = useState(false);
@@ -35,8 +36,7 @@ const Admin = () => {
     // Add your other wallets here
   ].filter(Boolean);
 
-  // ✅ FIXED: Dependency array now includes 'contract'
-  // This ensures the check runs again once the contract is fully loaded
+  // Dependency array includes 'contract' to ensure check runs once loaded
   useEffect(() => {
     if (isConnected && contract) {
       checkAdminStatus();
@@ -66,7 +66,7 @@ const Admin = () => {
       return;
     }
 
-    // ✅ CHECK: If contract isn't ready, don't fail, just wait (return)
+    // If contract isn't ready, wait
     if (!contract) {
       console.log("⏳ Admin Page: Contract not ready yet...");
       return; 
@@ -240,6 +240,11 @@ const Admin = () => {
       )}
 
       <div className="admin-grid">
+        {/* ✅ NEW: RootSync Component placed at full width at the top */}
+        <div style={{ gridColumn: '1 / -1' }}>
+           <RootSync />
+        </div>
+
         {/* Register Single Voter */}
         <Card padding="large">
           <h2 className="section-title">Register Single Voter</h2>
@@ -333,7 +338,7 @@ const Admin = () => {
           </div>
 
           <Alert type="info" title="💡 Tip" className="admin-tip-alert">
-            To add more test wallets, edit the <code>testWallets</code> array in Admin.jsx (line 23).
+            To add more test wallets, edit the <code>testWallets</code> array in Admin.jsx (line 35).
           </Alert>
         </Card>
 

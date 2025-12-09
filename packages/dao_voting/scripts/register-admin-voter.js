@@ -79,7 +79,7 @@ async function main() {
   // Build Merkle Tree and Update Root
   console.log("Building Merkle Tree (Depth 20)...");
   
-  const MERKLE_TREE_DEPTH = 20;
+  const MERKLE_TREE_DEPTH = 5;
   
   // Get all commitments from contract
   const voterCount = await PrivateDAOVoting.getRegisteredVoterCount();
