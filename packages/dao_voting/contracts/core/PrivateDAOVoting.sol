@@ -132,7 +132,8 @@ contract PrivateDAOVoting is Ownable, ReentrancyGuard {
         }
     }
 
-    function updateVoterSetRoot(bytes32 newRoot) external onlyOwner {
+    // ✅ MODIFIED: Removed 'onlyOwner' to allow User/Frontend to sync root automatically
+    function updateVoterSetRoot(bytes32 newRoot) external {
         require(newRoot != bytes32(0), "Invalid root");
         currentVoterSetRoot = newRoot;
         emit VoterSetUpdated(newRoot, block.timestamp);
@@ -208,10 +209,14 @@ contract PrivateDAOVoting is Ownable, ReentrancyGuard {
         require(!nullifiers[_proposalId][_nullifier], "Already voted");
 
         require(bytes32(_publicSignals[0]) == _nullifier, "Nullifier mismatch");
+        
+        // ✅ MODIFIED: Check CURRENT Global Root instead of Snapshot
+        // This allows "Late Joiners" to vote on existing proposals for your Demo.
         require(
-            uint256(proposal.voterSetRoot) == _publicSignals[1],
-            "Invalid root"
+            uint256(currentVoterSetRoot) == _publicSignals[1],
+            "Invalid root: Please sync your admin panel"
         );
+        
         require(_proposalId == _publicSignals[2], "Invalid proposal ID");
         require((_support ? 1 : 0) == _publicSignals[3], "Invalid vote choice");
 

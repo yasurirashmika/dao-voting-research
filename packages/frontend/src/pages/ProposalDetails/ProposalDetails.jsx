@@ -1,8 +1,9 @@
+/* src/pages/ProposalDetails/ProposalDetails.jsx */
 import React, { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useAccount } from "wagmi";
 import { useProposals } from "../../hooks/useProposals";
-import { useContract } from "../../hooks/useContract"; 
+import { useContract } from "../../hooks/useContract";
 import { useDeployment } from "../../context/DeploymentContext";
 import DAOVotingABI from "../../abis/DAOVoting.json";
 import PrivateDAOVotingABI from "../../abis/PrivateDAOVoting.json";
@@ -13,7 +14,7 @@ import Modal from "../../components/common/Modal/Modal";
 import Loader from "../../components/common/Loader/Loader";
 import Alert from "../../components/common/Alert/Alert";
 import ReactMarkdown from "react-markdown";
-import ZKVotingModule from "../../components/voting/ZKVotingModule/ZKVotingModule"; // ✅ Import ZK Module
+import ZKVotingModule from "../../components/voting/ZKVotingModule/ZKVotingModule";
 import {
   formatAddress,
   formatDate,
@@ -32,11 +33,11 @@ const ProposalDetails = () => {
   const { address, isConnected } = useAccount();
   const { mode } = useDeployment();
 
-  const { getProposal, castVote, hasVoted, isContractReady } = useProposals();
+  // ✅ 1. Get refreshProposals from the hook
+  const { getProposal, castVote, hasVoted, isContractReady, refreshProposals } = useProposals();
 
   const contractName = mode === "private" ? "PrivateDAOVoting" : "DAOVoting";
-  const contractAbi =
-    mode === "private" ? PrivateDAOVotingABI.abi : DAOVotingABI.abi;
+  const contractAbi = mode === "private" ? PrivateDAOVotingABI.abi : DAOVotingABI.abi;
   const { write, read, contract } = useContract(contractName, contractAbi);
 
   const [proposal, setProposal] = useState(null);
@@ -84,7 +85,9 @@ const ProposalDetails = () => {
   const loadProposalData = useCallback(async () => {
     if (!id || !isContractReady) return;
 
-    setLoading(true);
+    // Only set loading on first load to prevent flickering during refresh
+    if (!proposal) setLoading(true); 
+    
     try {
       const data = await getProposal(id);
       if (!data) return;
@@ -121,22 +124,31 @@ const ProposalDetails = () => {
     loadProposalData();
   }, [loadProposalData]);
 
+  // ✅ 2. New Handler for ZK Voting Success
+  const handleZKVoteSuccess = async (voteChoice) => {
+    console.log("🎉 ZK Vote Success Detected!");
+    
+    // Update local UI immediately so user sees feedback
+    setUserVote({ 
+        hasVoted: true, 
+        support: voteChoice === "yes" 
+    });
+
+    // Wait a moment for blockchain to index, then refresh data
+    setTimeout(async () => {
+        console.log("🔄 Refreshing proposal data...");
+        refreshProposals(); // Update global list
+        await loadProposalData(); // Update this page details
+    }, 2000);
+  };
+
   const handleVoteClick = (support) => {
     if (!isConnected) {
-      showAlert(
-        "warning",
-        "Wallet Not Connected",
-        "Please connect your wallet to vote.",
-        3000
-      );
+      showAlert("warning", "Wallet Not Connected", "Please connect your wallet to vote.", 3000);
       return;
     }
     if (mode === "baseline" && !isRegistered) {
-      showAlert(
-        "error",
-        "Not Registered",
-        "You must be a registered voter to participate."
-      );
+      showAlert("error", "Not Registered", "You must be a registered voter to participate.");
       return;
     }
     setSelectedVote(support);
@@ -149,13 +161,14 @@ const ProposalDetails = () => {
       await castVote(proposal.id, selectedVote);
       setShowVoteModal(false);
       setVoteReason("");
+      
       setUserVote({ hasVoted: true, support: selectedVote });
-      showAlert(
-        "success",
-        "Vote Cast Successfully!",
-        "Your vote has been recorded."
-      );
+      showAlert("success", "Vote Cast Successfully!", "Your vote has been recorded.");
+      
+      // ✅ Refresh data after standard voting
+      refreshProposals();
       await loadProposalData();
+      
     } catch (error) {
       const { title, message } = parseError(error);
       showAlert("error", title, message);
@@ -170,6 +183,7 @@ const ProposalDetails = () => {
     try {
       await write("startVoting", [proposal.id]);
       showAlert("success", "Voting Started!", "The voting period has begun.");
+      refreshProposals();
       await loadProposalData();
     } catch (error) {
       const { title, message } = parseError(error);
@@ -184,11 +198,8 @@ const ProposalDetails = () => {
     setActionLoading(true);
     try {
       await write("finalizeProposal", [proposal.id]);
-      showAlert(
-        "success",
-        "Proposal Finalized!",
-        "The final results have been calculated."
-      );
+      showAlert("success", "Proposal Finalized!", "The final results have been calculated.");
+      refreshProposals();
       await loadProposalData();
     } catch (error) {
       const { title, message } = parseError(error);
@@ -203,11 +214,8 @@ const ProposalDetails = () => {
     setActionLoading(true);
     try {
       await write("cancelProposal", [proposal.id]);
-      showAlert(
-        "success",
-        "Proposal Cancelled",
-        "This proposal has been cancelled."
-      );
+      showAlert("success", "Proposal Cancelled", "This proposal has been cancelled.");
+      refreshProposals();
       await loadProposalData();
     } catch (error) {
       const { title, message } = parseError(error);
@@ -231,10 +239,7 @@ const ProposalDetails = () => {
   if (loading)
     return (
       <div className="proposal-loading">
-        <Loader
-          size="large"
-          text={!contract ? "Connecting..." : "Loading..."}
-        />
+        <Loader size="large" text={!contract ? "Connecting..." : "Loading..."} />
       </div>
     );
 
@@ -320,10 +325,13 @@ const ProposalDetails = () => {
                       </div>
                     )}
 
-                    {/* ✅ SWITCHED: Embed ZK Module directly instead of text notice */}
                     {mode === "private" ? (
                       <div className="zk-voting-container" style={{ marginTop: '20px' }}>
-                        <ZKVotingModule preselectedProposalId={proposal.id} />
+                        {/* ✅ Pass the Success Handler Here */}
+                        <ZKVotingModule 
+                            preselectedProposalId={proposal.id} 
+                            onVoteSuccess={handleZKVoteSuccess} 
+                        />
                       </div>
                     ) : (
                       <div className="vote-buttons">
@@ -528,7 +536,6 @@ const ProposalDetails = () => {
         </div>
       </div>
 
-      {/* Standard Public Vote Modal (Not used in Private Mode) */}
       <Modal
         isOpen={showVoteModal}
         onClose={() => setShowVoteModal(false)}

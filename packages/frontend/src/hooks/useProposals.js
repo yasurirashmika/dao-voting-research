@@ -1,3 +1,4 @@
+/* src/hooks/useProposals.js */
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useContract } from "./useContract";
 import { useAccount } from "wagmi";
@@ -27,28 +28,29 @@ const retryOperation = async (operation, maxRetries = 3, delay = 2000) => {
 
 export const useProposals = () => {
   const [proposals, setProposals] = useState([]);
-  const [loading, setLoading] = useState(true); // Default to true to prevent flickering
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  // ✅ 1. Add Trigger State for Refreshing
+  const [refreshTrigger, setRefreshTrigger] = useState(0); 
+  
   const { address } = useAccount();
   const { mode } = useDeployment();
-  const hasFetchedRef = useRef(false);
-
-  // Determine Contract & ABI based on Mode from Context
+  
+  // Determine Contract & ABI based on Mode
   const contractName = mode === "private" ? "PrivateDAOVoting" : "DAOVoting";
   const abi = mode === "private" ? PrivateDAOVotingABI.abi : DAOVotingABI.abi;
 
-  // console.log(`🔄 useProposals using ${contractName} in ${mode} mode`);
-
   const { contract, read, write } = useContract(contractName, abi);
-
-  // ✅ EXPORT THIS: Used by components to prevent "Contract not initialized" errors
   const isContractReady = !!contract;
 
+  // ✅ 2. Refresh Function (Export this!)
+  const refreshProposals = useCallback(() => {
+    console.log("🔄 Triggering proposal refresh...");
+    setRefreshTrigger(prev => prev + 1);
+  }, []);
+
   const fetchProposals = useCallback(async () => {
-    if (!contract) {
-      // console.warn("⚠️ Contract not ready for fetchProposals");
-      return;
-    }
+    if (!contract) return;
 
     setLoading(true);
     setError(null);
@@ -88,26 +90,12 @@ export const useProposals = () => {
       const proposalData = results
         .map((result, index) => {
           if (result.status === "failure") {
-            console.error(
-              `Failed to fetch proposal ${index + 1}`,
-              result.error
-            );
+            console.error(`Failed to fetch proposal ${index + 1}`, result.error);
             return null;
           }
 
           const p = result.result;
-
-          let id,
-            title,
-            description,
-            proposer,
-            yesVotes,
-            noVotes,
-            totalVotingWeight,
-            state,
-            createdAt,
-            votingStart,
-            votingEnd;
+          let id, title, description, proposer, yesVotes, noVotes, totalVotingWeight, state, createdAt, votingStart, votingEnd;
           let minTokensRequired = 0;
           let minReputationRequired = 0;
 
@@ -167,9 +155,7 @@ export const useProposals = () => {
     }
   }, [contract, read, mode]);
 
-  const getProposal = useCallback(
-    async (proposalId) => {
-      // ✅ SAFETY CHECK: Return null instead of throwing if contract isn't ready
+  const getProposal = useCallback(async (proposalId) => {
       if (!contract) {
         console.warn("⏳ Contract not initialized yet, skipping getProposal");
         return null; 
@@ -183,17 +169,7 @@ export const useProposals = () => {
           2000
         );
 
-        let id,
-          title,
-          description,
-          proposer,
-          yesVotes,
-          noVotes,
-          totalVotingWeight,
-          state,
-          createdAt,
-          votingStart,
-          votingEnd;
+        let id, title, description, proposer, yesVotes, noVotes, totalVotingWeight, state, createdAt, votingStart, votingEnd;
         let minTokensRequired = 0;
         let minReputationRequired = 0;
 
@@ -227,19 +203,7 @@ export const useProposals = () => {
 
         console.log(`✅ Loaded proposal #${id}:`, title);
         return {
-          id,
-          title,
-          description,
-          proposer,
-          yesVotes,
-          noVotes,
-          totalVotingWeight,
-          state,
-          createdAt,
-          votingStart,
-          votingEnd,
-          minTokensRequired,
-          minReputationRequired,
+          id, title, description, proposer, yesVotes, noVotes, totalVotingWeight, state, createdAt, votingStart, votingEnd, minTokensRequired, minReputationRequired,
         };
       } catch (err) {
         console.error(`❌ Error fetching proposal #${proposalId}:`, err);
@@ -249,87 +213,59 @@ export const useProposals = () => {
     [contract, read, mode]
   );
 
-  const createProposal = useCallback(
-    async (
-      title,
-      description,
-      minTokensRequired = 0,
-      minReputationRequired = 0
-    ) => {
+  const createProposal = useCallback(async (title, description, minTokensRequired = 0, minReputationRequired = 0) => {
       if (!contract || !address) {
         throw new Error("Contract not initialized or wallet not connected");
       }
 
       try {
         let result;
-
         if (mode === "private") {
-          console.log(
-            "✍️ Creating Private Proposal with Rep Req:",
-            minReputationRequired
-          );
-          result = await write("submitProposal", [
-            title,
-            description,
-            minReputationRequired,
-          ]);
+          console.log("✍️ Creating Private Proposal");
+          result = await write("submitProposal", [title, description, minReputationRequired]);
         } else {
-          console.log(
-            "✍️ Creating Public Proposal with Token Req:",
-            minTokensRequired
-          );
-          result = await write("submitProposal", [
-            title,
-            description,
-            minTokensRequired,
-          ]);
+          console.log("✍️ Creating Public Proposal");
+          result = await write("submitProposal", [title, description, minTokensRequired]);
         }
 
         console.log("✅ Proposal created successfully:", result);
-        await fetchProposals();
+        // ✅ 3. Auto-refresh after creation
+        refreshProposals(); 
         return result;
       } catch (err) {
         console.error("❌ Error creating proposal:", err);
         throw err;
       }
     },
-    [contract, write, address, fetchProposals, mode]
+    [contract, write, address, refreshProposals, mode]
   );
 
-  const castVote = useCallback(
-    async (proposalId, support) => {
+  const castVote = useCallback(async (proposalId, support) => {
       if (!contract || !address) {
         throw new Error("Contract not initialized or wallet not connected");
       }
 
       try {
         if (mode === "private") {
-          throw new Error(
-            "Private voting requires ZK Proof generation. Please use the specialized ZK voting component."
-          );
+          throw new Error("Private voting requires ZK Proof generation. Please use the specialized ZK voting component.");
         }
 
-        console.log(
-          `🗳️ Casting vote on proposal #${proposalId}: ${
-            support ? "YES" : "NO"
-          }`
-        );
+        console.log(`🗳️ Casting vote on proposal #${proposalId}: ${support ? "YES" : "NO"}`);
         const result = await write("castVote", [proposalId, support]);
         console.log("✅ Vote cast successfully:", result);
-        await fetchProposals();
+        // ✅ 4. Auto-refresh after voting
+        refreshProposals();
         return result;
       } catch (err) {
         console.error("❌ Error casting vote:", err);
         throw err;
       }
     },
-    [contract, write, address, fetchProposals, mode]
+    [contract, write, address, refreshProposals, mode]
   );
 
-  const hasVoted = useCallback(
-    async (proposalId, voterAddress) => {
+  const hasVoted = useCallback(async (proposalId, voterAddress) => {
       if (!contract) return false;
-
       if (mode === "private") return false;
 
       try {
@@ -347,10 +283,8 @@ export const useProposals = () => {
     [contract, read, address, mode]
   );
 
-  const getVotingPower = useCallback(
-    async (voterAddress) => {
+  const getVotingPower = useCallback(async (voterAddress) => {
       if (!contract) return 0;
-
       if (mode === "private") return 1;
 
       try {
@@ -368,19 +302,20 @@ export const useProposals = () => {
     [contract, read, address, mode]
   );
 
+  // ✅ 5. Effect now depends on refreshTrigger
   useEffect(() => {
-    if (contract && !hasFetchedRef.current) {
-      console.log("🚀 Initial fetch triggered");
-      hasFetchedRef.current = true;
+    if (contract) {
+      console.log("🚀 Fetch triggered by dependency change or refresh");
       fetchProposals();
     }
-  }, [contract, fetchProposals]);
+  }, [contract, fetchProposals, refreshTrigger]); // Add refreshTrigger here
 
   return {
-    isContractReady, // ✅ Export this!
+    isContractReady,
     proposals,
     loading,
     error,
+    refreshProposals,
     fetchProposals,
     getProposal,
     createProposal,

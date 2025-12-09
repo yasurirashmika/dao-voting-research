@@ -1,0 +1,71 @@
+.reputation-card {
+  height: 100%; /* Ensure consistent height in grid */
+  display: flex;
+  flex-direction: column;
+}
+
+.reputation-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  margin-top: 0.5rem;
+}
+
+.rep-input-group {
+  display: flex;
+  gap: 12px;
+  align-items: flex-end; /* Aligns button with input field, not label */
+}
+
+.rep-input-wrapper {
+  flex: 1;
+}
+
+/* Adjust button height to match input height if necessary */
+.rep-check-btn {
+  height: 48px; 
+  min-width: 80px;
+  margin-bottom: 2px; /* Slight adjustment for alignment */
+}
+
+.rep-score-display {
+  padding: 1rem;
+  background-color: #f8f9fa;
+  border: 1px solid #e9ecef;
+  border-radius: 8px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  animation: fadeIn 0.3s ease-in-out;
+}
+
+.rep-score-label {
+  color: #6c757d;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.rep-score-value {
+  color: #212529;
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-5px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Responsive adjustments */
+@media (max-width: 600px) {
+  .rep-input-group {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+  
+  .rep-check-btn {
+    width: 100%;
+    margin-bottom: 0;
+  }
+}

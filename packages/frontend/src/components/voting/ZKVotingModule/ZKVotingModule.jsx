@@ -41,6 +41,43 @@ const ZKVotingModule = ({ preselectedProposalId, onVoteSuccess }) => {
   const [isRegistered, setIsRegistered] = useState(false);
   const [fetchingRoot, setFetchingRoot] = useState(false);
 
+ // ✅ Helper function to clean up error messages
+  const extractReadableError = (error) => {
+    const rawMessage = error?.message || error?.toString() || "Unknown error";
+
+    // 1. User Rejected Transaction
+    if (rawMessage.includes("User denied") || rawMessage.includes("rejected the request")) {
+      return "Transaction rejected by user.";
+    }
+
+    // 2. Specific Contract Reverts
+    if (rawMessage.includes("Invalid root")) {
+      // 👇 UPDATED MESSAGE HERE
+      return "System Sync Required: The voter registry is outdated. An Administrator must sync the voter list before voting can proceed.";
+    }
+    
+    if (rawMessage.includes("Already voted") || rawMessage.includes("Nullifier mismatch")) {
+      return "Vote Rejected: You have already voted on this proposal.";
+    }
+    
+    if (rawMessage.includes("Merkle root mismatch")) {
+      return "Data Sync Error: Your local data does not match the blockchain. Please refresh the page.";
+    }
+
+    // 3. Generic Solidity Revert Extraction
+    // This Regex looks for "reverted with the following reason: [REASON]"
+    const revertMatch = rawMessage.match(/reverted with the following reason:\s*(.*?)\n/);
+    if (revertMatch && revertMatch[1]) {
+      return `Contract Rejected: ${revertMatch[1]}`;
+    }
+
+    // 4. Fallback for short errors
+    if (rawMessage.length < 100) return rawMessage;
+
+    // 5. Fallback for long technical dumps
+    console.error("Full Technical Error:", rawMessage);
+    return "Transaction failed due to a technical error. Check console for details.";
+  };
   useEffect(() => {
     const fetchMerkleRoot = async () => {
       if (!privateVotingContract || !readPrivateVoting) return;
@@ -90,14 +127,12 @@ const ZKVotingModule = ({ preselectedProposalId, onVoteSuccess }) => {
     if (type === "success") setTimeout(() => setAlert(null), 5000);
   };
 
-  // Build Merkle Tree using Poseidon
   const buildPoseidonMerkleTree = async (leaves, poseidon, depth = 5) => {
     const leafBigInts = leaves.map((leaf) => {
       const cleaned = leaf.startsWith("0x") ? leaf.slice(2) : leaf;
       return BigInt("0x" + cleaned);
     });
 
-    // Pad to full tree size (2^depth)
     const paddedLeaves = [...leafBigInts];
     const targetSize = 2 ** depth;
     while (paddedLeaves.length < targetSize) {
@@ -107,14 +142,11 @@ const ZKVotingModule = ({ preselectedProposalId, onVoteSuccess }) => {
     let currentLevel = paddedLeaves;
     const tree = [currentLevel];
 
-    // Build tree using Poseidon
     for (let level = 0; level < depth; level++) {
       const nextLevel = [];
       for (let i = 0; i < currentLevel.length; i += 2) {
         const left = currentLevel[i];
         const right = currentLevel[i + 1];
-
-        // Hash using Poseidon
         const hash = poseidon([left, right]);
         const hashBigInt = poseidon.F.toString(hash);
         nextLevel.push(BigInt(hashBigInt));
@@ -122,7 +154,6 @@ const ZKVotingModule = ({ preselectedProposalId, onVoteSuccess }) => {
       currentLevel = nextLevel;
       tree.push(currentLevel);
     }
-
     return tree;
   };
 
@@ -134,50 +165,30 @@ const ZKVotingModule = ({ preselectedProposalId, onVoteSuccess }) => {
     for (let level = 0; level < depth; level++) {
       const isRightNode = currentIndex % 2 === 1;
       const siblingIndex = isRightNode ? currentIndex - 1 : currentIndex + 1;
-
-      // Get sibling or use 0 for missing nodes
-      const sibling =
-        tree[level][siblingIndex] !== undefined
-          ? tree[level][siblingIndex]
-          : BigInt(0);
-
+      const sibling = tree[level][siblingIndex] !== undefined ? tree[level][siblingIndex] : BigInt(0);
+      
       pathElements.push(sibling);
-
-      // Circuit expects: 0 for left, 1 for right
       pathIndices.push(isRightNode ? 1 : 0);
-
       currentIndex = Math.floor(currentIndex / 2);
     }
-
     return { pathElements, pathIndices };
   };
 
   const handleGenerateProofAndVote = async () => {
     if (!selectedProposal || !selectedVote || !secret) {
-      showAlert(
-        "warning",
-        "Please fill in all fields (Proposal, Vote, and Secret)"
-      );
+      showAlert("warning", "Please fill in all fields (Proposal, Vote, and Secret)");
       return;
     }
 
     if (!merkleRoot || merkleRoot === ethers.ZeroHash) {
-      showAlert(
-        "error",
-        "Invalid Merkle Root. Please ensure the voter set has been initialized."
-      );
+      showAlert("error", "Invalid Merkle Root. The voting system is not initialized.");
       return;
     }
 
     setLoading(true);
-    setAlert({
-      type: "info",
-      message:
-        "Generating Zero-Knowledge Proof... This may take 10-30 seconds.",
-    });
+    setAlert({ type: "info", message: "Generating Zero-Knowledge Proof... (wait few seconds)" });
 
     try {
-      // Convert string to number
       const stringToNumber = (str) => {
         let hash = 0;
         for (let i = 0; i < str.length; i++) {
@@ -188,68 +199,40 @@ const ZKVotingModule = ({ preselectedProposalId, onVoteSuccess }) => {
       };
 
       const secretNumber = stringToNumber(secret);
-      console.log("🔑 Original secret:", secret);
-      console.log("🔢 Secret number:", secretNumber);
+      console.log("🔐 Generating Commitment...");
 
-      // Generate Poseidon commitment
       const poseidon = await buildPoseidon();
       const poseidonHash = poseidon.F.toString(poseidon([secretNumber]));
-      const commitment =
-        "0x" + BigInt(poseidonHash).toString(16).padStart(64, "0");
-      console.log("✅ Your Poseidon commitment:", commitment);
+      const commitment = "0x" + BigInt(poseidonHash).toString(16).padStart(64, "0");
 
-      // Fetch Commitments
       const voterCount = await readPrivateVoting("getRegisteredVoterCount", []);
-      if (voterCount === 0n) {
-        throw new Error("No voters registered in the contract");
-      }
+      if (voterCount === 0n) throw new Error("No voters registered in the contract");
 
       const commitments = [];
       for (let i = 0; i < Number(voterCount); i++) {
         const comm = await readPrivateVoting("getVoterCommitmentByIndex", [i]);
         commitments.push(comm);
       }
-      console.log("📋 Fetched commitments:", commitments);
 
-      const leafIndex = commitments.findIndex(
-        (c) => c.toLowerCase() === commitment.toLowerCase()
-      );
+      const leafIndex = commitments.findIndex((c) => c.toLowerCase() === commitment.toLowerCase());
       if (leafIndex === -1) {
-        throw new Error(
-          `Your commitment (${commitment}) not found in voter set. Did you register with this secret?`
-        );
+        throw new Error("Your secret does not match any registered voter. Please check your spelling.");
       }
-      console.log("📍 Your leaf index:", leafIndex);
 
-      // Build Poseidon Merkle Tree (depth = 5 to match circuit)
       const MERKLE_TREE_DEPTH = 5;
-      const tree = await buildPoseidonMerkleTree(
-        commitments,
-        poseidon,
-        MERKLE_TREE_DEPTH
-      );
-
-      // Verify calculated root matches contract root
+      const tree = await buildPoseidonMerkleTree(commitments, poseidon, MERKLE_TREE_DEPTH);
       const calculatedRootBigInt = tree[tree.length - 1][0];
-      const calculatedRoot =
-        "0x" + calculatedRootBigInt.toString(16).padStart(64, "0");
+      const calculatedRoot = "0x" + calculatedRootBigInt.toString(16).padStart(64, "0");
 
-      console.log("🌳 Calculated Poseidon root:", calculatedRoot);
-      console.log("📜 Contract root:", merkleRoot);
+      console.log("🌳 Contract Root:", merkleRoot);
+      console.log("🌳 Your Root:", calculatedRoot);
 
       if (calculatedRoot.toLowerCase() !== merkleRoot.toLowerCase()) {
-        throw new Error(
-          "Merkle root mismatch! Your local calculation does not match the contract."
-        );
+        throw new Error("Merkle root mismatch! The contract has a different list of voters than what you calculated. Please contact Admin to Sync.");
       }
 
-      const { pathElements, pathIndices } = getMerklePath(
-        tree,
-        leafIndex,
-        MERKLE_TREE_DEPTH
-      );
+      const { pathElements, pathIndices } = getMerklePath(tree, leafIndex, MERKLE_TREE_DEPTH);
 
-      // Prepare circuit input
       const input = {
         root: calculatedRootBigInt.toString(10),
         proposalId: selectedProposal.toString(),
@@ -259,7 +242,6 @@ const ZKVotingModule = ({ preselectedProposalId, onVoteSuccess }) => {
         pathIndices: pathIndices.map((pi) => pi.toString()),
       };
 
-      // Generate proof
       const { proof, publicSignals } = await snarkjs.groth16.fullProve(
         input,
         "/circuits/vote.wasm",
@@ -267,9 +249,7 @@ const ZKVotingModule = ({ preselectedProposalId, onVoteSuccess }) => {
       );
 
       console.log("✅ Proof Generated!");
-      console.log("📊 Public Signals (Raw):", publicSignals);
 
-      // ✅ CRITICAL: Format proof values correctly
       const formatProofValue = (val) => {
         if (typeof val === "bigint") return val;
         if (typeof val === "number") return BigInt(val);
@@ -284,48 +264,16 @@ const ZKVotingModule = ({ preselectedProposalId, onVoteSuccess }) => {
       const solArgs = {
         a: [formatProofValue(proof.pi_a[0]), formatProofValue(proof.pi_a[1])],
         b: [
-          [
-            formatProofValue(proof.pi_b[0][1]),
-            formatProofValue(proof.pi_b[0][0]),
-          ],
-          [
-            formatProofValue(proof.pi_b[1][1]),
-            formatProofValue(proof.pi_b[1][0]),
-          ],
+          [formatProofValue(proof.pi_b[0][1]), formatProofValue(proof.pi_b[0][0])],
+          [formatProofValue(proof.pi_b[1][1]), formatProofValue(proof.pi_b[1][0])],
         ],
         c: [formatProofValue(proof.pi_c[0]), formatProofValue(proof.pi_c[1])],
         publicSignals: publicSignals.map(formatProofValue),
       };
 
-      // Helper for converting to bytes32 hex string
-      const toHex32 = (val) => {
-        return "0x" + BigInt(val).toString(16).padStart(64, "0");
-      };
-
-      // =================================================================
-      // 🛠️ FIX APPLIED HERE: Correct mapping of Groth16 Public Signals
-      // Groth16 order: [ Outputs..., PublicInputs... ]
-      // Our Circuit: Nullifier (Output), Root (Input), ProposalId (Input), VoteChoice (Input)
-      // =================================================================
-      
+      const toHex32 = (val) => "0x" + BigInt(val).toString(16).padStart(64, "0");
       const nullifierFromProof = toHex32(solArgs.publicSignals[0]);
-      const rootFromProof = toHex32(solArgs.publicSignals[1]);
-      const proposalIdFromProof = solArgs.publicSignals[2];
-      const voteChoiceFromProof = solArgs.publicSignals[3];
 
-      console.log("🔍 Extracted values for contract call:");
-      console.log("   Nullifier:", nullifierFromProof);
-      console.log("   Root from proof:", rootFromProof);
-      console.log("   Contract root:", merkleRoot);
-      
-      // ✅ VERIFY: Root from proof must match contract root
-      if (rootFromProof.toLowerCase() !== merkleRoot.toLowerCase()) {
-        throw new Error(
-          `Root mismatch! Proof: ${rootFromProof}, Contract: ${merkleRoot}`
-        );
-      }
-
-      // Submit vote transaction
       console.log("📤 Submitting vote to contract...");
       const { hash } = await writePrivateVote("castPrivateVote", [
         BigInt(selectedProposal),
@@ -334,30 +282,18 @@ const ZKVotingModule = ({ preselectedProposalId, onVoteSuccess }) => {
         solArgs.a,
         solArgs.b,
         solArgs.c,
-        solArgs.publicSignals, // Send full array to contract (Verifier.sol usually parses this automatically)
+        solArgs.publicSignals,
       ]);
 
       console.log("✅ Tx Hash:", hash);
-      showAlert(
-        "success",
-        "Vote Submitted Successfully! Your vote is anonymous and verifiable."
-      );
+      showAlert("success", "Vote Submitted Successfully! Your vote is verifiable and anonymous.");
       if (onVoteSuccess) onVoteSuccess(selectedVote);
+
     } catch (error) {
       console.error("❌ ZK Vote Error:", error);
-      let msg = (error && error.message) || String(error) || "Unknown Error";
-
-      if (msg.includes("commitment not found")) {
-        msg = "Your secret doesn't match your registration.";
-      } else if (msg.includes("Circuit files")) {
-        msg = "Circuit files not found.";
-      } else if (msg.includes("Merkle root mismatch")) {
-        msg = "The voter set may have been updated. Refresh and try again.";
-      } else if (msg.includes("Cannot convert")) {
-        msg = "Proof formatting error.";
-      }
-
-      showAlert("error", `Vote Failed: ${msg}`);
+      // ✅ Use the new cleaner error message
+      const cleanError = extractReadableError(error);
+      showAlert("error", cleanError);
     } finally {
       setLoading(false);
     }
@@ -380,8 +316,7 @@ const ZKVotingModule = ({ preselectedProposalId, onVoteSuccess }) => {
 
       {!isRegistered && (
         <Alert type="warning" title="Not Registered">
-          You need to register for private voting first. Go to the "Join DAO"
-          page.
+          You need to register for private voting first. Go to the "Join DAO" page.
         </Alert>
       )}
 
@@ -397,9 +332,7 @@ const ZKVotingModule = ({ preselectedProposalId, onVoteSuccess }) => {
             >
               <option value="">Choose...</option>
               {activeProposals.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.title}
-                </option>
+                <option key={p.id} value={p.id}>{p.title}</option>
               ))}
             </select>
           </div>
@@ -407,12 +340,8 @@ const ZKVotingModule = ({ preselectedProposalId, onVoteSuccess }) => {
 
         <div className="zk-field">
           <label className="zk-label">Your Registration Secret</label>
-          <small
-            className="zk-field-help"
-            style={{ marginTop: "0.25rem", marginBottom: "0.5rem" }}
-          >
-            From your registration - stored in <code>dao-secret-*.json</code>{" "}
-            file
+          <small className="zk-field-help" style={{ marginTop: "0.25rem", marginBottom: "0.5rem" }}>
+            From your registration - stored in <code>dao-secret-*.json</code> file
           </small>
           <input
             type="password"
@@ -427,22 +356,8 @@ const ZKVotingModule = ({ preselectedProposalId, onVoteSuccess }) => {
         <div className="zk-field">
           <label className="zk-label">
             Merkle Root
-            <span
-              style={{
-                marginLeft: "0.5rem",
-                padding: "0.2rem 0.5rem",
-                background: merkleRoot ? "#10b981" : "#ef4444",
-                color: "white",
-                borderRadius: "4px",
-                fontSize: "0.7rem",
-                fontWeight: "600",
-              }}
-            >
-              {fetchingRoot
-                ? "Loading..."
-                : merkleRoot
-                ? "Auto-Fetched"
-                : "Not Found"}
+            <span style={{ marginLeft: "0.5rem", padding: "0.2rem 0.5rem", background: merkleRoot ? "#10b981" : "#ef4444", color: "white", borderRadius: "4px", fontSize: "0.7rem", fontWeight: "600" }}>
+              {fetchingRoot ? "Loading..." : merkleRoot ? "Auto-Fetched" : "Not Found"}
             </span>
           </label>
           <input
@@ -451,12 +366,7 @@ const ZKVotingModule = ({ preselectedProposalId, onVoteSuccess }) => {
             value={merkleRoot}
             readOnly
             placeholder="Auto-fetched from contract..."
-            style={{
-              fontSize: "0.75rem",
-              fontFamily: "monospace",
-              cursor: "not-allowed",
-              backgroundColor: "var(--bg-secondary)",
-            }}
+            style={{ fontSize: "0.75rem", fontFamily: "monospace", cursor: "not-allowed", backgroundColor: "var(--bg-secondary)" }}
           />
         </div>
 
@@ -464,24 +374,18 @@ const ZKVotingModule = ({ preselectedProposalId, onVoteSuccess }) => {
           <label className="zk-label">Your Vote</label>
           <div className="zk-vote-buttons">
             <button
-              className={`zk-vote-option ${
-                selectedVote === "yes" ? "selected yes" : ""
-              }`}
+              className={`zk-vote-option ${selectedVote === "yes" ? "selected yes" : ""}`}
               onClick={() => setSelectedVote("yes")}
               disabled={!isRegistered}
             >
-              <span className="vote-icon">👍</span>
-              <span>Yes</span>
+              <span className="vote-icon">👍</span><span>Yes</span>
             </button>
             <button
-              className={`zk-vote-option ${
-                selectedVote === "no" ? "selected no" : ""
-              }`}
+              className={`zk-vote-option ${selectedVote === "no" ? "selected no" : ""}`}
               onClick={() => setSelectedVote("no")}
               disabled={!isRegistered}
             >
-              <span className="vote-icon">👎</span>
-              <span>No</span>
+              <span className="vote-icon">👎</span><span>No</span>
             </button>
           </div>
         </div>
@@ -490,9 +394,7 @@ const ZKVotingModule = ({ preselectedProposalId, onVoteSuccess }) => {
           fullWidth
           variant="primary"
           onClick={handleGenerateProofAndVote}
-          disabled={
-            loading || !selectedVote || !secret || !isRegistered || !merkleRoot
-          }
+          disabled={loading || !selectedVote || !secret || !isRegistered || !merkleRoot}
           loading={loading}
         >
           {loading ? "Generating Proof..." : "Generate Proof & Vote"}
@@ -500,12 +402,10 @@ const ZKVotingModule = ({ preselectedProposalId, onVoteSuccess }) => {
 
         <div className="zk-info">
           <div className="zk-info-item">
-            <span className="info-icon">🔐</span>
-            <span>Your vote is encrypted using Zero-Knowledge Proofs</span>
+            <span className="info-icon">🔐</span><span>Your vote is encrypted using Zero-Knowledge Proofs</span>
           </div>
           <div className="zk-info-item">
-            <span className="info-icon">👤</span>
-            <span>No one can see how you voted</span>
+            <span className="info-icon">👤</span><span>No one can see how you voted</span>
           </div>
         </div>
       </div>

@@ -11,6 +11,7 @@ import './Admin.css';
 import TokenMinting from '../../components/admin/TokenMinting/TokenMinting';
 import TokenBalance from '../../components/admin/TokenBalance/TokenBalance';
 import RootSync from '../../components/admin/RootSync/RootSync';
+import ReputationManagement from '../../components/admin/ReputationManagement/ReputationManagement'; // ✅ Import Reputation Component
 
 const Admin = () => {
   const { address, isConnected } = useAccount();
@@ -20,7 +21,7 @@ const Admin = () => {
     isOwner,
     loading,
     error,
-    contract // Get contract status
+    contract
   } = useAdmin();
 
   const [isAdmin, setIsAdmin] = useState(false);
@@ -33,10 +34,9 @@ const Admin = () => {
   // Test wallets
   const testWallets = [
     address,
-    // Add your other wallets here
+    // Add other test wallets here if needed
   ].filter(Boolean);
 
-  // Dependency array includes 'contract' to ensure check runs once loaded
   useEffect(() => {
     if (isConnected && contract) {
       checkAdminStatus();
@@ -59,25 +59,20 @@ const Admin = () => {
   };
 
   const checkAdminStatus = async () => {
-    // Double check basics
     if (!address || !isConnected) {
       setCheckingAdmin(false);
       setIsAdmin(false);
       return;
     }
 
-    // If contract isn't ready, wait
     if (!contract) {
-      console.log("⏳ Admin Page: Contract not ready yet...");
       return; 
     }
 
-    console.log('🔍 Checking admin status for:', address);
     setCheckingAdmin(true);
 
     try {
       const adminStatus = await isOwner();
-      console.log('✅ Admin status result:', adminStatus);
       setIsAdmin(adminStatus);
     } catch (err) {
       console.error('❌ Error checking admin status:', err);
@@ -88,7 +83,7 @@ const Admin = () => {
   };
 
   const loadRegisteredVoters = async () => {
-    if (!contract) return; // Guard clause
+    if (!contract) return; 
 
     const voters = [];
     
@@ -207,14 +202,6 @@ const Admin = () => {
           <div className="admin-access-denied">
             <p><strong>Your Address:</strong></p>
             <code className="admin-address-display">{address}</code>
-            
-            <p className="admin-troubleshooting-title"><strong>Troubleshooting:</strong></p>
-            <ul className="admin-troubleshooting-list">
-              <li>Make sure you're connected with the wallet that deployed the DAOVoting contract</li>
-              <li>Check your .env file contains the correct contract addresses</li>
-              <li>Verify you're on the correct network (Sepolia testnet)</li>
-              <li>Open browser console (F12) to see detailed error logs</li>
-            </ul>
           </div>
         </Card>
       </div>
@@ -240,18 +227,17 @@ const Admin = () => {
       )}
 
       <div className="admin-grid">
-        {/* ✅ NEW: RootSync Component placed at full width at the top */}
+        {/* Row 1: Critical System Sync */}
         <div style={{ gridColumn: '1 / -1' }}>
            <RootSync />
         </div>
 
-        {/* Register Single Voter */}
+        {/* Row 2: Voter Registration */}
         <Card padding="large">
           <h2 className="section-title">Register Single Voter</h2>
           <p className="section-description">
             Register a new voter by entering their Ethereum address
           </p>
-          
           <div className="admin-register-form">
             <div className="admin-input-wrapper">
               <Input
@@ -272,13 +258,11 @@ const Admin = () => {
           </div>
         </Card>
 
-        {/* Batch Register */}
         <Card padding="large">
           <h2 className="section-title">Batch Register Voters</h2>
           <p className="section-description">
             Register multiple voters at once (one address per line)
           </p>
-          
           <Input
             label="Addresses"
             multiline
@@ -288,7 +272,6 @@ const Admin = () => {
             placeholder={'0x123...\n0x456...\n0x789...'}
             helperText="Paste Ethereum addresses, one per line"
           />
-          
           <Button
             onClick={handleBatchRegister}
             loading={loading}
@@ -300,13 +283,19 @@ const Admin = () => {
           </Button>
         </Card>
 
-        {/* Quick Register Test Wallets */}
+        {/* Row 3: Reputation Management (NEW) */}
+        <div style={{ gridColumn: '1 / -1' }}>
+           {/* Note: This takes full width for better usability */}
+           <ReputationManagement />
+        </div>
+
+        {/* Row 4: Token Management */}
+        <TokenMinting onMintSuccess={loadRegisteredVoters} />
+        <TokenBalance />
+
+        {/* Row 5: Stats & Quick Actions */}
         <Card padding="large">
           <h2 className="section-title">Quick Register Test Wallets</h2>
-          <p className="section-description">
-            Register your test wallets with one click
-          </p>
-          
           <div className="test-wallets-list">
             {registeredVoters.map((voter, index) => (
               <div key={voter.address} className="test-wallet-item">
@@ -336,13 +325,8 @@ const Admin = () => {
               </div>
             ))}
           </div>
-
-          <Alert type="info" title="💡 Tip" className="admin-tip-alert">
-            To add more test wallets, edit the <code>testWallets</code> array in Admin.jsx (line 35).
-          </Alert>
         </Card>
 
-        {/* Registered Voters Stats */}
         <Card padding="large">
           <h2 className="section-title">Voter Statistics</h2>
           <div className="voter-stats">
@@ -359,7 +343,6 @@ const Admin = () => {
               <div className="stat-label">Pending Registration</div>
             </div>
           </div>
-
           <Button
             variant="secondary"
             fullWidth
@@ -369,12 +352,6 @@ const Admin = () => {
             Refresh Status
           </Button>
         </Card>
-
-        {/* Token Minting */}
-        <TokenMinting onMintSuccess={loadRegisteredVoters} />
-
-        {/* Token Balance Checker */}
-        <TokenBalance />
         
       </div>
     </div>

@@ -110,19 +110,69 @@
     background-color: rgba(40, 167, 69, 0.15);
     color: #7dce94;
   }
-  
+
   .alert-error {
     background-color: rgba(220, 53, 69, 0.15);
     color: #f8a5ad;
   }
-  
+
   .alert-warning {
     background-color: rgba(255, 193, 7, 0.15);
     color: #ffd96a;
   }
-  
+
   .alert-info {
     background-color: rgba(23, 162, 184, 0.15);
     color: #7dd3e3;
   }
+}
+
+/* --- Popup / Toast Container --- */
+.toast-container {
+  position: fixed;
+  top: 20px;
+  right: 20px; /* Floats top-right */
+  z-index: 9999; /* Stays on top of everything */
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  pointer-events: none; /* Allows clicking through empty space */
+}
+
+/* Make alerts inside the container interactive */
+.toast-container .alert {
+  pointer-events: auto;
+  min-width: 300px;
+  max-width: 400px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15); /* Drop shadow for pop effect */
+  margin-bottom: 0;
+  background-color: white; /* Ensure it's not transparent */
+  animation: slideInRight 0.3s ease-out;
+}
+
+@keyframes slideInRight {
+  from { opacity: 0; transform: translateX(100%); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+/* Ensure text colors match your theme on white background */
+.toast-container .alert-error {
+  background-color: #fff;
+  border: 1px solid #dc3545;
+  border-left-width: 4px;
+}
+.toast-container .alert-success {
+  background-color: #fff;
+  border: 1px solid #28a745;
+  border-left-width: 4px;
+}
+.toast-container .alert-warning {
+  background-color: #fff;
+  border: 1px solid #ffc107;
+  border-left-width: 4px;
+}
+.toast-container .alert-info {
+  background-color: #fff;
+  border: 1px solid #17a2b8;
+  border-left-width: 4px;
 }
