@@ -1,9 +1,9 @@
-// src/pages/Dashboard/Dashboard.jsx (UPDATED - Line 28-36)
 import React, { useEffect, useState, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { useAccount } from "wagmi";
 import { useWallet } from "../../context/WalletContext";
 import { useProposals } from "../../hooks/useProposals";
+import { useVoterDiscovery } from "../../hooks/useVoterDiscovery"; // ✅ Import new hook
 import Card from "../../components/common/Card/Card";
 import Button from "../../components/common/Button/Button";
 import Loader from "../../components/common/Loader/Loader";
@@ -17,60 +17,64 @@ const Dashboard = () => {
   const { address } = useAccount();
   const { balance, balanceSymbol } = useWallet();
   const { mode } = useDeployment();
-  const { proposals, loading: proposalsLoading } = useProposals();
+  const { proposals, loading: proposalsLoading, hasVoted } = useProposals();
+
+  // ✅ Use Auto-Discovery Hook instead of .env
+  const { discoveredWallets, loading: loadingWallets } = useVoterDiscovery();
 
   const [userStats, setUserStats] = useState({
     proposalsCreated: 0,
     votesCast: 0,
   });
 
-  // ✅ FIXED: Validate addresses properly
-  const isValidAddress = (addr) => {
-    if (!addr || typeof addr !== 'string') return false;
-    const trimmed = addr.trim();
-    return trimmed.startsWith('0x') && 
-           trimmed.length === 42 && 
-           /^0x[0-9A-Fa-f]{40}$/.test(trimmed);
-  };
+  // ✅ Updated Logic to Count Votes Correctly
+  const loadDashboardData = useCallback(async () => {
+    if (!address || !proposals.length) return;
 
-  // ✅ Get test wallets from .env with validation
-  const testWallets = React.useMemo(() => {
-    const walletsString = process.env.REACT_APP_TEST_WALLETS;
-    
-    if (!walletsString) {
-      console.log('ℹ️ No test wallets configured');
-      return [];
-    }
-
-    const wallets = walletsString
-      .split(",")
-      .map((w) => w.trim())
-      .filter(isValidAddress);
-
-    console.log(`✅ Loaded ${wallets.length} valid test wallets`);
-    return wallets;
-  }, []);
-
-  const loadDashboardData = useCallback(() => {
-    // Calculate user stats from proposals
+    // A. Count Proposals Created
     const userProposals = proposals.filter(
       (p) => p.proposer.toLowerCase() === address?.toLowerCase()
     );
 
-    // TODO: Implement actual vote counting by checking hasVoted for each proposal
-    const votesCast = 0;
+    // B. Count Votes Cast
+    let myVoteCount = 0;
+
+    if (mode === "private") {
+      // --- Private Mode: Count Local Storage Receipts ---
+      myVoteCount = proposals.filter((p) =>
+        localStorage.getItem(`zkp_vote_${address.toLowerCase()}_${p.id}`)
+      ).length;
+    } else {
+      // --- Public Mode: Check Blockchain for each proposal ---
+      try {
+        const checks = await Promise.all(
+          proposals.map((p) => hasVoted(p.id, address))
+        );
+
+        myVoteCount = checks.filter((res) => {
+          if (res === true) return true;
+          if (Array.isArray(res) && res[0] === true) return true;
+          if (
+            typeof res === "object" &&
+            (res.hasVoted || res.hasVotedOnProposal)
+          )
+            return true;
+          return false;
+        }).length;
+      } catch (error) {
+        console.error("Error counting public votes:", error);
+      }
+    }
 
     setUserStats({
       proposalsCreated: userProposals.length,
-      votesCast: votesCast,
+      votesCast: myVoteCount,
     });
-  }, [proposals, address]);
+  }, [proposals, address, mode, hasVoted]);
 
   useEffect(() => {
-    if (address) {
-      loadDashboardData();
-    }
-  }, [address, loadDashboardData]);
+    loadDashboardData();
+  }, [loadDashboardData]);
 
   // Filter active proposals (state = 1)
   const activeProposals = proposals.filter((p) => p.state === 1).slice(0, 5);
@@ -268,10 +272,17 @@ const Dashboard = () => {
             <VotingPower />
           </Card>
 
-          {/* ✅ Whale Analysis - Only show if we have valid wallets */}
-          {testWallets.length > 0 && (
+          {/* ✅ Whale Analysis - Uses Auto-Discovered Wallets */}
+          {/* We now always render this if we have wallets, 
+              or if we are still loading (Loader handled inside component or here) 
+          */}
+          {(discoveredWallets.length > 0 || loadingWallets) && (
             <Card padding="medium">
-              <WhaleAnalysis testWallets={testWallets} />
+              {loadingWallets ? (
+                <Loader text="Finding voters..." />
+              ) : (
+                <WhaleAnalysis testWallets={discoveredWallets} />
+              )}
             </Card>
           )}
 

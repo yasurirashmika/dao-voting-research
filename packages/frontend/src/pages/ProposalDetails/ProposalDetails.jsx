@@ -15,6 +15,7 @@ import Loader from "../../components/common/Loader/Loader";
 import Alert from "../../components/common/Alert/Alert";
 import ReactMarkdown from "react-markdown";
 import ZKVotingModule from "../../components/voting/ZKVotingModule/ZKVotingModule";
+import { useToast } from "../../context/ToastContext";
 import {
   formatAddress,
   formatDate,
@@ -32,8 +33,9 @@ const ProposalDetails = () => {
   const navigate = useNavigate();
   const { address, isConnected } = useAccount();
   const { mode } = useDeployment();
+  const toast = useToast();
 
-  // ✅ 1. Get refreshProposals from the hook
+  // Get refreshProposals
   const { getProposal, castVote, hasVoted, isContractReady, refreshProposals } = useProposals();
 
   const contractName = mode === "private" ? "PrivateDAOVoting" : "DAOVoting";
@@ -47,24 +49,13 @@ const ProposalDetails = () => {
   const [voteReason, setVoteReason] = useState("");
   const [userVote, setUserVote] = useState({ hasVoted: false, support: false });
   const [actionLoading, setActionLoading] = useState(false);
-  const [alert, setAlert] = useState(null);
   const [isRegistered, setIsRegistered] = useState(false);
-
-  const showAlert = (type, title, message, duration = 5000) => {
-    setAlert({ type, title, message });
-    if (duration) setTimeout(() => setAlert(null), duration);
-  };
 
   const parseError = (error) => {
     const errorString = error?.message || error?.toString() || "Unknown error";
-    if (errorString.includes("User denied"))
-      return { title: "Cancelled", message: "Transaction cancelled." };
-    if (errorString.includes("Already voted"))
-      return { title: "Already Voted", message: "You have already voted." };
-    return {
-      title: "Failed",
-      message: errorString.length > 100 ? "An error occurred." : errorString,
-    };
+    if (errorString.includes("User denied")) return "Transaction cancelled.";
+    if (errorString.includes("Already voted")) return "You have already voted.";
+    return "An error occurred. Check console.";
   };
 
   const checkRegistration = useCallback(async () => {
@@ -82,11 +73,11 @@ const ProposalDetails = () => {
     }
   }, [contract, address, read, mode]);
 
+  // ✅ 1. UPDATED LOAD LOGIC (Checks Local Storage)
   const loadProposalData = useCallback(async () => {
     if (!id || !isContractReady) return;
 
-    // Only set loading on first load to prevent flickering during refresh
-    if (!proposal) setLoading(true); 
+    if (!proposal) setLoading(true);
     
     try {
       const data = await getProposal(id);
@@ -95,16 +86,33 @@ const ProposalDetails = () => {
       setProposal(data);
 
       if (address && isConnected) {
-        const voted = await hasVoted(id, address);
-        if (voted === true) {
-          setUserVote({ hasVoted: true, support: null });
-        } else if (Array.isArray(voted)) {
-          setUserVote({ hasVoted: voted[0], support: voted[1] });
-        } else if (typeof voted === "object") {
-          setUserVote({
-            hasVoted: voted.hasVotedOnProposal || voted.hasVoted,
-            support: voted.support,
-          });
+        
+        // --- Private Mode: Check Browser Storage ---
+        if (mode === "private") {
+          const storageKey = `zkp_vote_${address.toLowerCase()}_${id}`;
+          const storedVote = localStorage.getItem(storageKey);
+          
+          if (storedVote) {
+            const parsedVote = JSON.parse(storedVote);
+            setUserVote({ 
+              hasVoted: true, 
+              support: parsedVote.support 
+            });
+          }
+        } 
+        // --- Public Mode: Check Blockchain ---
+        else {
+          const voted = await hasVoted(id, address);
+          if (voted === true) {
+            setUserVote({ hasVoted: true, support: null });
+          } else if (Array.isArray(voted)) {
+            setUserVote({ hasVoted: voted[0], support: voted[1] });
+          } else if (typeof voted === "object") {
+            setUserVote({
+              hasVoted: voted.hasVotedOnProposal || voted.hasVoted,
+              support: voted.support,
+            });
+          }
         }
       }
     } catch (error) {
@@ -112,7 +120,7 @@ const ProposalDetails = () => {
     } finally {
       setLoading(false);
     }
-  }, [id, address, isConnected, getProposal, hasVoted, isContractReady]);
+  }, [id, address, isConnected, getProposal, hasVoted, isContractReady, mode]); // Added 'mode'
 
   useEffect(() => {
     if (contract && address) {
@@ -124,31 +132,43 @@ const ProposalDetails = () => {
     loadProposalData();
   }, [loadProposalData]);
 
-  // ✅ 2. New Handler for ZK Voting Success
+  // ✅ 2. UPDATED ZK SUCCESS HANDLER (Saves to Local Storage)
   const handleZKVoteSuccess = async (voteChoice) => {
     console.log("🎉 ZK Vote Success Detected!");
     
-    // Update local UI immediately so user sees feedback
+    const isSupport = voteChoice === "yes";
+
+    // Save receipt to browser
+    if (address && id) {
+      const storageKey = `zkp_vote_${address.toLowerCase()}_${id}`;
+      localStorage.setItem(storageKey, JSON.stringify({
+        hasVoted: true,
+        support: isSupport,
+        timestamp: Date.now()
+      }));
+    }
+
+    // Update UI immediately
     setUserVote({ 
         hasVoted: true, 
-        support: voteChoice === "yes" 
+        support: isSupport 
     });
 
-    // Wait a moment for blockchain to index, then refresh data
+    // Refresh data
     setTimeout(async () => {
         console.log("🔄 Refreshing proposal data...");
-        refreshProposals(); // Update global list
-        await loadProposalData(); // Update this page details
+        refreshProposals();
+        await loadProposalData();
     }, 2000);
   };
 
   const handleVoteClick = (support) => {
     if (!isConnected) {
-      showAlert("warning", "Wallet Not Connected", "Please connect your wallet to vote.", 3000);
+      toast.warning("Please connect your wallet to vote.", "Wallet Not Connected");
       return;
     }
     if (mode === "baseline" && !isRegistered) {
-      showAlert("error", "Not Registered", "You must be a registered voter to participate.");
+      toast.error("You must be a registered voter to participate.", "Not Registered");
       return;
     }
     setSelectedVote(support);
@@ -163,15 +183,14 @@ const ProposalDetails = () => {
       setVoteReason("");
       
       setUserVote({ hasVoted: true, support: selectedVote });
-      showAlert("success", "Vote Cast Successfully!", "Your vote has been recorded.");
+      toast.success("Your vote has been recorded.", "Vote Cast Successfully!");
       
-      // ✅ Refresh data after standard voting
       refreshProposals();
       await loadProposalData();
       
     } catch (error) {
-      const { title, message } = parseError(error);
-      showAlert("error", title, message);
+      const message = parseError(error);
+      toast.error(message, "Vote Failed");
     } finally {
       setActionLoading(false);
     }
@@ -182,12 +201,12 @@ const ProposalDetails = () => {
     setActionLoading(true);
     try {
       await write("startVoting", [proposal.id]);
-      showAlert("success", "Voting Started!", "The voting period has begun.");
+      toast.success("The voting period has begun.", "Voting Started!");
       refreshProposals();
       await loadProposalData();
     } catch (error) {
-      const { title, message } = parseError(error);
-      showAlert("error", title, message);
+      const message = parseError(error);
+      toast.error(message, "Action Failed");
     } finally {
       setActionLoading(false);
     }
@@ -198,12 +217,12 @@ const ProposalDetails = () => {
     setActionLoading(true);
     try {
       await write("finalizeProposal", [proposal.id]);
-      showAlert("success", "Proposal Finalized!", "The final results have been calculated.");
+      toast.success("The final results have been calculated.", "Proposal Finalized!");
       refreshProposals();
       await loadProposalData();
     } catch (error) {
-      const { title, message } = parseError(error);
-      showAlert("error", title, message);
+      const message = parseError(error);
+      toast.error(message, "Action Failed");
     } finally {
       setActionLoading(false);
     }
@@ -214,12 +233,12 @@ const ProposalDetails = () => {
     setActionLoading(true);
     try {
       await write("cancelProposal", [proposal.id]);
-      showAlert("success", "Proposal Cancelled", "This proposal has been cancelled.");
+      toast.success("This proposal has been cancelled.", "Proposal Cancelled");
       refreshProposals();
       await loadProposalData();
     } catch (error) {
-      const { title, message } = parseError(error);
-      showAlert("error", title, message);
+      const message = parseError(error);
+      toast.error(message, "Action Failed");
     } finally {
       setActionLoading(false);
     }
@@ -264,15 +283,6 @@ const ProposalDetails = () => {
       <Button variant="ghost" onClick={() => navigate("/proposals")}>
         ← Back to Proposals
       </Button>
-      {alert && (
-        <Alert
-          type={alert.type}
-          title={alert.title}
-          onClose={() => setAlert(null)}
-        >
-          {alert.message}
-        </Alert>
-      )}
 
       <div className="proposal-details-grid">
         <div className="proposal-main">
@@ -311,8 +321,19 @@ const ProposalDetails = () => {
                   </div>
                 )}
 
+                {/* ✅ PERSISTED VOTE STATE */}
                 {userVote.hasVoted ? (
-                  <div className="voted-notice">
+                  <div className="voted-notice" style={{
+                      backgroundColor: userVote.support ? 'rgba(76, 175, 80, 0.1)' : 'rgba(244, 67, 54, 0.1)',
+                      border: `1px solid ${userVote.support ? '#4CAF50' : '#F44336'}`,
+                      color: userVote.support ? '#2E7D32' : '#C62828',
+                      padding: '20px',
+                      borderRadius: '8px',
+                      textAlign: 'center',
+                      marginTop: '15px',
+                      fontWeight: 'bold',
+                      fontSize: '1.1rem'
+                  }}>
                     {userVote.support ? "👍" : "👎"} You voted{" "}
                     {userVote.support ? "YES" : "NO"}
                   </div>
@@ -327,7 +348,6 @@ const ProposalDetails = () => {
 
                     {mode === "private" ? (
                       <div className="zk-voting-container" style={{ marginTop: '20px' }}>
-                        {/* ✅ Pass the Success Handler Here */}
                         <ZKVotingModule 
                             preselectedProposalId={proposal.id} 
                             onVoteSuccess={handleZKVoteSuccess} 
@@ -564,9 +584,11 @@ const ProposalDetails = () => {
             onChange={(e) => setVoteReason(e.target.value)}
             placeholder="Share why you're voting this way..."
           />
-          <Alert type="warning" title="⚠️ Important">
-            Your vote is final and will cost gas fees.
-          </Alert>
+          <div style={{ marginTop: '15px' }}>
+             <Alert type="warning" title="⚠️ Important">
+                Your vote is final and will cost gas fees.
+             </Alert>
+          </div>
         </div>
       </Modal>
     </div>
