@@ -73,5 +73,5 @@ template PrivateVote(levels) {
     voteBinding <== voteBindingHasher.out;
 }
 
-// depth to 5
-component main {public [root, proposalId, voteChoice]} = PrivateVote(5);
+// depth to 6
+component main {public [root, proposalId, voteChoice]} = PrivateVote(6);

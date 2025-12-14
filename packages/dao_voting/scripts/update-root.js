@@ -6,10 +6,10 @@ async function main() {
   const PRIVATE_VOTING_ADDR = process.env.PRIVATE_DAO_VOTING_ADDRESS;
   const [admin] = await hre.ethers.getSigners();
   
-  console.log("🔄 Updating Merkle Root with Poseidon Hashing...\n");
+  console.log("🔄 Updating Merkle Root with Poseidon Hashing (Depth 6)...\n");
   console.log("Admin:", admin.address);
   console.log("Contract:", PRIVATE_VOTING_ADDR);
-  console.log("=" .repeat(60) + "\n");
+  console.log("=".repeat(60) + "\n");
   
   const PrivateDAOVoting = await hre.ethers.getContractAt("PrivateDAOVoting", PRIVATE_VOTING_ADDR);
   
@@ -33,6 +33,7 @@ async function main() {
   
   // Initialize Poseidon
   const poseidon = await buildPoseidon();
+  const F = poseidon.F; // Field arithmetic
   
   // Convert hex commitments to BigInt
   const leafBigInts = commitments.map(leaf => {
@@ -40,8 +41,8 @@ async function main() {
     return BigInt("0x" + cleaned);
   });
   
-  // Pad to full tree size (depth 5)
-  const DEPTH = 5;
+  // Pad to full tree size (Depth 6 = 64 leaves)
+  const DEPTH = 6; // ✅ UPDATED TO 6
   const targetSize = 2 ** DEPTH;
   const paddedLeaves = [...leafBigInts];
   
@@ -63,13 +64,16 @@ async function main() {
       
       // Hash using Poseidon
       const hash = poseidon([left, right]);
-      const hashBigInt = BigInt(poseidon.F.toString(hash));
+      
+      // Ensure we convert the Field Element back to BigInt correctly
+      const hashBigInt = BigInt(F.toString(hash));
       nextLevel.push(hashBigInt);
     }
     currentLevel = nextLevel;
     
+    // Log progress for first few levels
     if (level < 3) {
-      console.log(`  Level ${level + 1}: ${currentLevel.length} nodes`);
+      console.log(`  Level ${level + 1}: ${nextLevel.length} nodes`);
     }
   }
   
@@ -78,12 +82,11 @@ async function main() {
   const merkleRoot = '0x' + merkleRootBigInt.toString(16).padStart(64, '0');
   
   console.log("\n✅ Calculated Poseidon Root:", merkleRoot);
-  console.log("   (BigInt:", merkleRootBigInt.toString(10).slice(0, 30) + "...)");
   
   // Get current root from contract
   try {
     const currentRoot = await PrivateDAOVoting.currentVoterSetRoot();
-    console.log("\n📋 Current contract root:", currentRoot);
+    console.log("📋 Current contract root:", currentRoot);
     
     if (currentRoot.toLowerCase() === merkleRoot.toLowerCase()) {
       console.log("✅ Root is already up to date! No update needed.");
@@ -96,7 +99,7 @@ async function main() {
   // Update on contract
   console.log("\n🚀 Updating contract with new Poseidon root...");
   
-  const tx = await PrivateDAOVoting.updateVoterSetRoot(merkleRoot, { gasLimit: 500000 });
+  const tx = await PrivateDAOVoting.updateVoterSetRoot(merkleRoot);
   console.log("📝 Transaction hash:", tx.hash);
   
   console.log("⏳ Waiting for confirmation...");
@@ -106,8 +109,6 @@ async function main() {
   console.log("✅ MERKLE ROOT UPDATED SUCCESSFULLY!");
   console.log("=".repeat(60));
   console.log("\nNew root:", merkleRoot);
-  console.log("\n⚠️  IMPORTANT: All users must re-register or the frontend");
-  console.log("   will now calculate Poseidon roots that match this update.");
 }
 
 main()

@@ -3,29 +3,33 @@ import React, { useState, useEffect } from "react";
 import { useAccount } from "wagmi";
 import { useContract } from "../../../hooks/useContract";
 import DIDRegistryABI from "../../../abis/DIDRegistry.json";
-import PrivateDAOVotingABI from "../../../abis/PrivateDAOVoting.json"; // ✅ Import DAO ABI
+import PrivateDAOVotingABI from "../../../abis/PrivateDAOVoting.json";
 import Button from "../../common/Button/Button";
 import Card from "../../common/Card/Card";
 import { buildPoseidon } from "circomlibjs";
-import { useToast } from "../../../context/ToastContext"; // ✅ Use Toast Context
+import { useToast } from "../../../context/ToastContext";
 import "./DIDRegistration.css";
 
 const DIDRegistration = () => {
   const { address, isConnected } = useAccount();
   const toast = useToast();
 
-  // 1. Contract 1: DID Registry (For Registration)
-  const { read: readDID, write: writeDID } = useContract(
-    "DIDRegistry",
-    DIDRegistryABI.abi
-  );
+  // 1. Contract 1: DID Registry
+  const {
+    contract: didContract,
+    read: readDID,
+    write: writeDID,
+  } = useContract("DIDRegistry", DIDRegistryABI.abi);
 
-  // 2. Contract 2: DAO Voting (For Syncing Root)
-  const { read: readDAO, write: writeDAO } = useContract(
-    "PrivateDAOVoting",
-    PrivateDAOVotingABI.abi
-  );
+  // 2. Contract 2: DAO Voting
+  const {
+    contract: daoContract,
+    read: readDAO,
+    write: writeDAO,
+  } = useContract("PrivateDAOVoting", PrivateDAOVotingABI.abi);
 
+  // --- NEW STATE: National ID ---
+  const [nationalID, setNationalID] = useState("");
   const [secret, setSecret] = useState("");
   const [confirmSecret, setConfirmSecret] = useState("");
   const [showSecret, setShowSecret] = useState(false);
@@ -35,15 +39,19 @@ const DIDRegistration = () => {
   const [statusText, setStatusText] = useState("");
   const [checkingStatus, setCheckingStatus] = useState(true);
 
+  // --- CONFIG: Backend URL ---
+  const BACKEND_URL = "http://localhost:3001";
+
   useEffect(() => {
     checkRegistrationStatus();
-  }, [address, readDID]);
+  }, [address, didContract]);
 
   const checkRegistrationStatus = async () => {
-    if (!address || !readDID) {
-      setCheckingStatus(false);
+    if (!address || !didContract) {
+      setCheckingStatus(true);
       return;
     }
+
     setCheckingStatus(true);
     try {
       const registered = await readDID("hasRegisteredForVoting", [address]);
@@ -55,6 +63,7 @@ const DIDRegistration = () => {
     }
   };
 
+  // --- HELPER 1: Identity/Secret Logic ---
   const stringToNumber = (str) => {
     let hash = 0;
     for (let i = 0; i < str.length; i++) {
@@ -73,29 +82,25 @@ const DIDRegistration = () => {
     return commitment;
   };
 
-  // ✅ Helper: Calculate Merkle Root
+  // --- HELPER 2: Merkle Tree Syncing ---
   const calculateNewRoot = async () => {
     console.log("🌳 Calculating new Merkle Root...");
     const poseidon = await buildPoseidon();
-    const MERKLE_DEPTH = 5;
+    const MERKLE_DEPTH = 6;
 
-    // Fetch all voters (now including the one we just registered)
     const commitments = await readDAO("getAllVoterCommitments", []);
 
-    // Convert to BigInt
     const leafBigInts = commitments.map((leaf) => {
       const cleaned = leaf.startsWith("0x") ? leaf.slice(2) : leaf;
       return BigInt("0x" + cleaned);
     });
 
-    // Pad leaves
     const paddedLeaves = [...leafBigInts];
     const targetSize = 2 ** MERKLE_DEPTH;
     while (paddedLeaves.length < targetSize) {
       paddedLeaves.push(0n);
     }
 
-    // Build Tree
     let currentLevel = paddedLeaves;
     for (let i = 0; i < MERKLE_DEPTH; i++) {
       const nextLevel = [];
@@ -112,6 +117,31 @@ const DIDRegistration = () => {
     return "0x" + currentLevel[0].toString(16).padStart(64, "0");
   };
 
+  // --- HELPER 3: Backend Verification ---
+  const verifyIdentityWithBackend = async () => {
+    try {
+      const response = await fetch(`${BACKEND_URL}/issue-credential`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        // ✅ FIX: Send BOTH address and nationalID
+        body: JSON.stringify({
+          userAddress: address,
+          nationalID: nationalID,
+        }),
+      });
+
+      const data = await response.json();
+      if (!data.success) {
+        throw new Error(data.error || "Verification denied by issuer");
+      }
+      return data.signature;
+    } catch (error) {
+      console.error("Backend Error:", error);
+      // Pass the error message up so toast can display it (e.g. "Insufficient Stake")
+      throw error;
+    }
+  };
+
   const handleRegister = async () => {
     if (!secret || !confirmSecret) {
       toast.warning(
@@ -121,14 +151,11 @@ const DIDRegistration = () => {
       return;
     }
     if (secret !== confirmSecret) {
-      toast.error("Secrets do not match! Please re-type them.", "Mismatch");
+      toast.error("Secrets do not match!", "Mismatch");
       return;
     }
     if (secret.length < 6) {
-      toast.warning(
-        "Please use at least 6 characters for your secret",
-        "Weak Secret"
-      );
+      toast.warning("Secret must be at least 6 characters", "Weak Secret");
       return;
     }
 
@@ -139,22 +166,29 @@ const DIDRegistration = () => {
       setStatusText("Generating Identity...");
       const commitment = await generateCommitment(secret);
 
-      // --- STEP 2: REGISTER ON BLOCKCHAIN ---
-      setStatusText("Step 1/2: Registering Identity...");
-      const { hash } = await writeDID("selfRegisterForVoting", [commitment]);
-      console.log("✅ Registered:", hash);
+      // --- STEP 2: GET SIGNATURE FROM BACKEND ---
+      setStatusText("Verifying with Issuer...");
+      const signature = await verifyIdentityWithBackend();
+      console.log("✅ Received Signature:", signature);
+
+      // --- STEP 3: REGISTER ON BLOCKCHAIN ---
+      setStatusText("Registering on Blockchain...");
+
+      const { hash } = await writeDID("registerVoterForDAO", [
+        commitment,
+        signature,
+      ]);
+      console.log("✅ Registration Tx:", hash);
 
       toast.info(
-        "Identity registered! Now syncing with voting system... (Please sign the next transaction)",
+        "Identity registered! Syncing voting tree...",
         "Step 1 Complete"
       );
 
-      // --- STEP 3: SYNC ROOT AUTOMATICALLY ---
-      setStatusText("Step 2/2: Syncing Voting System...");
+      // --- STEP 4: SYNC ROOT AUTOMATICALLY ---
+      setStatusText("Syncing Voting System...");
 
-      // Wait a moment for the node to index the new voter
-      await new Promise((r) => setTimeout(r, 3000));
-
+      await new Promise((r) => setTimeout(r, 4000));
       const newRoot = await calculateNewRoot();
       console.log("🌳 New Root Calculated:", newRoot);
 
@@ -165,8 +199,8 @@ const DIDRegistration = () => {
 
       // --- FINISH ---
       toast.success(
-        "You are registered and the voting system is synced. Don't forget to save your backup!",
-        "Setup Complete!"
+        "Registration Complete! Save your secret file immediately.",
+        "Success!"
       );
       downloadSecretBackup(secret, commitment);
 
@@ -175,6 +209,7 @@ const DIDRegistration = () => {
       }, 2000);
     } catch (err) {
       console.error("Process error:", err);
+      // Display the specific error from the backend (e.g., "Insufficient Stake")
       let msg = err.message || "Unknown error";
       if (msg.includes("User rejected")) msg = "Transaction rejected.";
       toast.error(msg, "Registration Failed");
@@ -255,9 +290,9 @@ const DIDRegistration = () => {
     <Card padding="large">
       <div className="did-registration">
         <div className="did-registration-header">
-          <h2 className="did-registration-title">🔐 Private Identity Setup</h2>
+          <h2 className="did-registration-title">🔐 Verified Identity Setup</h2>
           <p className="did-registration-description">
-            Create a secure secret to vote anonymously.
+            Your address will be verified by the Issuer before registration.
           </p>
         </div>
 
@@ -307,10 +342,10 @@ const DIDRegistration = () => {
           <Button
             onClick={handleRegister}
             loading={loading}
-            disabled={loading || !secret || !confirmSecret}
+            disabled={loading || !secret || !confirmSecret || !nationalID}
             fullWidth
           >
-            {loading ? statusText : "Create Identity & Register"}
+            {loading ? statusText : "Verify & Register"}
           </Button>
         </div>
       </div>

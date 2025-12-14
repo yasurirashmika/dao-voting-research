@@ -47,5 +47,5 @@ template MerkleTreeChecker(levels) {
  * @title MerkleTreeInclusionProof
  * @dev Main component for Merkle tree inclusion proof
  */
-// depth to 5
-component main {public [root]} = MerkleTreeChecker(5);
+// depth to 6
+component main {public [root]} = MerkleTreeChecker(6);

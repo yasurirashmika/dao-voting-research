@@ -1,87 +1,110 @@
 /* src/hooks/useVoterDiscovery.js */
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useRef } from "react";
 import { usePublicClient } from "wagmi";
-import { useDeployment } from "../context/DeploymentContext";
 
 export const useVoterDiscovery = () => {
   const [discoveredWallets, setDiscoveredWallets] = useState([]);
   const [loading, setLoading] = useState(true);
-  const { mode } = useDeployment();
   const publicClient = usePublicClient();
+
+  // Use a ref to ensure we only fetch once per session
+  const hasFetched = useRef(false);
 
   // Get addresses dynamically from Env
   const tokenAddress = process.env.REACT_APP_GOVERNANCE_TOKEN_ADDRESS;
   const didAddress = process.env.REACT_APP_DID_REGISTRY_ADDRESS;
 
-  const discoverWallets = useCallback(async () => {
-    if (!publicClient || !tokenAddress) return;
+  // OPTIMIZATION: Set this to the block number where you deployed your contracts.
+  // This prevents scanning millions of empty blocks from 2015.
+  // If you don't know it, use a recent block number or "earliest" as a fallback (but "earliest" is slow).
+  const DEPLOYMENT_BLOCK = 7000000n; // Example for Sepolia. Change this if you know your specific block.
 
-    setLoading(true);
-    const uniqueAddresses = new Set();
+  useEffect(() => {
+    const discoverWallets = async () => {
+      if (!publicClient || !tokenAddress || hasFetched.current) return;
 
-    try {
-      console.log("🔍 Scanning blockchain for voters...");
+      hasFetched.current = true; // Mark as fetched immediately
+      setLoading(true);
+      const uniqueAddresses = new Set();
 
-      // 1. Fetch Token Transfers (Finds Public Voters)
-      const transferLogs = await publicClient.getLogs({
-        address: tokenAddress,
-        event: {
-          type: "event",
-          name: "Transfer",
-          inputs: [
-            { type: "address", indexed: true, name: "from" },
-            { type: "address", indexed: true, name: "to" },
-            { type: "uint256", indexed: false, name: "value" },
-          ],
-        },
-        fromBlock: "earliest",
-      });
+      try {
+        console.log("🔍 Scanning blockchain for voters (Optimized)...");
 
-      transferLogs.forEach((log) => {
-        const receiver = log.args.to;
-        if (
-          receiver &&
-          receiver !== "0x0000000000000000000000000000000000000000"
-        ) {
-          uniqueAddresses.add(receiver);
-        }
-      });
+        // 1. Fetch Token Transfers
+        // We use a Promise.all to run both requests in parallel but catch errors individually
+        const [transferLogs, didLogs] = await Promise.all([
+          publicClient
+            .getLogs({
+              address: tokenAddress,
+              event: {
+                type: "event",
+                name: "Transfer",
+                inputs: [
+                  { type: "address", indexed: true, name: "from" },
+                  { type: "address", indexed: true, name: "to" },
+                  { type: "uint256", indexed: false, name: "value" },
+                ],
+              },
+              fromBlock: DEPLOYMENT_BLOCK,
+              toBlock: "latest",
+            })
+            .catch((err) => {
+              console.warn("Transfer log fetch failed (Rate Limit?):", err);
+              return [];
+            }),
 
-      // 2. Fetch DID Registrations (Finds Private Voters)
-      if (didAddress) {
-        const didLogs = await publicClient.getLogs({
-          address: didAddress,
-          event: {
-            type: "event",
-            name: "VotingRegistrationSuccess",
-            inputs: [
-              { type: "address", indexed: true, name: "controller" },
-              { type: "bytes32", indexed: false, name: "commitment" },
-            ],
-          },
-          fromBlock: "earliest",
+          didAddress
+            ? publicClient
+                .getLogs({
+                  address: didAddress,
+                  event: {
+                    type: "event",
+                    name: "VotingRegistrationSuccess",
+                    inputs: [
+                      { type: "address", indexed: true, name: "controller" },
+                      { type: "bytes32", indexed: false, name: "commitment" },
+                    ],
+                  },
+                  fromBlock: DEPLOYMENT_BLOCK,
+                  toBlock: "latest",
+                })
+                .catch((err) => {
+                  console.warn("DID log fetch failed (Rate Limit?):", err);
+                  return [];
+                })
+            : Promise.resolve([]),
+        ]);
+
+        // Process Token Logs
+        transferLogs.forEach((log) => {
+          const receiver = log.args.to;
+          if (
+            receiver &&
+            receiver !== "0x0000000000000000000000000000000000000000"
+          ) {
+            uniqueAddresses.add(receiver);
+          }
         });
 
+        // Process DID Logs
         didLogs.forEach((log) => {
           if (log.args.controller) {
             uniqueAddresses.add(log.args.controller);
           }
         });
+
+        const walletList = Array.from(uniqueAddresses);
+        console.log(`✅ Discovered ${walletList.length} voters`);
+        setDiscoveredWallets(walletList);
+      } catch (error) {
+        console.error("Error discovering wallets:", error);
+      } finally {
+        setLoading(false);
       }
+    };
 
-      const walletList = Array.from(uniqueAddresses);
-      console.log(`✅ Discovered ${walletList.length} voters`);
-      setDiscoveredWallets(walletList);
-    } catch (error) {
-      console.error("Error discovering wallets:", error);
-    } finally {
-      setLoading(false);
-    }
-  }, [publicClient, tokenAddress, didAddress]);
-
-  useEffect(() => {
     discoverWallets();
-  }, [discoverWallets]);
+  }, [publicClient, tokenAddress, didAddress]); // Removed 'discoverWallets' from dependency array to prevent loops
 
   return { discoveredWallets, loading };
 };

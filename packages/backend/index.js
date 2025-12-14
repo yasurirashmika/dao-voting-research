@@ -1,61 +1,109 @@
-require('dotenv').config();
-const express = require('express');
-const cors = require('cors');
-const { ethers } = require('ethers');
+require("dotenv").config();
+const express = require("express");
+const cors = require("cors");
+const { ethers } = require("ethers");
 
 const app = express();
-app.use(cors()); // Allow frontend to talk to backend
+app.use(cors());
 app.use(express.json());
 
-// 1. The Authority Setup (Mock Government)
-// In a real app, this key would be in a secure vault.
-// For the thesis, use a Hardhat account key (e.g., Account #1 or #2)
-const ISSUER_PRIVATE_KEY = process.env.ISSUER_PRIVATE_KEY || "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"; 
-const provider = new ethers.JsonRpcProvider("http://127.0.0.1:8545");
-const issuerWallet = new ethers.Wallet(ISSUER_PRIVATE_KEY, provider);
+// --- CONFIGURATION ---
+const PORT = process.env.PORT || 3001;
+const ISSUER_PRIVATE_KEY = process.env.ISSUER_PRIVATE_KEY;
+const RPC_URL =
+  process.env.RPC_URL || "https://sepolia.infura.io/v3/104845fd11af4611b886d2269eb925ee";
 
-console.log("🏛️  Mock Issuer Service Started");
-console.log("📝 Issuer Address:", issuerWallet.address);
+// --- 1. SETUP PROVIDER & WALLET ---
+const provider = new ethers.JsonRpcProvider(RPC_URL);
+const wallet = new ethers.Wallet(ISSUER_PRIVATE_KEY, provider);
 
-// 2. The Verification Endpoint
-app.post('/issue-credential', async (req, res) => {
-    try {
-        const { userAddress } = req.body;
+// --- 2. TOKEN CONTRACT SETUP ---
+// PASTE YOUR GOVERNANCE TOKEN ADDRESS HERE!
+const GOVERNANCE_TOKEN_ADDRESS = process.env.GOVERNANCE_TOKEN_ADDRESS;
+const MIN_TOKENS_REQUIRED = ethers.parseEther("1"); // User needs at least 1 Token
 
-        if (!userAddress) {
-            return res.status(400).json({ error: "User address required" });
-        }
+// Minimal ABI to check balance
+const TOKEN_ABI = ["function balanceOf(address owner) view returns (uint256)"];
+const tokenContract = new ethers.Contract(
+  GOVERNANCE_TOKEN_ADDRESS,
+  TOKEN_ABI,
+  provider
+);
 
-        console.log(`🔍 Verifying user: ${userAddress}`);
+// --- 3. MOCK DATABASE ---
+const identityDatabase = {};
 
-        // --- SIMULATION LOGIC ---
-        // In a real thesis, you'd check a database or WorldID here.
-        // For now, we simulate "If address exists, they are human".
-        
-        // 1. Create the message hash: Keccak256(userAddress)
-        // This effectively says "I certify this address is human"
-        const messageHash = ethers.solidityPackedKeccak256(["address"], [userAddress]);
-        const messageBytes = ethers.getBytes(messageHash);
+console.log("------------------------------------------------");
+console.log("🏛️  Token-Gated Identity Issuer Started");
+console.log(`📝 Issuer Address: ${wallet.address}`);
+console.log(`💰 Token Gate: ${GOVERNANCE_TOKEN_ADDRESS}`);
+console.log("------------------------------------------------");
 
-        // 2. Sign the message
-        const signature = await issuerWallet.signMessage(messageBytes);
+app.post("/issue-credential", async (req, res) => {
+  try {
+    const { userAddress, nationalID } = req.body;
 
-        console.log(`✅ Credential issued for ${userAddress}`);
-        
-        // 3. Return the VC (Verifiable Credential)
-        res.json({ 
-            success: true,
-            signature: signature,
-            issuer: issuerWallet.address
-        });
-
-    } catch (error) {
-        console.error("Error issuing credential:", error);
-        res.status(500).json({ error: "Internal Server Error" });
+    if (!userAddress || !nationalID) {
+      return res.status(400).json({ error: "Missing Address or National ID" });
     }
+
+    console.log(
+      `\n🔍 Processing: ID [${nationalID}] -> Wallet [${userAddress}]`
+    );
+
+    // --- CHECK 1: SYBIL RESISTANCE (National ID) ---
+    if (
+      identityDatabase[nationalID] &&
+      identityDatabase[nationalID].toLowerCase() !== userAddress.toLowerCase()
+    ) {
+      console.log(`❌ BLOCK: Sybil Attack (ID already used)`);
+      return res
+        .status(403)
+        .json({
+          success: false,
+          error: "Sybil Attack: National ID already registered.",
+        });
+    }
+
+    // --- CHECK 2: STAKE REQUIREMENT (Token Balance) ---
+    // This fulfills your "Adaptive Weight" promise (Token + Identity)
+    try {
+      const balance = await tokenContract.balanceOf(userAddress);
+      console.log(`   💎 Token Balance: ${ethers.formatEther(balance)} tokens`);
+
+      if (balance < MIN_TOKENS_REQUIRED) {
+        console.log(`❌ BLOCK: Insufficient Stake`);
+        return res.status(403).json({
+          success: false,
+          error: `Insufficient Stake: You need at least 1 Governance Token to register.`,
+        });
+      }
+    } catch (err) {
+      console.error("   ⚠️ Failed to check token balance:", err.message);
+      // Optional: Fail open or closed depending on preference. Here we fail closed.
+      return res
+        .status(500)
+        .json({ error: "Failed to verify token balance on-chain" });
+    }
+
+    // --- SUCCESS: BIND IDENTITY ---
+    identityDatabase[nationalID] = userAddress;
+
+    // --- SIGN CREDENTIAL ---
+    const messageHash = ethers.solidityPackedKeccak256(
+      ["address"],
+      [userAddress]
+    );
+    const messageBytes = ethers.getBytes(messageHash);
+    const signature = await wallet.signMessage(messageBytes);
+
+    console.log(`✅ SUCCESS: Credential Issued`);
+
+    res.json({ success: true, signature: signature });
+  } catch (error) {
+    console.error("❌ Server Error:", error);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
 });
 
-const PORT = 3001;
-app.listen(PORT, () => {
-    console.log(`🚀 Backend running on http://localhost:${PORT}`);
-});
+app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));

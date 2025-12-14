@@ -2,32 +2,33 @@ const hre = require("hardhat");
 const { ethers } = require("hardhat");
 const fs = require("fs");
 const path = require("path");
+const { buildPoseidon } = require("circomlibjs"); // ✅ REQUIRED
 
 async function main() {
-  console.log("Starting Admin Private Voting Registration...\n");
+  console.log("🚀 Starting Admin Private Voting Registration (Poseidon + Depth 6)...\n");
 
   const DID_REGISTRY_ADDR = process.env.DID_REGISTRY_ADDRESS;
   const PRIVATE_VOTING_ADDR = process.env.PRIVATE_DAO_VOTING_ADDRESS;
 
   if (!DID_REGISTRY_ADDR || !PRIVATE_VOTING_ADDR) {
-    console.error("Missing contract addresses in .env");
-    console.log("Required: DID_REGISTRY_ADDRESS, PRIVATE_DAO_VOTING_ADDRESS");
+    console.error("❌ Missing contract addresses in .env");
     process.exit(1);
   }
 
+  // Admin is both the Voter AND the Trusted Issuer for this test
   const [admin] = await hre.ethers.getSigners();
   console.log("Admin Address:", admin.address);
   console.log("DIDRegistry:", DID_REGISTRY_ADDR);
   console.log("PrivateDAOVoting:", PRIVATE_VOTING_ADDR);
-  console.log("");
 
   const DIDRegistry = await hre.ethers.getContractAt("DIDRegistry", DID_REGISTRY_ADDR);
   const PrivateDAOVoting = await hre.ethers.getContractAt("PrivateDAOVoting", PRIVATE_VOTING_ADDR);
 
-  // Define your secret
-  const SECRET_STRING = "Yasuri";
-  
-  // Convert string to number using simple hash (MUST MATCH UI)
+  // --- 1. SETUP POSEIDON ---
+  const poseidon = await buildPoseidon();
+  const F = poseidon.F; // Field arithmetic
+
+  // Helper to match Frontend Logic
   const stringToNumber = (str) => {
     let hash = 0;
     for (let i = 0; i < str.length; i++) {
@@ -36,152 +37,114 @@ async function main() {
     }
     return Math.abs(hash);
   };
-  
+
+  // --- 2. GENERATE IDENTITY (SECRET & COMMITMENT) ---
+  const SECRET_STRING = "Yasuri"; // Change this if you want
   const SECRET_NUMBER = stringToNumber(SECRET_STRING);
-  console.log("Original Secret:", SECRET_STRING);
-  console.log("Converted to Number:", SECRET_NUMBER);
-  console.log("SAVE THIS! You'll need the original string to vote.\n");
-
-  // Calculate Commitment using Keccak256 (MUST MATCH UI)
-  console.log("Calculating Commitment...");
-  const commitment = ethers.keccak256(ethers.toBeHex(SECRET_NUMBER, 32));
-  console.log("Commitment:", commitment);
-  console.log("");
-
-  // Check if DID exists
-  console.log("Checking DID Status...");
-  const hasDID = await DIDRegistry.hasDID(admin.address);
   
-  if (!hasDID) {
-    console.log("Creating DID...");
-    const tx1 = await DIDRegistry.createDID(admin.address);
-    await tx1.wait();
-    console.log("DID Created!");
-  } else {
-    console.log("DID Already Exists");
-  }
-  console.log("");
+  console.log("\n🔐 Generating Identity...");
+  // ✅ FIX: Use Poseidon Hash for Commitment
+  const poseidonHash = poseidon([SECRET_NUMBER]);
+  const commitment = "0x" + BigInt(F.toString(poseidonHash)).toString(16).padStart(64, "0");
+  
+  console.log("Secret String:", SECRET_STRING);
+  console.log("Commitment (Poseidon):", commitment);
 
-  // Check if already registered for voting
+  // --- 3. GENERATE ISSUER SIGNATURE ---
+  // Since we are the admin, we likely set ourselves as the 'Trusted Issuer' in the constructor.
+  // We sign our own address to approve ourselves.
+  console.log("\n✍️  Generating Issuer Signature...");
+  
+  const messageHash = ethers.solidityPackedKeccak256(["address"], [admin.address]);
+  const messageBytes = ethers.getBytes(messageHash);
+  const signature = await admin.signMessage(messageBytes);
+  
+  console.log("Signature:", signature);
+
+  // --- 4. REGISTER ON CHAIN ---
+  // Check Sybil
   const hasRegistered = await DIDRegistry.hasRegisteredForVoting(admin.address);
   
   if (hasRegistered) {
-    console.log("You've already registered for voting!");
-    console.log("If you want to re-register, you need to deploy new contracts.\n");
+    console.log("⚠️  Already registered. Skipping transaction.");
   } else {
-    console.log("Registering for Private Voting...");
-    const tx2 = await DIDRegistry.registerVoterForDAO(commitment);
-    await tx2.wait();
-    console.log("Registered in PrivateDAOVoting!");
-    console.log("");
+    console.log("\n📝 Registering on Blockchain...");
+    // ✅ FIX: Pass Signature
+    const tx = await DIDRegistry.registerVoterForDAO(commitment, signature);
+    await tx.wait();
+    console.log("✅ Registration Confirmed!");
   }
 
-  // Build Merkle Tree and Update Root
-  console.log("Building Merkle Tree (Depth 20)...");
+  // --- 5. BUILD MERKLE TREE (OFF-CHAIN CALCULATION) ---
+  const MERKLE_TREE_DEPTH = 6; // ✅ FIX: Depth 6
+  console.log(`\n🌳 Building Merkle Tree (Depth ${MERKLE_TREE_DEPTH})...`);
   
-  const MERKLE_TREE_DEPTH = 5;
+  // Get all commitments
+  const commitmentsArr = await PrivateDAOVoting.getAllVoterCommitments();
   
-  // Get all commitments from contract
-  const voterCount = await PrivateDAOVoting.getRegisteredVoterCount();
-  const commitments = [];
-  for (let i = 0; i < Number(voterCount); i++) {
-    const comm = await PrivateDAOVoting.getVoterCommitmentByIndex(i);
-    commitments.push(comm);
-  }
+  // Convert to BigInts for Poseidon
+  let leaves = commitmentsArr.map(c => BigInt(c));
   
-  console.log("Total voters:", commitments.length);
-  
-  // Build tree using Keccak256
-  let currentLevel = [...commitments];
+  // Pad with Zero Hashes (0)
   const targetSize = 2 ** MERKLE_TREE_DEPTH;
-  
-  // Pad with zero hashes
-  while (currentLevel.length < targetSize) {
-    currentLevel.push(ethers.ZeroHash);
+  while (leaves.length < targetSize) {
+    leaves.push(0n);
   }
-  
-  // Build tree bottom-up
-  for (let level = 0; level < MERKLE_TREE_DEPTH; level++) {
+
+  // Calculate Tree
+  let currentLevel = leaves;
+  for (let i = 0; i < MERKLE_TREE_DEPTH; i++) {
     const nextLevel = [];
-    for (let i = 0; i < currentLevel.length; i += 2) {
-      const left = currentLevel[i];
-      const right = currentLevel[i + 1];
-      const parent = ethers.keccak256(ethers.concat([left, right]));
-      nextLevel.push(parent);
+    for (let j = 0; j < currentLevel.length; j += 2) {
+      const left = currentLevel[j];
+      const right = currentLevel[j + 1];
+      // ✅ FIX: Use Poseidon for Tree Nodes
+      const hash = poseidon([left, right]); 
+      nextLevel.push(BigInt(F.toString(hash)));
     }
     currentLevel = nextLevel;
   }
+
+  const merkleRootBigInt = currentLevel[0];
+  const merkleRootHex = "0x" + merkleRootBigInt.toString(16).padStart(64, "0");
   
-  const merkleRootHex = currentLevel[0];
-  console.log("Calculated Merkle Root:", merkleRootHex);
-  console.log("");
+  console.log("Calculated Root:", merkleRootHex);
+
+  // --- 6. UPDATE ROOT ON CONTRACT ---
+  const currentContractRoot = await PrivateDAOVoting.currentVoterSetRoot();
   
-  // Update root on contract
-  const currentRoot = await PrivateDAOVoting.currentVoterSetRoot();
-  
-  if (currentRoot.toLowerCase() !== merkleRootHex.toLowerCase()) {
-    console.log("Updating Merkle Root...");
-    const tx3 = await PrivateDAOVoting.updateVoterSetRoot(merkleRootHex);
-    await tx3.wait();
-    console.log("Merkle Root Updated!");
+  // Compare normalized lowercase strings
+  if (currentContractRoot.toLowerCase() !== merkleRootHex.toLowerCase()) {
+    console.log("🔄 Updating Root on Contract...");
+    const txRoot = await PrivateDAOVoting.updateVoterSetRoot(merkleRootHex);
+    await txRoot.wait();
+    console.log("✅ Root Synced!");
   } else {
-    console.log("Merkle Root Already Correct");
+    console.log("✅ Root is already up to date.");
   }
-  console.log("");
 
-  // Verification
-  console.log("Verifying Registration...");
-  const isRegistered = await PrivateDAOVoting.isCommitmentRegistered(commitment);
-  const finalRoot = await PrivateDAOVoting.currentVoterSetRoot();
-  
-  console.log("Commitment Registered:", isRegistered);
-  console.log("Current Root:", finalRoot);
-  console.log("");
-
-  // Save to file
+  // --- 7. SAVE SECRET FILE ---
   const secretData = {
     secret: SECRET_STRING,
-    secretNumber: SECRET_NUMBER.toString(),
     commitment: commitment,
-    merkleRoot: finalRoot,
+    merkleRoot: merkleRootHex,
     address: admin.address,
     timestamp: new Date().toISOString(),
-    warning: "Keep this file secure! You need the secret to vote privately."
+    note: "Generated by register-admin-voter.js"
   };
 
   const secretsDir = path.join(__dirname, "../secrets");
-  if (!fs.existsSync(secretsDir)) {
-    fs.mkdirSync(secretsDir, { recursive: true });
-  }
-
-  const filename = path.join(secretsDir, `dao-secret-${admin.address.slice(0, 8)}.json`);
+  if (!fs.existsSync(secretsDir)) fs.mkdirSync(secretsDir, { recursive: true });
+  
+  const filename = path.join(secretsDir, `admin-secret.json`);
   fs.writeFileSync(filename, JSON.stringify(secretData, null, 2));
-  console.log("Secret saved to:", filename);
-  console.log("");
-
-  // Summary
-  console.log("=".repeat(60));
-  console.log("REGISTRATION COMPLETE!");
-  console.log("=".repeat(60));
-  console.log("");
-  console.log("Save These Values:");
-  console.log("-".repeat(60));
-  console.log("Secret String:", SECRET_STRING);
-  console.log("Secret Number:", SECRET_NUMBER);
-  console.log("Commitment:", commitment);
-  console.log("Merkle Root:", finalRoot);
-  console.log("-".repeat(60));
-  console.log("");
-  console.log("Next Steps:");
-  console.log("1. Copy your Secret String:", SECRET_STRING);
-  console.log("2. Go to the ZK Voting UI");
-  console.log("3. Paste the secret and vote!");
-  console.log("");
+  console.log(`\n💾 Secret saved to: ${filename}`);
+  console.log("DONE.");
 }
 
 main()
   .then(() => process.exit(0))
   .catch((error) => {
-    console.error("Error:", error);
+    console.error(error);
     process.exit(1);
   });

@@ -105,7 +105,7 @@ const ZKVotingModule = ({ preselectedProposalId, onVoteSuccess }) => {
         if (!registered) {
           showAlert(
             "warning",
-            "You are not registered for private voting. Please register first."
+            "You need to register for private voting first. Go to the Join DAO page."
           );
         }
       } catch (error) {
@@ -127,7 +127,7 @@ const ZKVotingModule = ({ preselectedProposalId, onVoteSuccess }) => {
     if (type === "success") setTimeout(() => setAlert(null), 5000);
   };
 
-  const buildPoseidonMerkleTree = async (leaves, poseidon, depth = 5) => {
+  const buildPoseidonMerkleTree = async (leaves, poseidon, depth = 6) => {
     const leafBigInts = leaves.map((leaf) => {
       const cleaned = leaf.startsWith("0x") ? leaf.slice(2) : leaf;
       return BigInt("0x" + cleaned);
@@ -157,7 +157,7 @@ const ZKVotingModule = ({ preselectedProposalId, onVoteSuccess }) => {
     return tree;
   };
 
-  const getMerklePath = (tree, leafIndex, depth = 5) => {
+  const getMerklePath = (tree, leafIndex, depth = 6) => {
     const pathElements = [];
     const pathIndices = [];
     let currentIndex = leafIndex;
@@ -219,7 +219,7 @@ const ZKVotingModule = ({ preselectedProposalId, onVoteSuccess }) => {
         throw new Error("Your secret does not match any registered voter. Please check your spelling.");
       }
 
-      const MERKLE_TREE_DEPTH = 5;
+      const MERKLE_TREE_DEPTH = 6;
       const tree = await buildPoseidonMerkleTree(commitments, poseidon, MERKLE_TREE_DEPTH);
       const calculatedRootBigInt = tree[tree.length - 1][0];
       const calculatedRoot = "0x" + calculatedRootBigInt.toString(16).padStart(64, "0");
@@ -314,11 +314,11 @@ const ZKVotingModule = ({ preselectedProposalId, onVoteSuccess }) => {
         </Alert>
       )}
 
-      {!isRegistered && (
+      {/* {!isRegistered && (
         <Alert type="warning" title="Not Registered">
           You need to register for private voting first. Go to the "Join DAO" page.
         </Alert>
-      )}
+      )} */}
 
       <div className="zk-form">
         {!preselectedProposalId && (
@@ -340,20 +340,20 @@ const ZKVotingModule = ({ preselectedProposalId, onVoteSuccess }) => {
 
         <div className="zk-field">
           <label className="zk-label">Your Registration Secret</label>
-          <small className="zk-field-help" style={{ marginTop: "0.25rem", marginBottom: "0.5rem" }}>
+          {/* <small className="zk-field-help" style={{ marginTop: "0.25rem", marginBottom: "0.5rem" }}>
             From your registration - stored in <code>dao-secret-*.json</code> file
-          </small>
+          </small> */}
           <input
             type="password"
             className="zk-input"
             value={secret}
             onChange={(e) => setSecret(e.target.value)}
-            placeholder="e.g. Yasuri"
+            placeholder="secret"
             disabled={!isRegistered}
           />
         </div>
 
-        <div className="zk-field">
+        {/* <div className="zk-field">
           <label className="zk-label">
             Merkle Root
             <span style={{ marginLeft: "0.5rem", padding: "0.2rem 0.5rem", background: merkleRoot ? "#10b981" : "#ef4444", color: "white", borderRadius: "4px", fontSize: "0.7rem", fontWeight: "600" }}>
@@ -368,7 +368,7 @@ const ZKVotingModule = ({ preselectedProposalId, onVoteSuccess }) => {
             placeholder="Auto-fetched from contract..."
             style={{ fontSize: "0.75rem", fontFamily: "monospace", cursor: "not-allowed", backgroundColor: "var(--bg-secondary)" }}
           />
-        </div>
+        </div> */}
 
         <div className="zk-field">
           <label className="zk-label">Your Vote</label>

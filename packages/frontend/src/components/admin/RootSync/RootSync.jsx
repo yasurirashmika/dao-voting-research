@@ -57,7 +57,7 @@ const RootSync = () => {
   // 2. Merkle Tree Logic
   const calculateMerkleRoot = async (leaves) => {
     const poseidon = await buildPoseidon();
-    const MERKLE_DEPTH = 5; 
+    const MERKLE_DEPTH = 6; 
 
     // Convert to BigInt
     const leafBigInts = leaves.map((leaf) => {
