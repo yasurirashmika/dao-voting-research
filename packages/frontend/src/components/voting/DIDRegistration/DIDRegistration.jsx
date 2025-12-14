@@ -8,39 +8,39 @@ import Button from "../../common/Button/Button";
 import Card from "../../common/Card/Card";
 import { buildPoseidon } from "circomlibjs";
 import { useToast } from "../../../context/ToastContext";
+import { IDKitWidget } from "@worldcoin/idkit";
 import "./DIDRegistration.css";
 
 const DIDRegistration = () => {
   const { address, isConnected } = useAccount();
   const toast = useToast();
 
-  // 1. Contract 1: DID Registry
   const {
     contract: didContract,
     read: readDID,
     write: writeDID,
   } = useContract("DIDRegistry", DIDRegistryABI.abi);
 
-  // 2. Contract 2: DAO Voting
   const {
     contract: daoContract,
     read: readDAO,
     write: writeDAO,
   } = useContract("PrivateDAOVoting", PrivateDAOVotingABI.abi);
 
-  // --- NEW STATE: National ID ---
-  const [nationalID, setNationalID] = useState("");
+  // --- STATE ---
   const [secret, setSecret] = useState("");
   const [confirmSecret, setConfirmSecret] = useState("");
   const [showSecret, setShowSecret] = useState(false);
-
+  const [worldcoinProof, setWorldcoinProof] = useState(null);
+  const [popVerified, setPOPVerified] = useState(false);
   const [isRegistered, setIsRegistered] = useState(false);
   const [loading, setLoading] = useState(false);
   const [statusText, setStatusText] = useState("");
   const [checkingStatus, setCheckingStatus] = useState(true);
 
-  // --- CONFIG: Backend URL ---
   const BACKEND_URL = "http://localhost:3001";
+  const WORLDCOIN_APP_ID = "app_d48f757accf9f9d3178bd371ccf4339c";
+  const WORLDCOIN_ACTION = "dao-voter-registration";
 
   useEffect(() => {
     checkRegistrationStatus();
@@ -63,7 +63,6 @@ const DIDRegistration = () => {
     }
   };
 
-  // --- HELPER 1: Identity/Secret Logic ---
   const stringToNumber = (str) => {
     let hash = 0;
     for (let i = 0; i < str.length; i++) {
@@ -82,7 +81,6 @@ const DIDRegistration = () => {
     return commitment;
   };
 
-  // --- HELPER 2: Merkle Tree Syncing ---
   const calculateNewRoot = async () => {
     console.log("🌳 Calculating new Merkle Root...");
     const poseidon = await buildPoseidon();
@@ -117,16 +115,15 @@ const DIDRegistration = () => {
     return "0x" + currentLevel[0].toString(16).padStart(64, "0");
   };
 
-  // --- HELPER 3: Backend Verification ---
+  // ✅ NEW: Backend call WITH Worldcoin proof
   const verifyIdentityWithBackend = async () => {
     try {
       const response = await fetch(`${BACKEND_URL}/issue-credential`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        // ✅ FIX: Send BOTH address and nationalID
         body: JSON.stringify({
           userAddress: address,
-          nationalID: nationalID,
+          worldcoinProof: worldcoinProof, // ✅ Send PoP proof
         }),
       });
 
@@ -137,12 +134,28 @@ const DIDRegistration = () => {
       return data.signature;
     } catch (error) {
       console.error("Backend Error:", error);
-      // Pass the error message up so toast can display it (e.g. "Insufficient Stake")
       throw error;
     }
   };
 
+  // ✅ Worldcoin Success Handler
+  const handleWorldcoinSuccess = (proof) => {
+    console.log("✅ Worldcoin Verification Success:", proof);
+    setWorldcoinProof(proof);
+    setPOPVerified(true);
+    toast.success("Identity verified with Worldcoin!", "Proof of Personhood");
+  };
+
+  // ✅ Main Registration Handler
   const handleRegister = async () => {
+    if (!popVerified) {
+      toast.warning(
+        "Please verify your identity with Worldcoin first",
+        "Missing Verification"
+      );
+      return;
+    }
+
     if (!secret || !confirmSecret) {
       toast.warning(
         "Please enter your secret in both fields",
@@ -162,18 +175,14 @@ const DIDRegistration = () => {
     setLoading(true);
 
     try {
-      // --- STEP 1: GENERATE COMMITMENT ---
       setStatusText("Generating Identity...");
       const commitment = await generateCommitment(secret);
 
-      // --- STEP 2: GET SIGNATURE FROM BACKEND ---
-      setStatusText("Verifying with Issuer...");
+      setStatusText("Verifying with Issuer (Checking PoP + Stake)...");
       const signature = await verifyIdentityWithBackend();
       console.log("✅ Received Signature:", signature);
 
-      // --- STEP 3: REGISTER ON BLOCKCHAIN ---
       setStatusText("Registering on Blockchain...");
-
       const { hash } = await writeDID("registerVoterForDAO", [
         commitment,
         signature,
@@ -185,9 +194,7 @@ const DIDRegistration = () => {
         "Step 1 Complete"
       );
 
-      // --- STEP 4: SYNC ROOT AUTOMATICALLY ---
       setStatusText("Syncing Voting System...");
-
       await new Promise((r) => setTimeout(r, 4000));
       const newRoot = await calculateNewRoot();
       console.log("🌳 New Root Calculated:", newRoot);
@@ -197,7 +204,6 @@ const DIDRegistration = () => {
       ]);
       console.log("✅ Root Synced:", syncHash);
 
-      // --- FINISH ---
       toast.success(
         "Registration Complete! Save your secret file immediately.",
         "Success!"
@@ -209,7 +215,6 @@ const DIDRegistration = () => {
       }, 2000);
     } catch (err) {
       console.error("Process error:", err);
-      // Display the specific error from the backend (e.g., "Insufficient Stake")
       let msg = err.message || "Unknown error";
       if (msg.includes("User rejected")) msg = "Transaction rejected.";
       toast.error(msg, "Registration Failed");
@@ -292,61 +297,106 @@ const DIDRegistration = () => {
         <div className="did-registration-header">
           <h2 className="did-registration-title">🔐 Verified Identity Setup</h2>
           <p className="did-registration-description">
-            Your address will be verified by the Issuer before registration.
+            Prove you're a unique human with Worldcoin, then register your
+            voting identity.
           </p>
         </div>
 
         <div className="did-registration-form">
+          {/* ✅ STEP 1: Worldcoin Verification */}
           <div className="form-group">
-            <label className="form-label">Create Secret Password</label>
-            <div className="input-wrapper">
-              <input
-                type={showSecret ? "text" : "password"}
-                className="form-input"
-                value={secret}
-                onChange={(e) => setSecret(e.target.value)}
-                placeholder="Min 6 characters"
-                disabled={loading}
-              />
-              <button
-                type="button"
-                className="password-toggle-btn"
-                onClick={() => setShowSecret(!showSecret)}
+            <label className="form-label">Step 1: Prove You're Human</label>
+            {!popVerified ? (
+              <IDKitWidget
+                app_id={WORLDCOIN_APP_ID}
+                action={WORLDCOIN_ACTION}
+                signal={address}
+                onSuccess={handleWorldcoinSuccess}
+                verification_level="orb"
               >
-                {showSecret ? "🙈" : "👁️"}
-              </button>
-            </div>
+                {({ open }) => (
+                  <Button onClick={open} fullWidth variant="primary">
+                    🌍 Verify with Worldcoin
+                  </Button>
+                )}
+              </IDKitWidget>
+            ) : (
+              <div
+                className="success-badge"
+                style={{
+                  padding: "1rem",
+                  backgroundColor: "#d1fae5",
+                  borderRadius: "8px",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.5rem",
+                }}
+              >
+                <span style={{ fontSize: "1.5rem" }}>✅</span>
+                <span style={{ fontWeight: "600", color: "#065f46" }}>
+                  Verified Unique Human
+                </span>
+              </div>
+            )}
           </div>
 
-          <div className="form-group">
-            <label className="form-label">Confirm Secret</label>
-            <div className="input-wrapper">
-              <input
-                type={showSecret ? "text" : "password"}
-                className="form-input"
-                value={confirmSecret}
-                onChange={(e) => setConfirmSecret(e.target.value)}
-                placeholder="Re-enter secret"
-                disabled={loading}
-              />
-              <button
-                type="button"
-                className="password-toggle-btn"
-                onClick={() => setShowSecret(!showSecret)}
-              >
-                {showSecret ? "🙈" : "👁️"}
-              </button>
-            </div>
-          </div>
+          {/* ✅ STEP 2: Secret Password (Only after PoP) */}
+          {popVerified && (
+            <>
+              <div className="form-group">
+                <label className="form-label">
+                  Step 2: Create Secret Password
+                </label>
+                <div className="input-wrapper">
+                  <input
+                    type={showSecret ? "text" : "password"}
+                    className="form-input"
+                    value={secret}
+                    onChange={(e) => setSecret(e.target.value)}
+                    placeholder="Min 6 characters"
+                    disabled={loading}
+                  />
+                  <button
+                    type="button"
+                    className="password-toggle-btn"
+                    onClick={() => setShowSecret(!showSecret)}
+                  >
+                    {showSecret ? "🙈" : "👁️"}
+                  </button>
+                </div>
+              </div>
 
-          <Button
-            onClick={handleRegister}
-            loading={loading}
-            disabled={loading || !secret || !confirmSecret || !nationalID}
-            fullWidth
-          >
-            {loading ? statusText : "Verify & Register"}
-          </Button>
+              <div className="form-group">
+                <label className="form-label">Confirm Secret</label>
+                <div className="input-wrapper">
+                  <input
+                    type={showSecret ? "text" : "password"}
+                    className="form-input"
+                    value={confirmSecret}
+                    onChange={(e) => setConfirmSecret(e.target.value)}
+                    placeholder="Re-enter secret"
+                    disabled={loading}
+                  />
+                  <button
+                    type="button"
+                    className="password-toggle-btn"
+                    onClick={() => setShowSecret(!showSecret)}
+                  >
+                    {showSecret ? "🙈" : "👁️"}
+                  </button>
+                </div>
+              </div>
+
+              <Button
+                onClick={handleRegister}
+                loading={loading}
+                disabled={loading || !secret || !confirmSecret}
+                fullWidth
+              >
+                {loading ? statusText : "Complete Registration"}
+              </Button>
+            </>
+          )}
         </div>
       </div>
     </Card>
