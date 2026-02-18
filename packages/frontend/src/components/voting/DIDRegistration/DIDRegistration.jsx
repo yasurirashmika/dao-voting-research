@@ -39,8 +39,23 @@ const DIDRegistration = () => {
   const [checkingStatus, setCheckingStatus] = useState(true);
 
   const BACKEND_URL = "http://localhost:3001";
-  const WORLDCOIN_APP_ID = "app_d48f757accf9f9d3178bd371ccf4339c";
-  const WORLDCOIN_ACTION = "dao-voter-registration";
+
+  // ✅ Production Worldcoin Configuration
+  // Get these from: https://developer.worldcoin.org/
+  const WORLDCOIN_APP_ID = process.env.REACT_APP_WORLDCOIN_APP_ID || "app_staging_d8c887aaebe91f7a3a5dd472106bb54e";
+  const WORLDCOIN_ACTION = process.env.REACT_APP_WORLDCOIN_ACTION || "dao_vote";
+
+  // ✅ CRITICAL: Normalize address to lowercase for Worldcoin signal
+  const normalizedAddress = address?.toLowerCase();
+
+  // Reset verification state when address changes
+  useEffect(() => {
+    // Clear previous verification if address changed
+    setPOPVerified(false);
+    setWorldcoinProof(null);
+    setSecret("");
+    setConfirmSecret("");
+  }, [normalizedAddress]);
 
   useEffect(() => {
     checkRegistrationStatus();
@@ -115,25 +130,34 @@ const DIDRegistration = () => {
     return "0x" + currentLevel[0].toString(16).padStart(64, "0");
   };
 
-  // ✅ NEW: Backend call WITH Worldcoin proof
+  // ✅ NEW: Backend call WITH Worldcoin proof (using normalized address)
   const verifyIdentityWithBackend = async () => {
     try {
+      console.log("🔄 Sending to backend...");
+      console.log("📤 Address (normalized):", normalizedAddress);
+      console.log("📤 Worldcoin Proof:", worldcoinProof);
+
       const response = await fetch(`${BACKEND_URL}/issue-credential`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          userAddress: address,
-          worldcoinProof: worldcoinProof, // ✅ Send PoP proof
+          userAddress: normalizedAddress, // ✅ Use normalized address
+          worldcoinProof: worldcoinProof,
         }),
       });
 
       const data = await response.json();
+      
+      console.log("📥 Backend Response:", data);
+
       if (!data.success) {
         throw new Error(data.error || "Verification denied by issuer");
       }
+      
+      console.log("✅ Backend verification successful!");
       return data.signature;
     } catch (error) {
-      console.error("Backend Error:", error);
+      console.error("❌ Backend Error:", error);
       throw error;
     }
   };
@@ -141,9 +165,29 @@ const DIDRegistration = () => {
   // ✅ Worldcoin Success Handler
   const handleWorldcoinSuccess = (proof) => {
     console.log("✅ Worldcoin Verification Success:", proof);
+    console.log("📋 Proof Details:");
+    console.log("  - Nullifier:", proof.nullifier_hash);
+    console.log("  - Merkle Root:", proof.merkle_root);
+    console.log("  - Verification Level:", proof.verification_level);
+    console.log("  - Signal Used:", normalizedAddress);
+    console.log("  - Proof:", proof.proof);
+    console.log("  - Proof Generated At:", new Date().toISOString());
+    
     setWorldcoinProof(proof);
     setPOPVerified(true);
-    toast.success("Identity verified with Worldcoin!", "Proof of Personhood");
+    toast.success(
+      "Identity verified! You can now complete registration.",
+      "Proof of Personhood"
+    );
+  };
+
+  // ✅ Worldcoin Error Handler
+  const handleWorldcoinError = (error) => {
+    console.error("❌ Worldcoin Error:", error);
+    toast.error(
+      "Worldcoin verification failed. Please try again.",
+      "Verification Error"
+    );
   };
 
   // ✅ Main Registration Handler
@@ -214,9 +258,12 @@ const DIDRegistration = () => {
         checkRegistrationStatus();
       }, 2000);
     } catch (err) {
-      console.error("Process error:", err);
+      console.error("❌ Process error:", err);
       let msg = err.message || "Unknown error";
       if (msg.includes("User rejected")) msg = "Transaction rejected.";
+      if (msg.includes("Worldcoin verification failed")) {
+        msg = "Identity verification failed. Please try again.";
+      }
       toast.error(msg, "Registration Failed");
     } finally {
       setLoading(false);
@@ -307,19 +354,39 @@ const DIDRegistration = () => {
           <div className="form-group">
             <label className="form-label">Step 1: Prove You're Human</label>
             {!popVerified ? (
-              <IDKitWidget
-                app_id={WORLDCOIN_APP_ID}
-                action={WORLDCOIN_ACTION}
-                signal={address}
-                onSuccess={handleWorldcoinSuccess}
-                verification_level="orb"
-              >
-                {({ open }) => (
-                  <Button onClick={open} fullWidth variant="primary">
-                    🌍 Verify with Worldcoin
-                  </Button>
+              <>
+                <IDKitWidget
+                  app_id={WORLDCOIN_APP_ID}
+                  action={WORLDCOIN_ACTION}
+                  signal={normalizedAddress} // ✅ Use normalized (lowercase) address
+                  onSuccess={handleWorldcoinSuccess}
+                  onError={handleWorldcoinError}
+                  verification_level="device" // Use string instead of enum
+                  enableTelemetry={true}
+                >
+                  {({ open }) => (
+                    <Button 
+                      onClick={open} 
+                      fullWidth 
+                      variant="primary"
+                      disabled={!normalizedAddress}
+                    >
+                      {normalizedAddress 
+                        ? "🌍 Verify with Worldcoin" 
+                        : "Connect Wallet First"}
+                    </Button>
+                  )}
+                </IDKitWidget>
+                {normalizedAddress && (
+                  <div style={{ 
+                    marginTop: "0.5rem", 
+                    fontSize: "0.85rem", 
+                    color: "#666" 
+                  }}>
+                    Signal: {normalizedAddress}
+                  </div>
                 )}
-              </IDKitWidget>
+              </>
             ) : (
               <div
                 className="success-badge"
