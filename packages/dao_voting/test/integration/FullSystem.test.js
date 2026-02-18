@@ -39,10 +39,10 @@ describe("Full DAO System Integration Tests", function () {
 
     // Setup permissions - WAIT FOR EACH TRANSACTION
     const addMinterTx = await governanceToken.addMinter(await daoVoting.getAddress());
-    await addMinterTx.wait(); // ✅ Wait for confirmation
+    await addMinterTx.wait(); // Wait for confirmation
     
     const addReputationUpdaterTx = await reputationManager.addReputationUpdater(await daoVoting.getAddress());
-    await addReputationUpdaterTx.wait(); // ✅ Wait for confirmation
+    await addReputationUpdaterTx.wait(); // Wait for confirmation
 
     // Distribute tokens and register voters - WAIT FOR EACH
     const mintVoter1Tx = await governanceToken.mint(voter1.address, TEST_TOKENS);

@@ -19,7 +19,7 @@ const CreateProposalPage = () => {
   const navigate = useNavigate();
   const { address, isConnected } = useAccount();
 
-  // ✅ 1. Get refreshProposals from hook
+  // 1. Get refreshProposals from hook
   const { createProposal, refreshProposals } = useProposals();
 
   const [formData, setFormData] = useState({
@@ -125,7 +125,7 @@ const CreateProposalPage = () => {
         formData.minReputationRequired
       );
 
-      // ✅ 2. Trigger Global Refresh immediately after success
+      // 2. Trigger Global Refresh immediately after success
       console.log("🔄 Refreshing proposals list...");
       refreshProposals();
 
@@ -307,7 +307,7 @@ const CreateProposalPage = () => {
 
             {!isConnected && (
               <div className="warning-box">
-                ⚠️ Please connect your wallet to create a proposal
+                Please connect your wallet to create a proposal
               </div>
             )}
           </form>

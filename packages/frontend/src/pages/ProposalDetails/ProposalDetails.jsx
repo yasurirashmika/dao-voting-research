@@ -73,7 +73,7 @@ const ProposalDetails = () => {
     }
   }, [contract, address, read, mode]);
 
-  // ✅ 1. UPDATED LOAD LOGIC (Checks Local Storage)
+  // Checks Local Storage
   const loadProposalData = useCallback(async () => {
     if (!id || !isContractReady) return;
 
@@ -132,9 +132,9 @@ const ProposalDetails = () => {
     loadProposalData();
   }, [loadProposalData]);
 
-  // ✅ 2. UPDATED ZK SUCCESS HANDLER (Saves to Local Storage)
+  // ZK SUCCESS HANDLER (Saves to Local Storage)
   const handleZKVoteSuccess = async (voteChoice) => {
-    console.log("🎉 ZK Vote Success Detected!");
+    console.log("ZK Vote Success Detected!");
     
     const isSupport = voteChoice === "yes";
 
@@ -321,7 +321,7 @@ const ProposalDetails = () => {
                   </div>
                 )}
 
-                {/* ✅ PERSISTED VOTE STATE */}
+                {/* PERSISTED VOTE STATE */}
                 {userVote.hasVoted ? (
                   <div className="voted-notice" style={{
                       backgroundColor: userVote.support ? 'rgba(76, 175, 80, 0.1)' : 'rgba(244, 67, 54, 0.1)',

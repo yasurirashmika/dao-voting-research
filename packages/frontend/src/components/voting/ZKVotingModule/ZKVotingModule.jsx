@@ -41,7 +41,7 @@ const ZKVotingModule = ({ preselectedProposalId, onVoteSuccess }) => {
   const [isRegistered, setIsRegistered] = useState(false);
   const [fetchingRoot, setFetchingRoot] = useState(false);
 
- // ✅ Helper function to clean up error messages
+ // Helper function to clean up error messages
   const extractReadableError = (error) => {
     const rawMessage = error?.message || error?.toString() || "Unknown error";
 
@@ -52,7 +52,6 @@ const ZKVotingModule = ({ preselectedProposalId, onVoteSuccess }) => {
 
     // 2. Specific Contract Reverts
     if (rawMessage.includes("Invalid root")) {
-      // 👇 UPDATED MESSAGE HERE
       return "System Sync Required: The voter registry is outdated. An Administrator must sync the voter list before voting can proceed.";
     }
     
@@ -88,7 +87,7 @@ const ZKVotingModule = ({ preselectedProposalId, onVoteSuccess }) => {
         setMerkleRoot(root);
         console.log("📥 Auto-fetched Merkle Root:", root);
       } catch (error) {
-        console.error("❌ Failed to fetch merkle root:", error);
+        console.error("Failed to fetch merkle root:", error);
       } finally {
         setFetchingRoot(false);
       }
@@ -248,7 +247,7 @@ const ZKVotingModule = ({ preselectedProposalId, onVoteSuccess }) => {
         "/circuits/vote_final.zkey"
       );
 
-      console.log("✅ Proof Generated!");
+      console.log("Proof Generated!");
 
       const formatProofValue = (val) => {
         if (typeof val === "bigint") return val;
@@ -285,13 +284,13 @@ const ZKVotingModule = ({ preselectedProposalId, onVoteSuccess }) => {
         solArgs.publicSignals,
       ]);
 
-      console.log("✅ Tx Hash:", hash);
+      console.log("Tx Hash:", hash);
       showAlert("success", "Vote Submitted Successfully! Your vote is verifiable and anonymous.");
       if (onVoteSuccess) onVoteSuccess(selectedVote);
 
     } catch (error) {
-      console.error("❌ ZK Vote Error:", error);
-      // ✅ Use the new cleaner error message
+      console.error("ZK Vote Error:", error);
+      // Use the new cleaner error message
       const cleanError = extractReadableError(error);
       showAlert("error", cleanError);
     } finally {

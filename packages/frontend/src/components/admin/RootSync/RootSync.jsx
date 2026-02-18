@@ -123,7 +123,7 @@ const RootSync = () => {
           Voter Root Synchronization
         </h2>
         <div className={`root-sync-badge ${isSynced ? 'synced' : 'not-synced'}`}>
-          {isSynced ? "✅ System Synced" : "⚠️ Sync Required"}
+          {isSynced ? "System Synced" : "Sync Required"}
         </div>
       </div>
 

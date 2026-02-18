@@ -121,7 +121,7 @@ describe("PrivateDAOVoting ZKP Integration", function () {
         const nullifier = pubSignals[0];
         const nullifierHex = "0x" + BigInt(nullifier).toString(16).padStart(64, "0");
         
-        console.log("   ✅ Proof Generated!");
+        console.log("   Proof Generated!");
         console.log("      Nullifier:", nullifier);
 
         // --- 4. Cast Vote (On-Chain) ---
@@ -141,7 +141,7 @@ describe("PrivateDAOVoting ZKP Integration", function () {
         // --- 5. Verify Result ---
         const proposal = await votingContract.proposals(proposalId);
         expect(proposal.yesVotes).to.equal(1);
-        console.log("   🎉 Vote Counted Successfully!");
+        console.log("   Vote Counted Successfully!");
     });
 
     it("Should prevent double voting using Nullifiers", async function () {

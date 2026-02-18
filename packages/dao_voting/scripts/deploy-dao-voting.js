@@ -3,14 +3,14 @@ const hre = require("hardhat");
 async function main() {
   const { ethers, network } = hre;
   
-  console.log("🚀 Deploying DAO Voting Contract (Public)...");
+  console.log("Deploying DAO Voting Contract (Public)...");
   console.log("Network:", network.name);
   
   const GOVERNANCE_TOKEN_ADDRESS = process.env.GOVERNANCE_TOKEN_ADDRESS;
   
   
   if (!GOVERNANCE_TOKEN_ADDRESS || GOVERNANCE_TOKEN_ADDRESS === "0x92aDA13a738C9069eC44a7B5C65b5dBC5Bd0a881") {
-    console.error("❌ Please update GOVERNANCE_TOKEN_ADDRESS in scripts/deploy-dao-voting.js");
+    console.error("Please update GOVERNANCE_TOKEN_ADDRESS in scripts/deploy-dao-voting.js");
     process.exit(1);
   }
   
@@ -32,7 +32,7 @@ async function main() {
   
   await daoVoting.waitForDeployment();
   const daoVotingAddress = await daoVoting.getAddress();
-  console.log("✅ DAOVoting deployed to:", daoVotingAddress);
+  console.log("DAOVoting deployed to:", daoVotingAddress);
   
   // Test interaction
   try {

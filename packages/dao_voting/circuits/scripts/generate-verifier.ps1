@@ -21,7 +21,7 @@ $VerifierPath = Join-Path $ContractsDir "VoteVerifier.sol"
 
 # 2. Check Prerequisites
 if (!(Test-Path $ZKeyFinal)) {
-    Write-Host "❌ Error: vote_final.zkey not found." -ForegroundColor Red
+    Write-Host "Error: vote_final.zkey not found." -ForegroundColor Red
     Write-Host "   Looked at: $ZKeyFinal" -ForegroundColor Gray
     Write-Host "   Run 'npm run circuits:setup' first." -ForegroundColor Yellow
     exit 1
@@ -54,8 +54,8 @@ if (Test-Path $VerifierPath) {
     
     $Content | Set-Content $VerifierPath
     
-    Write-Host "✅ Verifier generated and patched successfully!" -ForegroundColor Green
+    Write-Host "Verifier generated and patched successfully!" -ForegroundColor Green
 } else {
-    Write-Host "❌ Verifier generation failed." -ForegroundColor Red
+    Write-Host "Verifier generation failed." -ForegroundColor Red
     exit 1
 }

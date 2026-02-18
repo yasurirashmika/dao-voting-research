@@ -32,7 +32,7 @@ const Header = () => {
     DIDRegistryABI.abi
   );
 
-  // ✅ Check Status (Admin & Registration)
+  // Check Status (Admin & Registration)
   const checkUserStatus = useCallback(async () => {
     if (!address || !isConnected) {
       setIsAdmin(false);
@@ -57,7 +57,7 @@ const Header = () => {
       }
       setIsRegistered(registered);
     } catch (err) {
-      console.error("❌ Error checking status:", err);
+      console.error("Error checking status:", err);
     }
   }, [address, isConnected, daoContract, didContract, readDAO, readDID, mode]);
 
@@ -65,7 +65,7 @@ const Header = () => {
     checkUserStatus();
   }, [checkUserStatus]);
 
-  // ✅ Dynamic Navigation Links
+  // Dynamic Navigation Links
   const navLinks = [
     { path: "/", label: "Home" },
     { path: "/proposals", label: "Proposals" },

@@ -8,7 +8,7 @@ async function retryAsync(fn, retries = 3, delay = 2000) {
       return await fn();
     } catch (error) {
       if (i === retries - 1) throw error;
-      console.log(`⚠️  Retry ${i + 1}/${retries} after error: ${error.message}`);
+      console.log(`Retry ${i + 1}/${retries} after error: ${error.message}`);
       await new Promise(resolve => setTimeout(resolve, delay));
     }
   }
@@ -19,12 +19,12 @@ async function main() {
   const DID_REGISTRY_ADDR = process.env.DID_REGISTRY_ADDRESS;
 
   if (!PRIVATE_VOTING_ADDR || !DID_REGISTRY_ADDR) {
-    console.error("❌ Error: Missing contract addresses in .env");
+    console.error("Error: Missing contract addresses in .env");
     console.error("Need: PRIVATE_DAO_VOTING_ADDRESS and DID_REGISTRY_ADDRESS");
     process.exit(1);
   }
 
-  console.log("🚀 Calculating and Updating Voter Set Root...");
+  console.log("Calculating and Updating Voter Set Root...");
   console.log("PrivateDAOVoting:", PRIVATE_VOTING_ADDR);
   console.log("DIDRegistry:", DID_REGISTRY_ADDR);
 
@@ -40,7 +40,7 @@ async function main() {
   console.log(`Found ${voterCount} registered voters`);
 
   if (voterCount === 0n) {
-    console.error("❌ No voters registered yet. Register voters first!");
+    console.error("No voters registered yet. Register voters first!");
     process.exit(1);
   }
 
@@ -94,15 +94,15 @@ async function main() {
   const calculatedRootBigInt = tree[tree.length - 1][0];
   const calculatedRoot = "0x" + calculatedRootBigInt.toString(16).padStart(64, "0");
 
-  console.log("\n✅ Calculated Merkle Root:", calculatedRoot);
+  console.log("\nCalculated Merkle Root:", calculatedRoot);
 
   // Check current root on contract with retry
-  console.log("\n🔍 Checking current contract root...");
+  console.log("\nChecking current contract root...");
   const currentRoot = await retryAsync(() => PrivateDAOVoting.currentVoterSetRoot());
   console.log("Current contract root:", currentRoot);
 
   if (currentRoot.toLowerCase() === calculatedRoot.toLowerCase()) {
-    console.log("\n✅ Root already up to date! No update needed.");
+    console.log("\nRoot already up to date! No update needed.");
     return;
   }
 
@@ -114,11 +114,11 @@ async function main() {
     console.log("⏳ Waiting for confirmation...");
     
     const receipt = await tx.wait();
-    console.log(`✅ Confirmed in block ${receipt.blockNumber}`);
-    console.log("\n🎉 Success! Voter set root updated to:", calculatedRoot);
+    console.log(`Confirmed in block ${receipt.blockNumber}`);
+    console.log("\nSuccess! Voter set root updated to:", calculatedRoot);
     console.log("👉 Voters can now cast private votes!");
   } catch (error) {
-    console.error("\n❌ Error updating root:", error.message);
+    console.error("\nError updating root:", error.message);
     if (error.message.includes("nonce")) {
       console.log("\n💡 Tip: Try again in a few seconds. Nonce issue detected.");
     }
@@ -129,6 +129,6 @@ async function main() {
 main()
   .then(() => process.exit(0))
   .catch((error) => {
-    console.error("\n❌ Fatal error:", error);
+    console.error("\nFatal error:", error);
     process.exit(1);
   });

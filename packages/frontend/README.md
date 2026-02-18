@@ -74,7 +74,7 @@ This section has moved here: [https://facebook.github.io/create-react-app/docs/t
 
 A modern, decentralized voting platform for DAOs built with React, RainbowKit, and Wagmi.
 
-## 🚀 Features
+## Features
 
 - **Wallet Integration**: Connect with multiple wallets using RainbowKit
 - **Proposal Management**: Create, view, and manage governance proposals

@@ -6,7 +6,7 @@ pragma solidity ^0.8.28;
  * @dev Interface for reputation management functionality
  */
 interface IReputationManager {
-    // ✅ Struct defined here to be shared
+    // Struct defined here to be shared
     struct UserReputation {
         uint256 score;
         uint256 lastUpdated;

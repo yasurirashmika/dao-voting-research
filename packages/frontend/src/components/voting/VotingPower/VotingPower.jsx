@@ -23,7 +23,7 @@ const VotingPower = ({ userAddress }) => {
     error: null
   });
 
-  // ✅ 1. Dynamic Voting Contract (Switches based on Mode)
+  // 1. Dynamic Voting Contract (Switches based on Mode)
   const votingContractName = mode === 'private' ? 'PrivateDAOVoting' : 'DAOVoting';
   const votingContractABI = mode === 'private' ? PrivateDAOVotingABI.abi : DAOVotingABI.abi;
   
@@ -63,7 +63,7 @@ const VotingPower = ({ userAddress }) => {
       let repScore = 0;
       let repWeight = 0;
 
-      // ✅ B. Calculate Power based on Mode
+      // B. Calculate Power based on Mode
       if (mode === 'private') {
         // --- PRIVATE MODE ---
         // The Private DAO uses Reputation Score as the primary metric for influence.

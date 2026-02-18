@@ -18,7 +18,7 @@ async function main() {
   console.log("📊 Total registered voters:", Number(voterCount));
   
   if (voterCount === 0n) {
-    console.log("⚠️  No voters registered. Nothing to update.");
+    console.log("No voters registered. Nothing to update.");
     return;
   }
   
@@ -42,7 +42,7 @@ async function main() {
   });
   
   // Pad to full tree size (Depth 6 = 64 leaves)
-  const DEPTH = 6; // ✅ UPDATED TO 6
+  const DEPTH = 6; // UPDATED TO 6
   const targetSize = 2 ** DEPTH;
   const paddedLeaves = [...leafBigInts];
   
@@ -81,7 +81,7 @@ async function main() {
   const merkleRootBigInt = currentLevel[0];
   const merkleRoot = '0x' + merkleRootBigInt.toString(16).padStart(64, '0');
   
-  console.log("\n✅ Calculated Poseidon Root:", merkleRoot);
+  console.log("\nCalculated Poseidon Root:", merkleRoot);
   
   // Get current root from contract
   try {
@@ -89,15 +89,15 @@ async function main() {
     console.log("📋 Current contract root:", currentRoot);
     
     if (currentRoot.toLowerCase() === merkleRoot.toLowerCase()) {
-      console.log("✅ Root is already up to date! No update needed.");
+      console.log("Root is already up to date! No update needed.");
       return;
     }
   } catch (err) {
-    console.log("⚠️  Could not fetch current root:", err.message);
+    console.log("Could not fetch current root:", err.message);
   }
   
   // Update on contract
-  console.log("\n🚀 Updating contract with new Poseidon root...");
+  console.log("\nUpdating contract with new Poseidon root...");
   
   const tx = await PrivateDAOVoting.updateVoterSetRoot(merkleRoot);
   console.log("📝 Transaction hash:", tx.hash);
@@ -106,7 +106,7 @@ async function main() {
   await tx.wait();
   
   console.log("\n" + "=".repeat(60));
-  console.log("✅ MERKLE ROOT UPDATED SUCCESSFULLY!");
+  console.log("MERKLE ROOT UPDATED SUCCESSFULLY!");
   console.log("=".repeat(60));
   console.log("\nNew root:", merkleRoot);
 }
@@ -114,6 +114,6 @@ async function main() {
 main()
   .then(() => process.exit(0))
   .catch((error) => {
-    console.error("\n❌ Error:", error);
+    console.error("\nError:", error);
     process.exit(1);
   });

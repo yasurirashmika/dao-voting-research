@@ -34,7 +34,7 @@ export const formatTokenAmount = (amount, decimals = 18, displayDecimals = 4) =>
 };
 
 /**
- * ✅ ADDED: Standard number formatter with commas
+ * ADDED: Standard number formatter with commas
  * @param {number|string} num - Number to format
  * @returns {string} Formatted number
  */
@@ -183,7 +183,7 @@ export const parseTokenAmount = (amount, decimals = 18) => {
 export default {
   formatAddress,
   formatTokenAmount,
-  formatNumber, // ✅ Added to default export
+  formatNumber, // Added to default export
   formatLargeNumber,
   formatPercentage,
   formatDate,

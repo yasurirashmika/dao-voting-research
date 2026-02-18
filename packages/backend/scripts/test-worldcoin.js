@@ -57,12 +57,12 @@ async function testWorldcoinVerification() {
     console.log("");
 
     if (response.ok && data.success) {
-      console.log("✅ SUCCESS: Worldcoin verification passed!");
-      console.log("\n✅ Your configuration is correct!");
-      console.log("✅ The issue might be with how the proof is being generated.");
+      console.log("SUCCESS: Worldcoin verification passed!");
+      console.log("\nYour configuration is correct!");
+      console.log("The issue might be with how the proof is being generated.");
     } else {
-      console.log("❌ FAILED: Worldcoin verification failed");
-      console.log("\n🔍 Troubleshooting Steps:");
+      console.log("FAILED: Worldcoin verification failed");
+      console.log("\nTroubleshooting Steps:");
       
       if (data.code === "invalid_proof") {
         console.log("   1. The proof is invalid. This usually means:");
@@ -86,8 +86,8 @@ async function testWorldcoinVerification() {
       console.log("   4. Try generating a fresh proof with the Worldcoin Simulator");
     }
   } catch (error) {
-    console.error("❌ Network Error:", error.message);
-    console.log("\n🔍 This might be a network connectivity issue.");
+    console.error("Network Error:", error.message);
+    console.log("\nThis might be a network connectivity issue.");
   }
 }
 

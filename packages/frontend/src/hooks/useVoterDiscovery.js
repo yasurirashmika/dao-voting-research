@@ -28,7 +28,7 @@ export const useVoterDiscovery = () => {
       const uniqueAddresses = new Set();
 
       try {
-        console.log("🔍 Scanning blockchain for voters (Optimized)...");
+        console.log("Scanning blockchain for voters (Optimized)...");
 
         // 1. Fetch Token Transfers
         // We use a Promise.all to run both requests in parallel but catch errors individually
@@ -94,7 +94,7 @@ export const useVoterDiscovery = () => {
         });
 
         const walletList = Array.from(uniqueAddresses);
-        console.log(`✅ Discovered ${walletList.length} voters`);
+        console.log(`Discovered ${walletList.length} voters`);
         setDiscoveredWallets(walletList);
       } catch (error) {
         console.error("Error discovering wallets:", error);

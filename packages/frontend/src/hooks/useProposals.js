@@ -30,7 +30,7 @@ export const useProposals = () => {
   const [proposals, setProposals] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  // ✅ 1. Add Trigger State for Refreshing
+  // 1. Add Trigger State for Refreshing
   const [refreshTrigger, setRefreshTrigger] = useState(0); 
   
   const { address } = useAccount();
@@ -43,7 +43,7 @@ export const useProposals = () => {
   const { contract, read, write } = useContract(contractName, abi);
   const isContractReady = !!contract;
 
-  // ✅ 2. Refresh Function (Export this!)
+  // 2. Refresh Function (Export this!)
   const refreshProposals = useCallback(() => {
     console.log("🔄 Triggering proposal refresh...");
     setRefreshTrigger(prev => prev + 1);
@@ -147,9 +147,9 @@ export const useProposals = () => {
 
       setProposals(proposalData.reverse());
       setLoading(false);
-      console.log(`✅ Loaded ${proposalData.length} proposals`);
+      console.log(`Loaded ${proposalData.length} proposals`);
     } catch (err) {
-      console.error("❌ Error fetching proposals:", err);
+      console.error("Error fetching proposals:", err);
       setError(err.message);
       setLoading(false);
     }
@@ -201,12 +201,12 @@ export const useProposals = () => {
           minTokensRequired = Number(p[11]);
         }
 
-        console.log(`✅ Loaded proposal #${id}:`, title);
+        console.log(`Loaded proposal #${id}:`, title);
         return {
           id, title, description, proposer, yesVotes, noVotes, totalVotingWeight, state, createdAt, votingStart, votingEnd, minTokensRequired, minReputationRequired,
         };
       } catch (err) {
-        console.error(`❌ Error fetching proposal #${proposalId}:`, err);
+        console.error(`Error fetching proposal #${proposalId}:`, err);
         throw err;
       }
     },
@@ -228,12 +228,12 @@ export const useProposals = () => {
           result = await write("submitProposal", [title, description, minTokensRequired]);
         }
 
-        console.log("✅ Proposal created successfully:", result);
-        // ✅ 3. Auto-refresh after creation
+        console.log("Proposal created successfully:", result);
+        // 3. Auto-refresh after creation
         refreshProposals(); 
         return result;
       } catch (err) {
-        console.error("❌ Error creating proposal:", err);
+        console.error("Error creating proposal:", err);
         throw err;
       }
     },
@@ -252,12 +252,12 @@ export const useProposals = () => {
 
         console.log(`🗳️ Casting vote on proposal #${proposalId}: ${support ? "YES" : "NO"}`);
         const result = await write("castVote", [proposalId, support]);
-        console.log("✅ Vote cast successfully:", result);
-        // ✅ 4. Auto-refresh after voting
+        console.log("Vote cast successfully:", result);
+        // 4. Auto-refresh after voting
         refreshProposals();
         return result;
       } catch (err) {
-        console.error("❌ Error casting vote:", err);
+        console.error("Error casting vote:", err);
         throw err;
       }
     },
@@ -276,7 +276,7 @@ export const useProposals = () => {
         );
         return voted;
       } catch (err) {
-        console.error("❌ Error checking vote status:", err);
+        console.error("Error checking vote status:", err);
         return false;
       }
     },
@@ -295,17 +295,17 @@ export const useProposals = () => {
         );
         return Number(power);
       } catch (err) {
-        console.error("❌ Error getting voting power:", err);
+        console.error("Error getting voting power:", err);
         return 0;
       }
     },
     [contract, read, address, mode]
   );
 
-  // ✅ 5. Effect now depends on refreshTrigger
+  // 5. Effect now depends on refreshTrigger
   useEffect(() => {
     if (contract) {
-      console.log("🚀 Fetch triggered by dependency change or refresh");
+      console.log("Fetch triggered by dependency change or refresh");
       fetchProposals();
     }
   }, [contract, fetchProposals, refreshTrigger]); // Add refreshTrigger here

@@ -48,7 +48,7 @@ const ReputationManagement = () => {
       const { hash } = await write('initializeReputation', [targetAddress]);
       console.log("Tx Hash:", hash);
       
-      // ✅ UPDATED: Text matches the contract's actual behavior (50 Points)
+      // UPDATED: Text matches the contract's actual behavior (50 Points)
       toast.success("Reputation Initialized! User now has 50 points.", "Success");
       
       setTimeout(handleCheckReputation, 2000);
@@ -102,7 +102,7 @@ const ReputationManagement = () => {
           </div>
         )}
 
-        {/* ✅ UPDATED: Button Text */}
+        {/* UPDATED: Button Text */}
         <Button
           fullWidth
           variant="primary"
@@ -113,7 +113,7 @@ const ReputationManagement = () => {
           Initialize Reputation (Grant 50 Points)
         </Button>
 
-        {/* ✅ UPDATED: Info Text */}
+        {/* UPDATED: Info Text */}
         <Alert type="info" title="Requirement Note">
           Users need at least <strong>50 Reputation Points</strong> to create a proposal. 
           Initialization grants them exactly 50 points, allowing them to propose immediately.

@@ -80,7 +80,7 @@ async function generateVoteProof(
   console.log("🔄 Initializing Poseidon...");
   const poseidon = await buildPoseidon();
 
-  console.log("🔍 Checking artifacts...");
+  console.log("Checking artifacts...");
   if (!fs.existsSync(WASM_PATH) || !fs.existsSync(ZKEY_PATH)) {
     throw new Error(`Missing circuit files:
 WASM: ${WASM_PATH}
@@ -107,7 +107,7 @@ ZKEY: ${ZKEY_PATH}`);
 
   const hexToDec = (hex) => BigInt(hex).toString(10);
 
-  // ✅ FIXED: use correct variables from generateMerkleProof
+  // FIXED: use correct variables from generateMerkleProof
   const input = {
     root: hexToDec(root),
     secret: hexToDec(secret),
@@ -127,7 +127,7 @@ ZKEY: ${ZKEY_PATH}`);
     ZKEY_PATH
   );
 
-  console.log("✅ Proof generated!");
+  console.log("Proof generated!");
 
   return {
     proof,
@@ -187,7 +187,7 @@ async function main() {
 
     console.log(`Proof saved → ${PROOF_OUTPUT_PATH}`);
   } catch (err) {
-    console.error("\n❌ Error:", err);
+    console.error("\nError:", err);
   }
 }
 

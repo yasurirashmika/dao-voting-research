@@ -1,5 +1,5 @@
 // src/config/contracts.js (FIXED)
-// ⚠️ IMPORTANT: These are Phase 3 (Baseline) addresses
+// IMPORTANT: These are Phase 3 (Baseline) addresses
 export const CONTRACT_ADDRESSES = {
   // Sepolia Testnet - Baseline System (Public Voting)
   11155111: {

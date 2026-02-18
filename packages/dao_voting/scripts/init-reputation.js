@@ -10,7 +10,7 @@ async function main() {
   const REPUTATION_MANAGER_ADDRESS = process.env.REPUTATION_MANAGER_ADDRESS;
 
   if (REPUTATION_MANAGER_ADDRESS === "YOUR_REPUTATION_MANAGER_ADDRESS_HERE") {
-    console.error("❌ Error: You must replace REPUTATION_MANAGER_ADDRESS with your actual contract address in the script.");
+    console.error("Error: You must replace REPUTATION_MANAGER_ADDRESS with your actual contract address in the script.");
     return;
   }
 
@@ -25,7 +25,7 @@ async function main() {
   console.log(`Current Reputation Score: ${currentRep.toString()}`);
 
   if (currentRep > 0n) { // Using BigInt '0n' for comparison
-     console.log("✅ You already have reputation! No need to initialize.");
+     console.log("You already have reputation! No need to initialize.");
      return;
   }
 
@@ -38,7 +38,7 @@ async function main() {
 
   // 5. Verify result
   const newRep = await reputationManager.getReputationScore(deployer.address);
-  console.log(`🎉 Success! New Reputation Score: ${newRep.toString()}`);
+  console.log(`Success! New Reputation Score: ${newRep.toString()}`);
 }
 
 main()

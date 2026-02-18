@@ -87,7 +87,7 @@ const CreateProposalPage = () => {
     setLoading(true);
 
     try {
-      // ✅ LOGIC: Pass arguments based on mode
+      // LOGIC: Pass arguments based on mode
       // Private: (title, desc, minReputation)
       // Public:  (title, desc, minTokens)
       
@@ -182,7 +182,7 @@ const CreateProposalPage = () => {
               </p>
 
               <div className="requirements-grid">
-                {/* ✅ CONDITIONAL RENDERING based on DEPLOYMENT_MODE */}
+                {/* CONDITIONAL RENDERING based on DEPLOYMENT_MODE */}
                 
                 {DEPLOYMENT_MODE === 'baseline' && (
                     <Input

@@ -21,7 +21,7 @@ export const WalletProvider = ({ children }) => {
   const { address, isConnected, isConnecting } = useAccount();
   const chainId = useChainId();
   
-  // ✅ SIMPLIFIED: Just get balance, don't watch or refetch automatically
+  // SIMPLIFIED: Just get balance, don't watch or refetch automatically
   const { data: balance } = useBalance({ 
     address,
     enabled: !!address && isConnected,
@@ -29,7 +29,7 @@ export const WalletProvider = ({ children }) => {
     staleTime: 30_000, // Consider fresh for 30 seconds
   });
 
-  // ✅ Simple state - no complex logic
+  // Simple state - no complex logic
   const [walletState, setWalletState] = useState({
     address: null,
     isConnected: false,
@@ -38,10 +38,10 @@ export const WalletProvider = ({ children }) => {
     balance: null
   });
 
-  // ✅ Track previous values to prevent unnecessary updates
+  // Track previous values to prevent unnecessary updates
   const prevRef = useRef({});
 
-  // ✅ Update state only when values change
+  // Update state only when values change
   useEffect(() => {
     const balanceFormatted = balance?.formatted || null;
     
@@ -87,7 +87,7 @@ export const WalletProvider = ({ children }) => {
     }
   }, [address, isConnected, isConnecting, chainId, balance]);
 
-  // ✅ Clear on disconnect
+  // Clear on disconnect
   useEffect(() => {
     if (!isConnected) {
       try {
@@ -98,7 +98,7 @@ export const WalletProvider = ({ children }) => {
     }
   }, [isConnected]);
 
-  // ✅ Simple context value
+  // Simple context value
   const value = {
     address: walletState.address,
     isConnected: walletState.isConnected,

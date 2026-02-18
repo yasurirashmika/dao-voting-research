@@ -132,7 +132,7 @@ export async function generateVoteProof(
   const nullifier = await generateNullifier(secret, proposalId);
   console.log('  Nullifier:', nullifier);
 
-  // ⚠️ MOCK PROOF - In production, call circuit here
+  // MOCK PROOF - In production, call circuit here
   // const { proof, publicSignals } = await snarkjs.groth16.fullProve(input, wasm, zkey);
   
   // For now, return mock proof structure
@@ -161,7 +161,7 @@ export async function generateVoteProof(
     nullifier
   };
 
-  console.log('✅ Proof generated (MOCK)');
+  console.log('Proof generated (MOCK)');
   
   return mockProof;
 }
@@ -175,7 +175,7 @@ export async function verifyProof(proof, publicSignals) {
   // const vKey = await fetch('/verification_key.json').then(r => r.json());
   // return await snarkjs.groth16.verify(vKey, publicSignals, proof);
   
-  console.log('⚠️ Using mock verification');
+  console.log('Using mock verification');
   return true; // Mock verification
 }
 
@@ -200,10 +200,10 @@ export function generateRandomSecret() {
 export function storeVoterSecret(walletAddress, secret) {
   const key = `voter_secret_${walletAddress}`;
   
-  // ⚠️ WARNING: In production, encrypt this!
+  // WARNING: In production, encrypt this!
   localStorage.setItem(key, secret);
   
-  console.warn('⚠️ Secret stored in localStorage (unencrypted). Use encryption in production!');
+  console.warn('Secret stored in localStorage (unencrypted). Use encryption in production!');
 }
 
 /**

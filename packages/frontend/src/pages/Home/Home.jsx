@@ -20,14 +20,14 @@ const Home = () => {
   const [registeredVoters, setRegisteredVoters] = useState(null);
   const [loadingVoters, setLoadingVoters] = useState(true);
 
-  // ✅ FIX 1: Destructure 'contract' so we can check if it exists
+  //Destructure 'contract' so we can check if it exists
   const { contract: publicContract, read: readPublicVoting } = useContract('DAOVoting', DAOVotingABI.abi);
   const { contract: privateContract, read: readPrivateVoting } = useContract('PrivateDAOVoting', PrivateDAOVotingABI.abi);
 
   // Fetch registered voter count
   useEffect(() => {
     const fetchVoterCount = async () => {
-      // ✅ FIX 2: Check if the specific contract for the current mode is ready
+      //Check if the specific contract for the current mode is ready
       if (mode === 'public' && !publicContract) return;
       if (mode === 'private' && !privateContract) return;
 
@@ -49,7 +49,7 @@ const Home = () => {
     };
 
     fetchVoterCount();
-  }, [mode, publicContract, privateContract, readPublicVoting, readPrivateVoting]); // ✅ Dependencies updated
+  }, [mode, publicContract, privateContract, readPublicVoting, readPrivateVoting]); // Dependencies updated
 
   // Calculate total votes cast across all proposals
   const totalVotesCast = proposals.reduce((sum, p) => {

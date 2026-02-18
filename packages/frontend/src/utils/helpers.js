@@ -9,8 +9,8 @@ export const getProposalStateLabel = (state) => {
   const labels = {
     0: "Pending",
     1: "Active", 
-    2: "Passed",      // ✅ CHANGED from "Succeeded"
-    3: "Rejected",    // ✅ CHANGED from "Defeated"
+    2: "Passed",      // CHANGED from "Succeeded"
+    3: "Rejected",    // CHANGED from "Defeated"
     4: "Executed",
     5: "Canceled",
   };

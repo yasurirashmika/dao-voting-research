@@ -26,7 +26,7 @@ export const DAOProvider = ({ children }) => {
 
   const hasCheckedRef = useRef(false);
 
-  // ✅ Check admin status only once
+  // Check admin status only once
   useEffect(() => {
     if (!contract || !address || !isConnected || hasCheckedRef.current) {
       return;
@@ -51,7 +51,7 @@ export const DAOProvider = ({ children }) => {
           error: null
         });
         
-        hasCheckedRef.current = true; // ✅ Mark as checked
+        hasCheckedRef.current = true; // Mark as checked
       } catch (err) {
         console.error('Error checking admin:', err);
         setDaoState({
@@ -66,7 +66,7 @@ export const DAOProvider = ({ children }) => {
     checkAdmin();
   }, [contract, address, isConnected]);
 
-  // ✅ Reset when wallet changes
+  // Reset when wallet changes
   useEffect(() => {
     hasCheckedRef.current = false;
     setDaoState({ isAdmin: false, loading: false, error: null });

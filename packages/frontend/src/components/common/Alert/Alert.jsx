@@ -33,4 +33,4 @@ const Alert = ({
   );
 };
 
-export default Alert; // ✅ This fixes all your compilation errors
+export default Alert; // This fixes all your compilation errors

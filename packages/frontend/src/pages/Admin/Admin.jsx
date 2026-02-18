@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useAccount } from "wagmi";
 import { useAdmin } from "../../hooks/useAdmin";
-import { useVoterDiscovery } from "../../hooks/useVoterDiscovery"; // ✅ Import Auto-Discovery
+import { useVoterDiscovery } from "../../hooks/useVoterDiscovery"; // Import Auto-Discovery
 import Card from "../../components/common/Card/Card";
 import Button from "../../components/common/Button/Button";
 import Input from "../../components/common/Input/Input";
@@ -19,7 +19,7 @@ const Admin = () => {
   const { registerVoter, isRegisteredVoter, isOwner, loading, contract } =
     useAdmin();
 
-  // ✅ Auto-discover wallets from blockchain events
+  // Auto-discover wallets from blockchain events
   const { discoveredWallets } = useVoterDiscovery();
 
   const [isAdmin, setIsAdmin] = useState(false);
@@ -29,7 +29,7 @@ const Admin = () => {
   const [alert, setAlert] = useState(null);
   const [registeredVoters, setRegisteredVoters] = useState([]);
 
-  // ✅ Merge current user + auto-discovered wallets (No hardcoding needed)
+  // Merge current user + auto-discovered wallets (No hardcoding needed)
   const allWallets = useMemo(() => {
     const unique = new Set([address, ...discoveredWallets]);
     return Array.from(unique).filter(Boolean);
@@ -71,7 +71,7 @@ const Admin = () => {
       const adminStatus = await isOwner();
       setIsAdmin(adminStatus);
     } catch (err) {
-      console.error("❌ Error checking admin status:", err);
+      console.error("Error checking admin status:", err);
       setIsAdmin(false);
     } finally {
       setCheckingAdmin(false);
@@ -83,7 +83,7 @@ const Admin = () => {
 
     const voters = [];
 
-    // ✅ Loop through dynamically discovered wallets
+    // Loop through dynamically discovered wallets
     for (const addr of allWallets) {
       if (!addr) continue;
       try {

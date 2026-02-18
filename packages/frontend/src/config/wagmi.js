@@ -17,14 +17,14 @@ export const config = getDefaultConfig({
   appName: 'DAO Voting System',
   projectId: process.env.REACT_APP_WALLETCONNECT_PROJECT_ID || 'bb12a9390f7afd6748d4e48963e83782',
   
-  // ✅ UPDATED: Strictly Sepolia Only
+  // UPDATED: Strictly Sepolia Only
   chains: [sepolia],
   
   transports,
   
   ssr: false,
   
-  // ✅ CRITICAL: Disable auto-reconnect to prevent loops
+  // CRITICAL: Disable auto-reconnect to prevent loops
   // Note: In newer Wagmi/RainbowKit versions, this might be handled differently, 
   // but keeping it explicit is good if supported by your version.
 });

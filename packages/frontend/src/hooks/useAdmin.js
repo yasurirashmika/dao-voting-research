@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import { useAccount, useWriteContract, usePublicClient } from 'wagmi';
 import { useContract } from './useContract';
-import { useDeployment } from '../context/DeploymentContext'; // ✅ Import Context
+import { useDeployment } from '../context/DeploymentContext'; // Import Context
 
 // ABIs
 import DAOVotingABI from '../abis/DAOVoting.json';
@@ -16,7 +16,7 @@ export const useAdmin = () => {
   const { address, chainId } = useAccount();
   const publicClient = usePublicClient();
   const { writeContractAsync } = useWriteContract();
-  const { mode } = useDeployment(); // ✅ Get Mode
+  const { mode } = useDeployment(); // Get Mode
 
   // Public Contract (Existing)
   const { contract: publicContract, read: readPublic, write: writePublic } = useContract('DAOVoting', DAOVotingABI.abi);
@@ -30,7 +30,7 @@ export const useAdmin = () => {
    * Register a new voter (PUBLIC SYSTEM)
    */
   const registerVoter = useCallback(async (voterAddress) => {
-    if (mode === 'private') throw new Error("Use registerDID for Private mode"); // ✅ Safety Check
+    if (mode === 'private') throw new Error("Use registerDID for Private mode"); // Safety Check
     if (!publicContract) throw new Error('Public Contract not ready');
     
     setLoading(true);
@@ -48,7 +48,7 @@ export const useAdmin = () => {
   }, [publicContract, writePublic, mode]);
 
   /**
-   * ✅ NEW: Register a DID (PRIVATE SYSTEM)
+   * NEW: Register a DID (PRIVATE SYSTEM)
    * In the private system, the Admin creates a DID for the user.
    */
   const registerDID = useCallback(async (voterAddress) => {
@@ -163,7 +163,7 @@ export const useAdmin = () => {
 
   /**
    * Get all registered voters count
-   * ✅ FIXED: Do not call 'registeredVoters' in Private Mode
+   * FIXED: Do not call 'registeredVoters' in Private Mode
    */
   const getRegisteredVotersCount = useCallback(async (addressesToCheck = []) => {
     let count = 0;

@@ -40,12 +40,12 @@ const DIDRegistration = () => {
 
   const BACKEND_URL = "http://localhost:3001";
 
-  // ✅ Production Worldcoin Configuration
+  // Production Worldcoin Configuration
   // Get these from: https://developer.worldcoin.org/
   const WORLDCOIN_APP_ID = process.env.REACT_APP_WORLDCOIN_APP_ID || "app_staging_d8c887aaebe91f7a3a5dd472106bb54e";
   const WORLDCOIN_ACTION = process.env.REACT_APP_WORLDCOIN_ACTION || "dao_vote";
 
-  // ✅ CRITICAL: Normalize address to lowercase for Worldcoin signal
+  // CRITICAL: Normalize address to lowercase for Worldcoin signal
   const normalizedAddress = address?.toLowerCase();
 
   // Reset verification state when address changes
@@ -130,7 +130,7 @@ const DIDRegistration = () => {
     return "0x" + currentLevel[0].toString(16).padStart(64, "0");
   };
 
-  // ✅ NEW: Backend call WITH Worldcoin proof (using normalized address)
+  // NEW: Backend call WITH Worldcoin proof (using normalized address)
   const verifyIdentityWithBackend = async () => {
     try {
       console.log("🔄 Sending to backend...");
@@ -141,7 +141,7 @@ const DIDRegistration = () => {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          userAddress: normalizedAddress, // ✅ Use normalized address
+          userAddress: normalizedAddress, // Use normalized address
           worldcoinProof: worldcoinProof,
         }),
       });
@@ -154,17 +154,17 @@ const DIDRegistration = () => {
         throw new Error(data.error || "Verification denied by issuer");
       }
       
-      console.log("✅ Backend verification successful!");
+      console.log("Backend verification successful!");
       return data.signature;
     } catch (error) {
-      console.error("❌ Backend Error:", error);
+      console.error("Backend Error:", error);
       throw error;
     }
   };
 
-  // ✅ Worldcoin Success Handler
+  // Worldcoin Success Handler
   const handleWorldcoinSuccess = (proof) => {
-    console.log("✅ Worldcoin Verification Success:", proof);
+    console.log("Worldcoin Verification Success:", proof);
     console.log("📋 Proof Details:");
     console.log("  - Nullifier:", proof.nullifier_hash);
     console.log("  - Merkle Root:", proof.merkle_root);
@@ -181,16 +181,16 @@ const DIDRegistration = () => {
     );
   };
 
-  // ✅ Worldcoin Error Handler
+  // Worldcoin Error Handler
   const handleWorldcoinError = (error) => {
-    console.error("❌ Worldcoin Error:", error);
+    console.error("Worldcoin Error:", error);
     toast.error(
       "Worldcoin verification failed. Please try again.",
       "Verification Error"
     );
   };
 
-  // ✅ Main Registration Handler
+  // Main Registration Handler
   const handleRegister = async () => {
     if (!popVerified) {
       toast.warning(
@@ -224,14 +224,14 @@ const DIDRegistration = () => {
 
       setStatusText("Verifying with Issuer (Checking PoP + Stake)...");
       const signature = await verifyIdentityWithBackend();
-      console.log("✅ Received Signature:", signature);
+      console.log("Received Signature:", signature);
 
       setStatusText("Registering on Blockchain...");
       const { hash } = await writeDID("registerVoterForDAO", [
         commitment,
         signature,
       ]);
-      console.log("✅ Registration Tx:", hash);
+      console.log("Registration Tx:", hash);
 
       toast.info(
         "Identity registered! Syncing voting tree...",
@@ -246,7 +246,7 @@ const DIDRegistration = () => {
       const { hash: syncHash } = await writeDAO("updateVoterSetRoot", [
         newRoot,
       ]);
-      console.log("✅ Root Synced:", syncHash);
+      console.log("Root Synced:", syncHash);
 
       toast.success(
         "Registration Complete! Save your secret file immediately.",
@@ -258,7 +258,7 @@ const DIDRegistration = () => {
         checkRegistrationStatus();
       }, 2000);
     } catch (err) {
-      console.error("❌ Process error:", err);
+      console.error("Process error:", err);
       let msg = err.message || "Unknown error";
       if (msg.includes("User rejected")) msg = "Transaction rejected.";
       if (msg.includes("Worldcoin verification failed")) {
@@ -350,7 +350,7 @@ const DIDRegistration = () => {
         </div>
 
         <div className="did-registration-form">
-          {/* ✅ STEP 1: Worldcoin Verification */}
+          {/* STEP 1: Worldcoin Verification */}
           <div className="form-group">
             <label className="form-label">Step 1: Prove You're Human</label>
             {!popVerified ? (
@@ -358,7 +358,7 @@ const DIDRegistration = () => {
                 <IDKitWidget
                   app_id={WORLDCOIN_APP_ID}
                   action={WORLDCOIN_ACTION}
-                  signal={normalizedAddress} // ✅ Use normalized (lowercase) address
+                  signal={normalizedAddress} // Use normalized (lowercase) address
                   onSuccess={handleWorldcoinSuccess}
                   onError={handleWorldcoinError}
                   verification_level="device" // Use string instead of enum
@@ -407,7 +407,7 @@ const DIDRegistration = () => {
             )}
           </div>
 
-          {/* ✅ STEP 2: Secret Password (Only after PoP) */}
+          {/* STEP 2: Secret Password (Only after PoP) */}
           {popVerified && (
             <>
               <div className="form-group">

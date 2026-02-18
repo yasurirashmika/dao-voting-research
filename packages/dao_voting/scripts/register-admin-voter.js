@@ -2,16 +2,16 @@ const hre = require("hardhat");
 const { ethers } = require("hardhat");
 const fs = require("fs");
 const path = require("path");
-const { buildPoseidon } = require("circomlibjs"); // ✅ REQUIRED
+const { buildPoseidon } = require("circomlibjs"); // REQUIRED
 
 async function main() {
-  console.log("🚀 Starting Admin Private Voting Registration (Poseidon + Depth 6)...\n");
+  console.log("Starting Admin Private Voting Registration (Poseidon + Depth 6)...\n");
 
   const DID_REGISTRY_ADDR = process.env.DID_REGISTRY_ADDRESS;
   const PRIVATE_VOTING_ADDR = process.env.PRIVATE_DAO_VOTING_ADDRESS;
 
   if (!DID_REGISTRY_ADDR || !PRIVATE_VOTING_ADDR) {
-    console.error("❌ Missing contract addresses in .env");
+    console.error("Missing contract addresses in .env");
     process.exit(1);
   }
 
@@ -43,7 +43,7 @@ async function main() {
   const SECRET_NUMBER = stringToNumber(SECRET_STRING);
   
   console.log("\n🔐 Generating Identity...");
-  // ✅ FIX: Use Poseidon Hash for Commitment
+  // FIX: Use Poseidon Hash for Commitment
   const poseidonHash = poseidon([SECRET_NUMBER]);
   const commitment = "0x" + BigInt(F.toString(poseidonHash)).toString(16).padStart(64, "0");
   
@@ -66,17 +66,17 @@ async function main() {
   const hasRegistered = await DIDRegistry.hasRegisteredForVoting(admin.address);
   
   if (hasRegistered) {
-    console.log("⚠️  Already registered. Skipping transaction.");
+    console.log("Already registered. Skipping transaction.");
   } else {
     console.log("\n📝 Registering on Blockchain...");
-    // ✅ FIX: Pass Signature
+    // FIX: Pass Signature
     const tx = await DIDRegistry.registerVoterForDAO(commitment, signature);
     await tx.wait();
-    console.log("✅ Registration Confirmed!");
+    console.log("Registration Confirmed!");
   }
 
   // --- 5. BUILD MERKLE TREE (OFF-CHAIN CALCULATION) ---
-  const MERKLE_TREE_DEPTH = 6; // ✅ FIX: Depth 6
+  const MERKLE_TREE_DEPTH = 6; // FIX: Depth 6
   console.log(`\n🌳 Building Merkle Tree (Depth ${MERKLE_TREE_DEPTH})...`);
   
   // Get all commitments
@@ -98,7 +98,7 @@ async function main() {
     for (let j = 0; j < currentLevel.length; j += 2) {
       const left = currentLevel[j];
       const right = currentLevel[j + 1];
-      // ✅ FIX: Use Poseidon for Tree Nodes
+      // FIX: Use Poseidon for Tree Nodes
       const hash = poseidon([left, right]); 
       nextLevel.push(BigInt(F.toString(hash)));
     }
@@ -118,9 +118,9 @@ async function main() {
     console.log("🔄 Updating Root on Contract...");
     const txRoot = await PrivateDAOVoting.updateVoterSetRoot(merkleRootHex);
     await txRoot.wait();
-    console.log("✅ Root Synced!");
+    console.log("Root Synced!");
   } else {
-    console.log("✅ Root is already up to date.");
+    console.log("Root is already up to date.");
   }
 
   // --- 7. SAVE SECRET FILE ---
@@ -138,7 +138,7 @@ async function main() {
   
   const filename = path.join(secretsDir, `admin-secret.json`);
   fs.writeFileSync(filename, JSON.stringify(secretData, null, 2));
-  console.log(`\n💾 Secret saved to: ${filename}`);
+  console.log(`\n Secret saved to: ${filename}`);
   console.log("DONE.");
 }
 

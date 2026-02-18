@@ -132,7 +132,7 @@ contract PrivateDAOVoting is Ownable, ReentrancyGuard {
         }
     }
 
-    // ✅ MODIFIED: Removed 'onlyOwner' to allow User/Frontend to sync root automatically
+    // MODIFIED: Removed 'onlyOwner' to allow User/Frontend to sync root automatically
     function updateVoterSetRoot(bytes32 newRoot) external {
         require(newRoot != bytes32(0), "Invalid root");
         currentVoterSetRoot = newRoot;
@@ -210,7 +210,7 @@ contract PrivateDAOVoting is Ownable, ReentrancyGuard {
 
         require(bytes32(_publicSignals[0]) == _nullifier, "Nullifier mismatch");
         
-        // ✅ MODIFIED: Check CURRENT Global Root instead of Snapshot
+        // MODIFIED: Check CURRENT Global Root instead of Snapshot
         // This allows "Late Joiners" to vote on existing proposals for your Demo.
         require(
             uint256(currentVoterSetRoot) == _publicSignals[1],

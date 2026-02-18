@@ -1,14 +1,14 @@
 const hre = require("hardhat");
 
 // Add your deployed contract addresses here after deployment
-// ✅ TODO: Update these with the addresses from 'deploy-full-system.js' output
+// TODO: Update these with the addresses from 'deploy-full-system.js' output
 const DEPLOYED_ADDRESSES = {
   governanceToken: process.env.GOVERNANCE_TOKEN_ADDRESS,
   reputationManager: process.env.REPUTATION_MANAGER_ADDRESS,
   daoVoting: process.env.DAO_VOTING_ADDRESS
 };
 
-// ✅ TODO: Update with your deployer address
+// TODO: Update with your deployer address
 const DEPLOYER_ADDRESS = "0xF2d47208f7c21a143FbDED47e7f260593d901F57"; 
 
 async function main() {
@@ -16,7 +16,7 @@ async function main() {
 
   // Check if addresses are set
   if (Object.values(DEPLOYED_ADDRESSES).some(addr => addr === "0xF2d47208f7c21a143FbDED47e7f260593d901F57")) {
-      console.error("❌ Please update DEPLOYED_ADDRESSES in scripts/verify-contracts.js before running.");
+      console.error("Please update DEPLOYED_ADDRESSES in scripts/verify-contracts.js before running.");
       process.exit(1);
   }
 
@@ -32,9 +32,9 @@ async function main() {
             DEPLOYER_ADDRESS
         ],
         });
-        console.log("✅ GovernanceToken verified successfully!");
+        console.log("GovernanceToken verified successfully!");
     } catch (e) {
-        console.log("⚠️ GovernanceToken verification failed or already verified:", e.message);
+        console.log("GovernanceToken verification failed or already verified:", e.message);
     }
 
     // 2. Verify Reputation Manager
@@ -44,9 +44,9 @@ async function main() {
         address: DEPLOYED_ADDRESSES.reputationManager,
         constructorArguments: [DEPLOYER_ADDRESS],
         });
-        console.log("✅ ReputationManager verified successfully!");
+        console.log("ReputationManager verified successfully!");
     } catch (e) {
-        console.log("⚠️ ReputationManager verification failed or already verified:", e.message);
+        console.log("ReputationManager verification failed or already verified:", e.message);
     }
 
     // 3. Verify DAO Voting (Public)
@@ -60,12 +60,12 @@ async function main() {
             DEPLOYER_ADDRESS
         ],
         });
-        console.log("✅ DAOVoting verified successfully!");
+        console.log("DAOVoting verified successfully!");
     } catch (e) {
-        console.log("⚠️ DAOVoting verification failed or already verified:", e.message);
+        console.log("DAOVoting verification failed or already verified:", e.message);
     }
 
-    console.log("\n🎉 All verification steps completed.");
+    console.log("\nAll verification steps completed.");
 
   } catch (error) {
     console.error("Verification script error:", error);

@@ -29,11 +29,11 @@ export const useContract = (contractName, abi) => {
 
   const publicClient = usePublicClient();
   const { data: walletClient } = useWalletClient();
-  const { mode } = useDeployment(); // ✅ USE CONTEXT
+  const { mode } = useDeployment(); // USE CONTEXT
 
   useEffect(() => {
     if (!publicClient || !contractName || !abi) {
-      console.warn("⚠️ Missing dependencies for contract initialization");
+      console.warn("Missing dependencies for contract initialization");
       return;
     }
 
@@ -41,7 +41,7 @@ export const useContract = (contractName, abi) => {
       const chainId = publicClient.chain?.id;
       
       if (!chainId) {
-        console.error("❌ No chain ID available");
+        console.error("No chain ID available");
         setError("Network not connected");
         return;
       }
@@ -51,7 +51,7 @@ export const useContract = (contractName, abi) => {
       const activeContracts = getActiveContracts(chainId, mode);
       
       if (!activeContracts || Object.keys(activeContracts).length === 0) {
-        console.warn(`⚠️ No contracts found for chain ${chainId} in ${mode} mode`);
+        console.warn(`No contracts found for chain ${chainId} in ${mode} mode`);
         setContract(null);
         return;
       }
@@ -78,19 +78,19 @@ export const useContract = (contractName, abi) => {
           address = activeContracts[contractName]; 
       }
 
-      // ✅ CRITICAL: Skip gracefully if contract not available in current mode
+      // CRITICAL: Skip gracefully if contract not available in current mode
       if (!address) {
         if (mode === 'baseline' && ['DIDRegistry', 'VoteVerifier', 'ReputationManager'].includes(contractName)) {
           console.log(`ℹ️ ${contractName} not available in baseline mode (expected)`);
           setContract(null);
           return;
         }
-        console.warn(`⚠️ ${contractName} address not found in ${mode} mode`);
+        console.warn(`${contractName} address not found in ${mode} mode`);
         setContract(null);
         return;
       }
 
-      console.log(`✅ ${contractName} initialized at ${address}`);
+      console.log(`${contractName} initialized at ${address}`);
 
       setContract({ 
         address, 
@@ -101,16 +101,16 @@ export const useContract = (contractName, abi) => {
       });
       setError(null);
     } catch (err) {
-      console.error(`❌ Error initializing ${contractName}:`, err);
+      console.error(`Error initializing ${contractName}:`, err);
       setError(err.message);
       setContract(null);
     }
-  }, [publicClient, walletClient, contractName, abi, mode]); // ✅ ADDED mode
+  }, [publicClient, walletClient, contractName, abi, mode]); // ADDED mode
 
-  // ✅ WRAPPED IN useCallback
+  // WRAPPED IN useCallback
   const read = useCallback(async (functionName, args = []) => {
     if (!contract) {
-      console.error(`❌ Contract not initialized for read: ${contractName}`);
+      console.error(`Contract not initialized for read: ${contractName}`);
       throw new Error("Contract not initialized");
     }
     
@@ -128,16 +128,16 @@ export const useContract = (contractName, abi) => {
       return result;
     } catch (err) {
       setLoading(false);
-      console.error(`❌ Read failed for ${contract.name}.${functionName}:`, err);
+      console.error(`Read failed for ${contract.name}.${functionName}:`, err);
       setError(err.message);
       throw err;
     }
-  }, [contract, contractName]); // ✅ ADDED contractName
+  }, [contract, contractName]); // ADDED contractName
 
-  // ✅ WRAPPED IN useCallback
+  // WRAPPED IN useCallback
   const write = useCallback(async (functionName, args = [], options = {}) => {
     if (!contract || !contract.walletClient) {
-      console.error(`❌ Contract or wallet not initialized for write: ${contractName}`);
+      console.error(`Contract or wallet not initialized for write: ${contractName}`);
       throw new Error("Contract or wallet not initialized");
     }
     
@@ -157,11 +157,11 @@ export const useContract = (contractName, abi) => {
       return { hash, receipt };
     } catch (err) {
       setLoading(false);
-      console.error(`❌ Write failed for ${contract.name}.${functionName}:`, err);
+      console.error(`Write failed for ${contract.name}.${functionName}:`, err);
       setError(err.message);
       throw err;
     }
-  }, [contract, contractName]); // ✅ ADDED contractName
+  }, [contract, contractName]); // ADDED contractName
 
   return { contract, read, write, loading, error };
 };

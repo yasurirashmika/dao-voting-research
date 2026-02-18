@@ -3,7 +3,7 @@ const hre = require("hardhat");
 async function main() {
   const { ethers, network } = hre;
 
-  console.log("🚀 Deploying Full DAO System (Public/Baseline)...");
+  console.log("Deploying Full DAO System (Public/Baseline)...");
   console.log("Network:", network.name);
 
   const [deployer] = await ethers.getSigners();
@@ -36,7 +36,7 @@ async function main() {
   console.log("\n3. Deploying DAO Voting Contract...");
   const DAOVoting = await ethers.getContractFactory("DAOVoting");
   
-  // ✅ FIX: Removed reputationManager.target from arguments
+  // FIX: Removed reputationManager.target from arguments
   // The Public contract no longer uses Reputation logic.
   const daoVoting = await DAOVoting.deploy(
     governanceToken.target, 
@@ -52,7 +52,7 @@ async function main() {
   // Add DAO contract as minter for governance token
   const addMinterTx = await governanceToken.addMinter(daoVoting.target);
   await addMinterTx.wait();
-  console.log("✅ Added DAO contract as governance token minter");
+  console.log("Added DAO contract as governance token minter");
 
 
   // 5. Initial setup and testing
@@ -63,19 +63,19 @@ async function main() {
   const mintTokensTx = await governanceToken.mint(deployer.address, initialTokens);
   await mintTokensTx.wait();
   console.log(
-    `✅ Minted ${ethers.formatEther(initialTokens)} tokens to deployer`
+    `Minted ${ethers.formatEther(initialTokens)} tokens to deployer`
   );
 
   // Register deployer as voter
   const registerVoterTx = await daoVoting.registerVoter(deployer.address);
   await registerVoterTx.wait();
-  console.log("✅ Registered deployer as voter");
+  console.log("Registered deployer as voter");
 
   // 6. Verify connections
   console.log("\n6. Verifying connections...");
   const tokenBalance = await daoVoting.getVotingPowerOf(deployer.address);
   console.log(
-    `✅ DAOVoting → IGovernanceToken: Voting power = ${tokenBalance}`
+    `DAOVoting → IGovernanceToken: Voting power = ${tokenBalance}`
   );
 
   // 7. Architecture Summary

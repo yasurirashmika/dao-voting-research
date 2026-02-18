@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { useAccount } from "wagmi";
 import { useWallet } from "../../context/WalletContext";
 import { useProposals } from "../../hooks/useProposals";
-import { useVoterDiscovery } from "../../hooks/useVoterDiscovery"; // ✅ Import new hook
+import { useVoterDiscovery } from "../../hooks/useVoterDiscovery";
 import Card from "../../components/common/Card/Card";
 import Button from "../../components/common/Button/Button";
 import Loader from "../../components/common/Loader/Loader";
@@ -19,7 +19,7 @@ const Dashboard = () => {
   const { mode } = useDeployment();
   const { proposals, loading: proposalsLoading, hasVoted } = useProposals();
 
-  // ✅ Use Auto-Discovery Hook instead of .env
+  // Use Auto-Discovery Hook instead of .env
   const { discoveredWallets, loading: loadingWallets } = useVoterDiscovery();
 
   const [userStats, setUserStats] = useState({
@@ -27,7 +27,7 @@ const Dashboard = () => {
     votesCast: 0,
   });
 
-  // ✅ Updated Logic to Count Votes Correctly
+  // Updated Logic to Count Votes Correctly
   const loadDashboardData = useCallback(async () => {
     if (!address || !proposals.length) return;
 
@@ -267,12 +267,12 @@ const Dashboard = () => {
 
         {/* Sidebar */}
         <div className="dashboard-sidebar">
-          {/* ✅ Voting Power Widget */}
+          {/* Voting Power Widget */}
           <Card padding="medium">
             <VotingPower />
           </Card>
 
-          {/* ✅ Whale Analysis - Uses Auto-Discovered Wallets */}
+          {/* Whale Analysis - Uses Auto-Discovered Wallets */}
           {/* We now always render this if we have wallets, 
               or if we are still loading (Loader handled inside component or here) 
           */}

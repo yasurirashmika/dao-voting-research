@@ -139,7 +139,7 @@ export const useZKPVoting = () => {
       );
 
       setProofGenerating(false);
-      console.log('✅ Proof generated, submitting to blockchain...');
+      console.log('Proof generated, submitting to blockchain...');
 
       // Format proof for Solidity
       const solidityProof = formatProofForSolidity(proof, publicSignals);
@@ -155,7 +155,7 @@ export const useZKPVoting = () => {
         solidityProof.input
       ]);
 
-      console.log('✅ Private vote cast:', result);
+      console.log('Private vote cast:', result);
       setLoading(false);
       return result;
     } catch (err) {

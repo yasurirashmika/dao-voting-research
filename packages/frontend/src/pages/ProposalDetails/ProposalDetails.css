@@ -72,7 +72,7 @@
   white-space: pre-wrap;
 }
 
-/* ✅ NEW: Status Section */
+/* NEW: Status Section */
 .proposal-status-section {
   padding-top: 2rem;
   border-top: 1px solid var(--color-border);
@@ -267,7 +267,7 @@
   color: var(--color-text-secondary, #757575);
 }
 
-/* ✅ NEW: Alert in modal styling */
+/* NEW: Alert in modal styling */
 .vote-modal-content .alert {
   margin-bottom: 0;
 }

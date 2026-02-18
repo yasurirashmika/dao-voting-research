@@ -10,7 +10,7 @@ const WhaleAnalysis = ({ testWallets = [] }) => {
   const [balances, setBalances] = useState({});
   const [loading, setLoading] = useState(true);
 
-  // ✅ Pagination & Search State
+  // Pagination & Search State
   const [currentPage, setCurrentPage] = useState(1);
   const [searchTerm, setSearchTerm] = useState("");
   const itemsPerPage = 5;
@@ -50,10 +50,10 @@ const WhaleAnalysis = ({ testWallets = [] }) => {
     fetchBalances();
   }, [contract, testWallets, read]);
 
-  // ✅ Total Supply Calculation
+  // Total Supply Calculation
   const totalSupply = Object.values(balances).reduce((a, b) => a + b, 0);
 
-  // ✅ Filter & Sort Logic
+  // Filter & Sort Logic
   const processedList = useMemo(() => {
     return testWallets
       .filter((addr) => addr.toLowerCase().includes(searchTerm.toLowerCase()))
@@ -66,7 +66,7 @@ const WhaleAnalysis = ({ testWallets = [] }) => {
       .sort((a, b) => b.balance - a.balance); // Sort by highest balance
   }, [testWallets, balances, searchTerm, totalSupply]);
 
-  // ✅ Pagination Logic
+  // Pagination Logic
   const totalPages = Math.ceil(processedList.length / itemsPerPage);
   const paginatedList = processedList.slice(
     (currentPage - 1) * itemsPerPage,
@@ -103,7 +103,7 @@ const WhaleAnalysis = ({ testWallets = [] }) => {
         </span>
       </div>
 
-      {/* ✅ Search Bar */}
+      {/* Search Bar */}
       <div className="whale-search">
         <input
           type="text"
@@ -176,7 +176,7 @@ const WhaleAnalysis = ({ testWallets = [] }) => {
         )}
       </div>
 
-      {/* ✅ Pagination Controls */}
+      {/* Pagination Controls */}
       {totalPages > 1 && (
         <div className="whale-pagination">
           <button onClick={handlePrev} disabled={currentPage === 1}>

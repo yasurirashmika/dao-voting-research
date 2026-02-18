@@ -58,18 +58,18 @@ const WORLDCOIN_APP_ID = process.env.WORLDCOIN_APP_ID;
 const WORLDCOIN_ACTION = process.env.WORLDCOIN_ACTION || "dao_vote";
 const WORLDCOIN_TIMEOUT = 30000; // 30 second timeout (Worldcoin can be slow)
 
-// ⚠️ DEVELOPMENT MODE - Set to 'true' to bypass Worldcoin verification for testing
-// ⚠️ NEVER USE IN PRODUCTION - This skips proof verification entirely
+// DEVELOPMENT MODE - Set to 'true' to bypass Worldcoin verification for testing
+// NEVER USE IN PRODUCTION - This skips proof verification entirely
 const DEV_MODE_SKIP_WORLDCOIN = process.env.DEV_MODE_SKIP_WORLDCOIN === "true";
 
 if (DEV_MODE_SKIP_WORLDCOIN) {
-  console.warn("⚠️  WARNING: Worldcoin verification is DISABLED (DEV MODE)");
-  console.warn("⚠️  This should NEVER be used in production!");
+  console.warn("WARNING: Worldcoin verification is DISABLED (DEV MODE)");
+  console.warn("This should NEVER be used in production!");
 }
 
 // Validate required env vars
 if (!ISSUER_PRIVATE_KEY || !RPC_URL || !WORLDCOIN_APP_ID) {
-  console.error("❌ Missing required environment variables");
+  console.error("Missing required environment variables");
   process.exit(1);
 }
 
@@ -101,7 +101,7 @@ console.log(`💰 Token Gate: ${GOVERNANCE_TOKEN_ADDRESS}`);
 console.log("------------------------------------------------");
 
 // =====================================================
-// ✅ INPUT VALIDATION
+// INPUT VALIDATION
 // =====================================================
 function isValidEthereumAddress(address) {
   return /^0x[a-fA-F0-9]{40}$/.test(address);
@@ -121,7 +121,7 @@ function isValidWorldcoinProof(proof) {
 }
 
 // =====================================================
-// ✅ Worldcoin Verification with Enhanced Debugging
+// Worldcoin Verification with Enhanced Debugging
 // =====================================================
 async function verifyWorldcoinProof(proof, signal) {
   const endpoint = `https://developer.worldcoin.org/api/v2/verify/${WORLDCOIN_APP_ID.trim()}`;
@@ -135,11 +135,11 @@ async function verifyWorldcoinProof(proof, signal) {
   ];
 
   console.log("\n==================== WORLDCOIN VERIFICATION DEBUG ====================");
-  console.log("🚀 Endpoint:", endpoint);
-  console.log("📋 App ID:", WORLDCOIN_APP_ID);
-  console.log("📋 Action:", WORLDCOIN_ACTION);
-  console.log("📋 Verification Level:", proof.verification_level);
-  console.log("📋 Signal Variations to Test:");
+  console.log("Endpoint:", endpoint);
+  console.log("App ID:", WORLDCOIN_APP_ID);
+  console.log("Action:", WORLDCOIN_ACTION);
+  console.log("Verification Level:", proof.verification_level);
+  console.log("Signal Variations to Test:");
   signalVariations.forEach((v, i) => console.log(`   ${i + 1}. "${v}"`));
   console.log("======================================================================\n");
 
@@ -152,7 +152,7 @@ async function verifyWorldcoinProof(proof, signal) {
     signal: signal.toLowerCase(), // Start with lowercase
   };
 
-  console.log("📦 Sending Payload:", JSON.stringify(payload, null, 2));
+  console.log(" Sending Payload:", JSON.stringify(payload, null, 2));
 
   try {
     const controller = new AbortController();
@@ -169,10 +169,10 @@ async function verifyWorldcoinProof(proof, signal) {
     const data = await response.json();
 
     if (response.ok && data.success) {
-      console.log("✅ Worldcoin verification successful");
+      console.log("Worldcoin verification successful");
       return { success: true };
     } else {
-      console.error("❌ Worldcoin verification failed:");
+      console.error("Worldcoin verification failed:");
       console.error("   Status Code:", response.status);
       console.error("   Code:", data.code);
       console.error("   Detail:", data.detail);
@@ -181,7 +181,7 @@ async function verifyWorldcoinProof(proof, signal) {
       
       // Additional debugging hints
       if (data.code === "invalid_proof") {
-        console.error("\n🔍 DEBUGGING HINTS:");
+        console.error("\nDEBUGGING HINTS:");
         console.error("   1. Check if frontend signal matches backend signal");
         console.error("   2. Verify action is the same on frontend and backend");
         console.error("   3. Confirm app_id matches between frontend and backend");
@@ -193,16 +193,16 @@ async function verifyWorldcoinProof(proof, signal) {
     }
   } catch (error) {
     if (error.name === "AbortError") {
-      console.error("❌ Worldcoin API timeout");
+      console.error("Worldcoin API timeout");
       return { success: false, error: "Verification timeout" };
     }
-    console.error("❌ Network error:", error.message);
+    console.error("Network error:", error.message);
     return { success: false, error: "Network error during verification" };
   }
 }
 
 // =====================================================
-// ✅ MAIN ENDPOINT: ISSUE CREDENTIAL
+// MAIN ENDPOINT: ISSUE CREDENTIAL
 // =====================================================
 app.post("/issue-credential", async (req, res) => {
   try {
@@ -259,7 +259,7 @@ app.post("/issue-credential", async (req, res) => {
 
       // If already registered with same wallet, return existing credential
       if (existing && existing.wallet === normalizedAddress) {
-        console.log("ℹ️  Wallet already registered, reissuing credential");
+        console.log("Wallet already registered, reissuing credential");
         const hash = ethers.solidityPackedKeccak256(["address"], [userAddress]);
         const signature = await wallet.signMessage(ethers.getBytes(hash));
         
@@ -272,12 +272,12 @@ app.post("/issue-credential", async (req, res) => {
       }
 
       // --- STEP 2: VERIFY HUMAN ---
-      console.log(`🔍 Verifying humanity for: ${normalizedAddress}`);
+      console.log(`Verifying humanity for: ${normalizedAddress}`);
       
-      // ⚠️ DEV MODE: Skip Worldcoin verification if enabled
+      // DEV MODE: Skip Worldcoin verification if enabled
       let verificationResult;
       if (DEV_MODE_SKIP_WORLDCOIN) {
-        console.warn("⚠️  SKIPPING Worldcoin verification (DEV MODE)");
+        console.warn("SKIPPING Worldcoin verification (DEV MODE)");
         verificationResult = { success: true };
       } else {
         verificationResult = await verifyWorldcoinProof(
@@ -294,9 +294,9 @@ app.post("/issue-credential", async (req, res) => {
       }
 
       // --- STEP 3: TOKEN GATE ---
-      console.log("💎 Checking token balance...");
+      console.log("Checking token balance...");
       const balance = await tokenContract.balanceOf(userAddress);
-      console.log(`💎 Token Balance: ${ethers.formatEther(balance)}`);
+      console.log(`Token Balance: ${ethers.formatEther(balance)}`);
 
       if (balance < MIN_TOKENS_REQUIRED) {
         return res.status(403).json({
@@ -313,13 +313,13 @@ app.post("/issue-credential", async (req, res) => {
 
       walletToNullifier.set(normalizedAddress, nullifierHash);
 
-      console.log("💾 Human registered successfully");
+      console.log(" Human registered successfully");
 
       // --- STEP 5: SIGN CREDENTIAL ---
       const hash = ethers.solidityPackedKeccak256(["address"], [userAddress]);
       const signature = await wallet.signMessage(ethers.getBytes(hash));
 
-      console.log("🎉 Credential issued successfully\n");
+      console.log("Credential issued successfully\n");
 
       res.json({
         success: true,
@@ -331,7 +331,7 @@ app.post("/issue-credential", async (req, res) => {
       registrationLocks.delete(nullifierHash);
     }
   } catch (err) {
-    console.error("❌ Issuer error:", err);
+    console.error("Issuer error:", err);
     
     // Don't expose internal errors to client
     res.status(500).json({
@@ -342,7 +342,7 @@ app.post("/issue-credential", async (req, res) => {
 });
 
 // =====================================================
-// ✅ DEBUG ENDPOINT - Check Configuration Match
+// DEBUG ENDPOINT - Check Configuration Match
 // =====================================================
 app.post("/debug-config", (req, res) => {
   const { appId, action, signal } = req.body;
@@ -375,7 +375,7 @@ app.post("/debug-config", (req, res) => {
 });
 
 // =====================================================
-// ✅ STATUS ENDPOINT
+// STATUS ENDPOINT
 // =====================================================
 app.get("/status", (req, res) => {
   res.json({
@@ -388,7 +388,7 @@ app.get("/status", (req, res) => {
 });
 
 // =====================================================
-// ✅ HEALTH CHECK
+// HEALTH CHECK
 // =====================================================
 app.get("/health", async (req, res) => {
   try {
@@ -401,7 +401,7 @@ app.get("/health", async (req, res) => {
 });
 
 // =====================================================
-// ✅ ERROR HANDLING
+// ERROR HANDLING
 // =====================================================
 app.use((err, req, res, next) => {
   console.error("Unhandled error:", err);
@@ -412,7 +412,7 @@ app.use((err, req, res, next) => {
 });
 
 // =====================================================
-// ✅ GRACEFUL SHUTDOWN
+// GRACEFUL SHUTDOWN
 // =====================================================
 process.on("SIGTERM", () => {
   console.log("SIGTERM received, shutting down gracefully");
@@ -423,6 +423,6 @@ process.on("SIGTERM", () => {
 });
 
 const server = app.listen(PORT, () => {
-  console.log(`🚀 Server running at http://localhost:${PORT}`);
+  console.log(`Server running at http://localhost:${PORT}`);
   console.log(`📊 Status endpoint: http://localhost:${PORT}/status\n`);
 });

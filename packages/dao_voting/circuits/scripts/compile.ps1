@@ -47,9 +47,9 @@ function Compile-Circuit {
         -l "$RootNodeModules"
 
     if ($LASTEXITCODE -eq 0) {
-        Write-Host "✅ $Name compiled successfully!" -ForegroundColor Green
+        Write-Host "$Name compiled successfully!" -ForegroundColor Green
     } else {
-        Write-Host "❌ $Name compilation failed." -ForegroundColor Red
+        Write-Host "$Name compilation failed." -ForegroundColor Red
         exit 1
     }
 }
@@ -59,4 +59,4 @@ Compile-Circuit "merkleTree.circom"
 Compile-Circuit "nullifier.circom"
 Compile-Circuit "vote.circom"
 
-Write-Host "🎉 All circuits compiled successfully!" -ForegroundColor Cyan
+Write-Host "All circuits compiled successfully!" -ForegroundColor Cyan

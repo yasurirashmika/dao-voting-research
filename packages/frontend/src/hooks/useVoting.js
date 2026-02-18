@@ -13,7 +13,7 @@ export const useVoting = () => {
   const { contract, read, write } = useContract('DAOVoting', DAOVotingABI.abi);
 
   /**
-   * ✅ UPDATED: Adaptive vote casting
+   * UPDATED: Adaptive vote casting
    * Auto-detects if using Baseline or Private system
    * 
    * Cast a vote on a proposal
@@ -32,7 +32,7 @@ export const useVoting = () => {
       const isPrivate = isPrivateVotingEnabled();
       
       if (isPrivate) {
-        // ✅ TODO: Generate ZKP proof here in future
+        // TODO: Generate ZKP proof here in future
         // For now, we'll use the same function name
         console.warn('🔒 Private voting mode detected. ZKP proof generation not yet implemented.');
         console.warn('📝 Using fallback public vote for demonstration.');
@@ -47,7 +47,7 @@ export const useVoting = () => {
         setLoading(false);
         return result;
       } else {
-        // ✅ Baseline mode: Standard public vote
+        // Baseline mode: Standard public vote
         const result = await write('castVote', [proposalId, support]);
         console.log('Vote cast successfully:', result);
         setLoading(false);
@@ -234,7 +234,7 @@ export const useVoting = () => {
     getVotingParameters,
     loading,
     error,
-    // ✅ NEW: Expose deployment mode info
+    // NEW: Expose deployment mode info
     isPrivateMode: isPrivateVotingEnabled()
   };
 };

@@ -17,14 +17,14 @@
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
 }
 
-/* ✅ Header Styles - FIXED for Light Mode */
+/* Header Styles - FIXED for Light Mode */
 .register-header {
   text-align: center;
   margin-bottom: 2rem;
 }
 
 .register-title {
-  color: var(--text-primary) !important; /* ✅ Force theme color */
+  color: var(--text-primary) !important; /* Force theme color */
   font-size: 2.5rem;
   font-weight: 700;
   margin-bottom: 0.5rem;
@@ -32,7 +32,7 @@
 }
 
 .register-subtitle {
-  color: var(--text-secondary) !important; /* ✅ Force theme color */
+  color: var(--text-secondary) !important; /* Force theme color */
   font-size: 1.1rem;
   font-weight: 400;
 }

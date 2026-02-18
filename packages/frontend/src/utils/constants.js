@@ -1,4 +1,4 @@
-// ✅ CORRECTED - Matches your Smart Contract
+// CORRECTED - Matches your Smart Contract
 export const PROPOSAL_STATE = {
   PENDING: 0,
   ACTIVE: 1,

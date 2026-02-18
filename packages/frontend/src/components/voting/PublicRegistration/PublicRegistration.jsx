@@ -15,7 +15,7 @@ const PublicRegistration = () => {
   const { address, isConnected } = useAccount();
   const { balance } = useWallet();
   
-  // ✅ Get contract instances
+  // Get contract instances
   const { contract: votingContract, read: readVoting, write: writeVoting } = useContract('DAOVoting', DAOVotingABI.abi);
   const { contract: tokenContract, read: readToken } = useContract('GovernanceToken', GovernanceTokenABI.abi);
 
@@ -26,19 +26,19 @@ const PublicRegistration = () => {
   const [checkingStatus, setCheckingStatus] = useState(true);
   const [alert, setAlert] = useState(null);
 
-  // ✅ Add contracts to dependency array
+  // Add contracts to dependency array
   useEffect(() => {
     checkRegistrationStatus();
   }, [address, votingContract, tokenContract, isConnected]);
 
   const checkRegistrationStatus = async () => {
-    // ✅ CRITICAL: Check if wallet is connected
+    // CRITICAL: Check if wallet is connected
     if (!address || !isConnected) {
       setCheckingStatus(false);
       return;
     }
 
-    // ✅ CRITICAL: Check if contracts are initialized
+    // CRITICAL: Check if contracts are initialized
     if (!votingContract || !tokenContract) {
       console.log('⏳ PublicRegistration: Waiting for contracts to initialize...');
       setCheckingStatus(true);
@@ -92,7 +92,7 @@ const PublicRegistration = () => {
 
     try {
       const { hash } = await writeVoting('selfRegister', []);
-      console.log('✅ Registration transaction:', hash);
+      console.log('Registration transaction:', hash);
 
       showAlert('success', 'Registration Successful!', 
         'You are now registered and can vote on proposals.'
