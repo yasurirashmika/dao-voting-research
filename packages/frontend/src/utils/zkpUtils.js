@@ -4,6 +4,7 @@
  */
 
 import { buildPoseidon } from 'circomlibjs';
+const snarkjs = (typeof window !== 'undefined' && window.snarkjs) ? window.snarkjs : require('snarkjs');
 
 let poseidonInstance = null;
 
@@ -128,42 +129,46 @@ export async function generateVoteProof(
   // Get Merkle proof
   const { pathElements, pathIndices } = getMerkleProof(tree, voterIndex);
 
-  // Generate nullifier
-  const nullifier = await generateNullifier(secret, proposalId);
-  console.log('  Nullifier:', nullifier);
+  // Generate nullifier (kept for compatibility if needed)
+  const computedNullifier = await generateNullifier(secret, proposalId);
 
-  // MOCK PROOF - In production, call circuit here
-  // const { proof, publicSignals } = await snarkjs.groth16.fullProve(input, wasm, zkey);
-  
-  // For now, return mock proof structure
-  const mockProof = {
-    proof: {
-      pi_a: [
-        '0x0000000000000000000000000000000000000000000000000000000000000000',
-        '0x0000000000000000000000000000000000000000000000000000000000000000'
-      ],
-      pi_b: [
-        [
-          '0x0000000000000000000000000000000000000000000000000000000000000000',
-          '0x0000000000000000000000000000000000000000000000000000000000000000'
-        ],
-        [
-          '0x0000000000000000000000000000000000000000000000000000000000000000',
-          '0x0000000000000000000000000000000000000000000000000000000000000000'
-        ]
-      ],
-      pi_c: [
-        '0x0000000000000000000000000000000000000000000000000000000000000000',
-        '0x0000000000000000000000000000000000000000000000000000000000000000'
-      ]
-    },
-    publicSignals: [root, proposalId.toString(), voteChoice.toString()],
-    nullifier
-  };
+  // Call snarkjs to generate the real proof using wasm and zkey
+  try {
+    const inputForCircuit = {
+      root: root.replace(/^0x/, ''),
+      proposalId: proposalId.toString(),
+      voteChoice: voteChoice.toString(),
+      secret: secret.toString(),
+      pathElements: pathElements.map((p) => p.toString()),
+      pathIndices: pathIndices.map((i) => i.toString())
+    };
 
-  console.log('Proof generated (MOCK)');
-  
-  return mockProof;
+    // Paths served by the frontend static assets (matches ZKVotingModule.jsx)
+    const wasmPath = '/circuits/vote.wasm';
+    const zkeyPath = '/circuits/vote_final.zkey';
+
+    console.log('Calling snarkjs.groth16.fullProve with input:', inputForCircuit);
+
+    const { proof, publicSignals } = await snarkjs.groth16.fullProve(
+      inputForCircuit,
+      wasmPath,
+      zkeyPath
+    );
+
+    // Convert the first public signal (nullifier) to a 0x-prefixed 32-byte hex string
+    const nullifierFromProof = `0x${BigInt(publicSignals[0]).toString(16).padStart(64, '0')}`;
+
+    console.log('Proof generated (real)');
+
+    return {
+      proof,
+      publicSignals,
+      nullifier: nullifierFromProof
+    };
+  } catch (err) {
+    console.error('Error generating proof with snarkjs:', err);
+    throw err;
+  }
 }
 
 /**
