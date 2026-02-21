@@ -6,7 +6,6 @@ import { useProposals } from "../../hooks/useProposals";
 import Card from "../../components/common/Card/Card";
 import Button from "../../components/common/Button/Button";
 import Input from "../../components/common/Input/Input";
-import Alert from "../../components/common/Alert/Alert";
 import Modal from "../../components/common/Modal/Modal";
 import {
   validateProposalTitle,
@@ -17,9 +16,8 @@ import "./CreateProposalPage.css";
 
 const CreateProposalPage = () => {
   const navigate = useNavigate();
-  const { address, isConnected } = useAccount();
+  const { isConnected } = useAccount();
 
-  // 1. Get refreshProposals from hook
   const { createProposal, refreshProposals } = useProposals();
 
   const [formData, setFormData] = useState({
@@ -32,7 +30,6 @@ const CreateProposalPage = () => {
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
 
-  // Modal State for Errors/Success
   const [modalState, setModalState] = useState({
     isOpen: false,
     type: "error",
@@ -40,7 +37,6 @@ const CreateProposalPage = () => {
     message: "",
   });
 
-  // Helper to open modal
   const showModal = (type, title, message) => {
     setModalState({
       isOpen: true,
@@ -52,7 +48,6 @@ const CreateProposalPage = () => {
 
   const closeModal = () => {
     setModalState((prev) => ({ ...prev, isOpen: false }));
-    // If it was a success modal, navigate away on close
     if (modalState.type === "success") {
       navigate("/proposals");
     }
@@ -125,7 +120,6 @@ const CreateProposalPage = () => {
         formData.minReputationRequired
       );
 
-      // 2. Trigger Global Refresh immediately after success
       console.log("🔄 Refreshing proposals list...");
       refreshProposals();
 
@@ -139,16 +133,15 @@ const CreateProposalPage = () => {
 
       let errorMessage = "Failed to create proposal. Please try again.";
 
-      // Smart Error Handling
-      if (error.message.includes("Only registered voters")) {
+      if (error.message?.includes("Only registered voters")) {
         errorMessage =
           "Access Denied: Only registered voters can create proposals. Please register in the Admin panel or contact a DAO member.";
-      } else if (error.message.includes("Insufficient tokens")) {
+      } else if (error.message?.includes("Insufficient tokens")) {
         errorMessage =
           "Insufficient Balance: You need 1,000 Governance Tokens to create a proposal.";
       } else if (
-        error.message.includes("User denied") ||
-        error.message.includes("user rejected")
+        error.message?.includes("User denied") ||
+        error.message?.includes("user rejected")
       ) {
         errorMessage = "Transaction cancelled in MetaMask.";
       } else if (error.shortMessage) {
@@ -170,33 +163,56 @@ const CreateProposalPage = () => {
 
   return (
     <div className="create-proposal-page">
-      <div className="create-proposal-header">
-        <Button variant="ghost" onClick={() => navigate("/proposals")}>
-          ← Back to Proposals
-        </Button>
-        <h1 className="page-title">Create New Proposal</h1>
-        <p className="page-subtitle">
-          Submit a proposal for the DAO to vote on. Make sure to provide clear
-          details about what you're proposing.
-        </p>
+      {/* Hero Section */}
+      <div className="create-proposal-hero">
+        <div className="hero-content">
+          <button className="back-button" onClick={() => navigate("/proposals")}>
+            <span className="back-icon">←</span>
+            Back to Proposals
+          </button>
+          <div className="hero-text">
+            <h1 className="page-title">
+              <span className="title-icon">📝</span>
+              Create New Proposal
+            </h1>
+            <p className="page-subtitle">
+              Submit a proposal for the DAO to vote on. Your idea could shape the future of the organization.
+            </p>
+          </div>
+        </div>
+        <div className="hero-decoration">
+          <div className="decoration-circle circle-1"></div>
+          <div className="decoration-circle circle-2"></div>
+          <div className="decoration-circle circle-3"></div>
+        </div>
       </div>
 
       <div className="create-proposal-content">
+        {/* Main Form */}
         <Card padding="large" className="create-proposal-form-card">
+          <div className="form-header">
+            <h2 className="form-title">Proposal Details</h2>
+            <p className="form-subtitle">Fill in the information about your proposal</p>
+          </div>
+
           <form onSubmit={handleSubmit} className="create-proposal-form">
             {/* Title */}
             <div className="form-section">
+              <div className="input-header">
+                <label className="form-label">
+                  <span className="label-icon">📋</span>
+                  Proposal Title
+                </label>
+                <span className="char-count">
+                  {characterCount.title}/{MAX_VALUES.PROPOSAL_TITLE_LENGTH}
+                </span>
+              </div>
               <Input
-                label="Proposal Title"
                 type="text"
                 value={formData.title}
                 onChange={(e) => handleChange("title", e.target.value)}
-                placeholder="Enter a clear, descriptive title..."
+                placeholder="Enter a clear, descriptive title for your proposal..."
                 error={errors.title}
-                helperText={
-                  !errors.title &&
-                  `${characterCount.title}/${MAX_VALUES.PROPOSAL_TITLE_LENGTH} characters`
-                }
                 required
                 fullWidth
               />
@@ -204,83 +220,119 @@ const CreateProposalPage = () => {
 
             {/* Description */}
             <div className="form-section">
-              <Input
-                label="Proposal Description"
-                multiline
-                rows={12}
+              <div className="input-header">
+                <label className="form-label">
+                  <span className="label-icon">📄</span>
+                  Description
+                </label>
+                <span className="char-count">
+                  {characterCount.description}/{MAX_VALUES.PROPOSAL_DESCRIPTION_LENGTH}
+                </span>
+              </div>
+              <textarea
+                className="description-input"
+                style={{
+                  backgroundColor: 'var(--color-background-secondary)',
+                  color: 'var(--color-text-primary)',
+                  borderColor: 'var(--color-border)'
+                }}
+                rows={10}
                 value={formData.description}
                 onChange={(e) => handleChange("description", e.target.value)}
-                placeholder="Provide detailed information about your proposal...&#10;&#10;• What problem does this solve?&#10;• What are the expected outcomes?&#10;• What resources are needed?&#10;• What is the timeline?"
-                error={errors.description}
-                helperText={
-                  !errors.description &&
-                  `${characterCount.description}/${MAX_VALUES.PROPOSAL_DESCRIPTION_LENGTH} characters (minimum 50)`
-                }
-                required
-                fullWidth
+                placeholder={`Describe your proposal in detail:
+
+• What problem does this solve?
+• What are the expected outcomes?
+• What resources are needed?
+• What is the timeline?`}
               />
+              {errors.description && (
+                <span className="error-text">{errors.description}</span>
+              )}
             </div>
 
             {/* Voting Requirements Section */}
-            <div className="form-section">
-              <h3 className="section-subtitle">
-                Voting Requirements (Optional)
-              </h3>
-              <p className="section-description">
-                Set minimum requirements for voters to participate in this
-                proposal. Leave at 0 to allow all registered voters.
-              </p>
+            <div className="requirements-section">
+              <div className="section-header">
+                <h3 className="section-subtitle">
+                  <span className="section-icon">⚙️</span>
+                  Voting Requirements
+                </h3>
+                <p className="section-description">
+                  Set minimum requirements for voters to participate in this proposal
+                </p>
+              </div>
 
               <div className="requirements-grid">
-                <Input
-                  label="Minimum Tokens Required"
-                  type="number"
-                  min="0"
-                  value={formData.minTokensRequired}
-                  onChange={(e) =>
-                    handleChange("minTokensRequired", e.target.value)
-                  }
-                  placeholder="0"
-                  error={errors.minTokensRequired}
-                  helperText="Minimum governance tokens needed to vote (0 = no minimum)"
-                  fullWidth
-                />
+                <div className="requirement-card">
+                  <div className="requirement-header">
+                    <span className="requirement-icon">🪙</span>
+                    <span className="requirement-label">Minimum Tokens</span>
+                  </div>
+                  <Input
+                    type="number"
+                    min="0"
+                    value={formData.minTokensRequired}
+                    onChange={(e) =>
+                      handleChange("minTokensRequired", e.target.value)
+                    }
+                    placeholder="0"
+                    error={errors.minTokensRequired}
+                    fullWidth
+                  />
+                  <span className="requirement-hint">
+                    Minimum governance tokens needed to vote
+                  </span>
+                </div>
 
-                <Input
-                  label="Minimum Reputation Required"
-                  type="number"
-                  min="0"
-                  max="1000"
-                  value={formData.minReputationRequired}
-                  onChange={(e) =>
-                    handleChange("minReputationRequired", e.target.value)
-                  }
-                  placeholder="0"
-                  error={errors.minReputationRequired}
-                  helperText="Minimum reputation score (0-1000, 0 = no minimum)"
-                  fullWidth
-                />
+                <div className="requirement-card">
+                  <div className="requirement-header">
+                    <span className="requirement-icon">⭐</span>
+                    <span className="requirement-label">Minimum Reputation</span>
+                  </div>
+                  <Input
+                    type="number"
+                    min="0"
+                    max="1000"
+                    value={formData.minReputationRequired}
+                    onChange={(e) =>
+                      handleChange("minReputationRequired", e.target.value)
+                    }
+                    placeholder="0"
+                    error={errors.minReputationRequired}
+                    fullWidth
+                  />
+                  <span className="requirement-hint">
+                    Minimum reputation score (0-1000)
+                  </span>
+                </div>
               </div>
             </div>
 
             {/* Info Box */}
-            <div className="info-box">
-              <div className="info-box-icon">ℹ️</div>
-              <div className="info-box-content">
-                <h4>Before submitting:</h4>
-                <ul>
-                  <li>
-                    Ensure you have enough governance tokens (1,000) to create a
-                    proposal
-                  </li>
-                  <li>Double-check all information for accuracy</li>
-                  <li>
-                    Your proposal will be publicly visible and cannot be edited
-                  </li>
-                  <li>The voting period will start after a 1-hour delay</li>
-                  <li>Voting lasts for 7 days after it starts</li>
-                </ul>
+            <div className="info-box-enhanced">
+              <div className="info-box-header">
+                <span className="info-icon">💡</span>
+                <span className="info-title">Before you submit</span>
               </div>
+              <ul className="info-list">
+                <li>
+                  <span className="check-icon">✓</span>
+                  Ensure you have at least 1,000 governance tokens
+                </li>
+                <li>
+                  <span className="check-icon">✓</span>
+                  Double-check all information for accuracy
+                </li>
+                <li>
+                  <span className="check-icon">✓</span>
+                  Your proposal will be publicly visible
+                </li>
+                <li>
+                  <span className="check-icon">✓</span>
+                  Voting period starts after a 1-hour delay
+                </li>
+              </ul>
             </div>
 
             {/* Actions */}
@@ -300,13 +352,15 @@ const CreateProposalPage = () => {
                 size="large"
                 loading={loading}
                 disabled={loading || !isConnected}
+                icon={loading ? "" : "🚀"}
               >
-                {loading ? "Creating Proposal..." : "Create Proposal"}
+                {loading ? "Creating..." : "Submit Proposal"}
               </Button>
             </div>
 
             {!isConnected && (
-              <div className="warning-box">
+              <div className="wallet-warning">
+                <span className="warning-icon">🔐</span>
                 Please connect your wallet to create a proposal
               </div>
             )}
@@ -314,47 +368,95 @@ const CreateProposalPage = () => {
         </Card>
 
         {/* Preview Card */}
-        <Card padding="large" className="preview-card">
-          <h3 className="preview-title">Preview</h3>
-          <div className="preview-content">
-            {formData.title ? (
-              <>
-                <h2 className="preview-proposal-title">{formData.title}</h2>
-                {formData.description ? (
-                  <p className="preview-description">{formData.description}</p>
-                ) : (
-                  <p className="preview-placeholder">
-                    Description will appear here...
-                  </p>
-                )}
-
-                {(formData.minTokensRequired !== "0" ||
-                  formData.minReputationRequired !== "0") && (
-                  <div className="preview-requirements">
-                    <h4>Voting Requirements:</h4>
-                    <ul>
-                      {formData.minTokensRequired !== "0" && (
-                        <li>
-                          Minimum {formData.minTokensRequired} governance tokens
-                        </li>
-                      )}
-                      {formData.minReputationRequired !== "0" && (
-                        <li>
-                          Minimum {formData.minReputationRequired} reputation
-                          score
-                        </li>
-                      )}
-                    </ul>
+        <div className="preview-section">
+          <Card padding="large" className="preview-card">
+            <div className="preview-header">
+              <span className="preview-icon">👁️</span>
+              <h3 className="preview-title">Live Preview</h3>
+            </div>
+            
+            <div className="preview-badge">
+              PROPOSAL PREVIEW
+            </div>
+            
+            <div className="preview-content">
+              {formData.title ? (
+                <>
+                  <div className="preview-meta">
+                    <span style={{ color: 'var(--color-success)' }}>📌 Active</span>
+                    <span style={{ color: 'var(--color-text-tertiary)' }}>
+                      {new Date().toLocaleDateString()}
+                    </span>
                   </div>
-                )}
-              </>
-            ) : (
-              <p className="preview-placeholder">
-                Your proposal preview will appear here as you type...
-              </p>
-            )}
-          </div>
-        </Card>
+                  <h2 className="preview-proposal-title">{formData.title}</h2>
+                  
+                  {formData.description ? (
+                    <div className="preview-description-wrapper">
+                      <p className="preview-description">{formData.description}</p>
+                    </div>
+                  ) : (
+                    <p className="preview-placeholder">
+                      Your proposal description will appear here as you type...
+                    </p>
+                  )}
+
+                  {(formData.minTokensRequired !== "0" ||
+                    formData.minReputationRequired !== "0") && (
+                    <div className="preview-requirements">
+                      <h4>
+                        <span className="req-icon">📊</span>
+                        Voting Requirements
+                      </h4>
+                      <ul>
+                        {formData.minTokensRequired !== "0" && (
+                          <li>
+                            <span className="req-badge token">
+                              🪙 {formData.minTokensRequired} GOV
+                            </span>
+                            Minimum tokens
+                          </li>
+                        )}
+                        {formData.minReputationRequired !== "0" && (
+                          <li>
+                            <span className="req-badge rep">
+                              ⭐ {formData.minReputationRequired} REP
+                            </span>
+                            Minimum reputation
+                          </li>
+                        )}
+                      </ul>
+                    </div>
+                  )}
+
+                  <div className="preview-actions">
+                    <button className="preview-vote-btn vote-yes">👍 Vote Yes</button>
+                    <button className="preview-vote-btn vote-no">👎 Vote No</button>
+                  </div>
+                </>
+              ) : (
+                <div className="preview-empty">
+                  <span className="empty-icon">✏️</span>
+                  <p>Start typing to see your proposal preview</p>
+                </div>
+              )}
+            </div>
+          </Card>
+
+          {/* Tips Card */}
+          <Card padding="medium" className="tips-card">
+            <div className="tips-header">
+              <span className="tips-icon">💪</span>
+              <h4>Tips for a Great Proposal</h4>
+            </div>
+            <ul className="tips-list">
+              <li>Be clear and concise in your title</li>
+              <li>Explain the problem you're solving</li>
+              <li>Provide measurable outcomes</li>
+              <li>Consider the budget and timeline</li>
+              <li>Anticipate potential concerns</li>
+            </ul>
+          </Card>
+        </div>
       </div>
 
       {/* Error/Success Popup Modal */}
@@ -372,26 +474,10 @@ const CreateProposalPage = () => {
         }
       >
         <div className={`modal-message ${modalState.type}`}>
-          <div
-            style={{
-              fontSize: "3rem",
-              marginBottom: "1rem",
-              textAlign: "center",
-            }}
-          >
-            {modalState.type === "success" ? "✅" : "❌"}
+          <div className="modal-icon">
+            {modalState.type === "success" ? "🎉" : "⚠️"}
           </div>
-
-          <p
-            style={{
-              fontSize: "1.1rem",
-              textAlign: "center",
-              color: "var(--color-text-primary)",
-              lineHeight: "1.6",
-            }}
-          >
-            {modalState.message}
-          </p>
+          <p className="modal-text">{modalState.message}</p>
         </div>
       </Modal>
     </div>
