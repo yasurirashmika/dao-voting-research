@@ -96,7 +96,7 @@ const WhaleAnalysis = ({ testWallets = [] }) => {
       <div className="whale-header">
         <h3 className="whale-title">
           <span className="title-icon">🐋</span>
-          Voting Power Distribution
+          Governance Power Distribution
         </h3>
         <span className="total-power">
           Total: {totalSupply.toLocaleString()} Tokens

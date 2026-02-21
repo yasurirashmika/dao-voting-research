@@ -152,7 +152,7 @@ const VotingPower = ({ userAddress }) => {
   return (
     <div className="voting-power-widget">
       <div className="voting-power-header">
-        <h3 className="voting-power-title">Voting Power</h3>
+        <h3 className="voting-power-title">Governance Power</h3>
         <div className="total-power">
           {votingData.totalVotingPower.toLocaleString()}
         </div>
@@ -208,8 +208,8 @@ const VotingPower = ({ userAddress }) => {
         <div className="info-icon">💡</div>
         <div className="info-text">
           {hasReputation 
-            ? 'Voting power combines your token balance (70%) and reputation score (30%)'
-            : 'Voting power is based on your token balance (100%)'}
+            ? 'Governance power combines your token balance (70%) and reputation score (30%)'
+            : 'Governance power is based on your token balance (100%)'}
         </div>
       </div>
     </div>
