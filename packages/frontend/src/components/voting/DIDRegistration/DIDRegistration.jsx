@@ -377,15 +377,6 @@ const DIDRegistration = () => {
                     </Button>
                   )}
                 </IDKitWidget>
-                {normalizedAddress && (
-                  <div style={{ 
-                    marginTop: "0.5rem", 
-                    fontSize: "0.85rem", 
-                    color: "#666" 
-                  }}>
-                    Signal: {normalizedAddress}
-                  </div>
-                )}
               </>
             ) : (
               <div
