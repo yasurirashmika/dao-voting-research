@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import { useAccount } from "wagmi";
 import { useAdmin } from "../../hooks/useAdmin";
 import { useVoterDiscovery } from "../../hooks/useVoterDiscovery"; // Import Auto-Discovery
+import { useDeployment } from "../../context/DeploymentContext";
 import Card from "../../components/common/Card/Card";
 import Button from "../../components/common/Button/Button";
 import Input from "../../components/common/Input/Input";
@@ -16,6 +17,7 @@ import ReputationManagement from "../../components/admin/ReputationManagement/Re
 
 const Admin = () => {
   const { address, isConnected } = useAccount();
+  const { mode, DEPLOYMENT_MODE } = useDeployment();
   const { registerVoter, isRegisteredVoter, isOwner, loading, contract } =
     useAdmin();
 
@@ -249,10 +251,12 @@ const Admin = () => {
       )}
 
       <div className="admin-grid">
-        {/* Row 1: System Sync */}
-        <div style={{ gridColumn: "1 / -1" }}>
-          <RootSync />
-        </div>
+        {/* Row 1: System Sync - Only show in Private (ZKP) mode */}
+        {mode === DEPLOYMENT_MODE.PRIVATE && (
+          <div style={{ gridColumn: "1 / -1" }}>
+            <RootSync />
+          </div>
+        )}
 
         {/* Row 2: Registration Forms */}
         <Card padding="large">
