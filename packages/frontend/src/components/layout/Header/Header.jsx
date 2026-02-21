@@ -61,8 +61,22 @@ const Header = () => {
     }
   }, [address, isConnected, daoContract, didContract, readDAO, readDID, mode]);
 
+  // Listen for registration completion to refresh header state immediately
   useEffect(() => {
+    const handleRegistrationComplete = () => {
+      console.log('Registration complete detected in Header, refreshing status...');
+      checkUserStatus();
+    };
+
+    // Listen for custom event from registration components
+    window.addEventListener('dao:registrationComplete', handleRegistrationComplete);
+
+    // Also check on mount and when address changes
     checkUserStatus();
+
+    return () => {
+      window.removeEventListener('dao:registrationComplete', handleRegistrationComplete);
+    };
   }, [checkUserStatus]);
 
   // Dynamic Navigation Links

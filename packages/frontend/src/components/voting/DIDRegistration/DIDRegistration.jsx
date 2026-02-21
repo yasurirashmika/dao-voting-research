@@ -254,6 +254,12 @@ const DIDRegistration = () => {
       );
       downloadSecretBackup(secret, commitment);
 
+      // Dispatch event to notify Header to refresh registration status immediately
+      window.dispatchEvent(new Event('dao:registrationComplete'));
+      
+      // Also save to localStorage for cross-tab communication
+      localStorage.setItem('dao_registration_complete', 'true');
+
       setTimeout(() => {
         checkRegistrationStatus();
       }, 2000);
@@ -311,11 +317,11 @@ const DIDRegistration = () => {
     );
   }
 
-  if (isRegistered) {
+ if (isRegistered) {
     return (
       <Card padding="large">
         <div className="did-registration-success">
-          <div className="success-icon">✅</div>
+          <div className="success-icon">✔️</div>
           <h3>Identity Verified</h3>
           <p>You are already registered for private voting.</p>
           <div
@@ -337,7 +343,7 @@ const DIDRegistration = () => {
       </Card>
     );
   }
-
+  
   return (
     <Card padding="large">
       <div className="did-registration">

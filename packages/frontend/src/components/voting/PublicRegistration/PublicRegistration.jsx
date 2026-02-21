@@ -98,6 +98,12 @@ const PublicRegistration = () => {
         'You are now registered and can vote on proposals.'
       );
 
+      // Dispatch event to notify Header to refresh registration status immediately
+      window.dispatchEvent(new Event('dao:registrationComplete'));
+      
+      // Also save to localStorage for cross-tab communication
+      localStorage.setItem('dao_registration_complete', 'true');
+
       setTimeout(() => {
         checkRegistrationStatus();
       }, 2000);
