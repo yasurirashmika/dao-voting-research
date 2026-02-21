@@ -16,6 +16,8 @@ import Alert from "../../components/common/Alert/Alert";
 import ReactMarkdown from "react-markdown";
 import ZKVotingModule from "../../components/voting/ZKVotingModule/ZKVotingModule";
 import { useToast } from "../../context/ToastContext";
+import { formatEther } from "ethers";
+
 import {
   formatAddress,
   formatDate,
@@ -83,7 +85,18 @@ const ProposalDetails = () => {
       const data = await getProposal(id);
       if (!data) return;
 
-      setProposal(data);
+     // FIX: Safely convert massive numbers to pure strings without scientific notation or BigInt
+      const safeFormat = (val) => Number(formatEther((val || 0).toLocaleString('fullwide', {useGrouping: false})));
+
+      const formattedData = {
+        ...data,
+        yesVotes: safeFormat(data.yesVotes),
+        noVotes: safeFormat(data.noVotes),
+        totalVotingWeight: safeFormat(data.totalVotingWeight),
+        minTokensRequired: data.minTokensRequired ? safeFormat(data.minTokensRequired) : 0
+      };
+
+      setProposal(formattedData);
 
       if (address && isConnected) {
         

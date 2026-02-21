@@ -6,6 +6,7 @@ import Card from "../../components/common/Card/Card";
 import Button from "../../components/common/Button/Button";
 import Input from "../../components/common/Input/Input";
 import Loader from "../../components/common/Loader/Loader";
+import { formatEther } from "ethers";
 import {
   formatAddress,
   formatDate,
@@ -154,12 +155,17 @@ const Proposals = () => {
 };
 
 // Proposal Card Component
+// Proposal Card Component
 const ProposalCard = ({ proposal }) => {
-  const totalVotes = (proposal.yesVotes || 0) + (proposal.noVotes || 0);
-  const yesPercentage =
-    totalVotes > 0 ? (proposal.yesVotes / totalVotes) * 100 : 0;
-  const noPercentage =
-    totalVotes > 0 ? (proposal.noVotes / totalVotes) * 100 : 0;
+  // FIX: Safely convert massive numbers to pure strings without scientific notation or BigInt
+  const safeFormat = (val) => Number(formatEther((val || 0).toLocaleString('fullwide', {useGrouping: false})));
+
+  const formattedYes = safeFormat(proposal.yesVotes);
+  const formattedNo = safeFormat(proposal.noVotes);
+  
+  const totalVotes = formattedYes + formattedNo;
+  const yesPercentage = totalVotes > 0 ? (formattedYes / totalVotes) * 100 : 0;
+  const noPercentage = totalVotes > 0 ? (formattedNo / totalVotes) * 100 : 0;
 
   return (
     <Link to={`/proposals/${proposal.id}`} className="proposal-card-link">
