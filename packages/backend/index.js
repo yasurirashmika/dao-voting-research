@@ -422,6 +422,19 @@ process.on("SIGTERM", () => {
   });
 });
 
+// This fixes the "Cannot GET /" error by giving the home page a response
+app.get("/", (req, res) => {
+  res.json({
+    message: "DAO Voting Backend is Live",
+    status: "healthy",
+    issuer: wallet.address
+  });
+});
+
+// --- VERCEL EXPORT ---
+// IMPORTANT: Vercel needs this to run your app as a serverless function
+module.exports = app;
+
 const server = app.listen(PORT, () => {
   console.log(`Server running at http://localhost:${PORT}`);
   console.log(`📊 Status endpoint: http://localhost:${PORT}/status\n`);
