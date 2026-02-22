@@ -6,16 +6,33 @@ const { ethers } = require("ethers");
 const app = express();
 
 // --- SECURITY: CORS Configuration ---
-const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(",") || ["http://localhost:3000"];
-app.use(cors({
-  origin: (origin, callback) => {
-    if (!origin || allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      callback(new Error("Not allowed by CORS"));
-    }
+const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(",") || [
+  "http://localhost:3000",
+  "https://daovoting.netlify.app"
+];
+
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+
+  // If the request has an origin and it's in our allowed list
+  if (allowedOrigins.includes(origin)) {
+    res.setHeader("Access-Control-Allow-Origin", origin);
+  } else if (!origin) {
+    // Allow non-browser requests (like Postman or server-to-server)
+    res.setHeader("Access-Control-Allow-Origin", "*");
   }
-}));
+
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS, PUT, PATCH, DELETE");
+  res.setHeader("Access-Control-Allow-Headers", "X-Requested-With, Content-Type, Authorization, Accept");
+  res.setHeader("Access-Control-Allow-Credentials", "true");
+
+  // IMMEDIATELY handle the OPTIONS preflight request
+  if (req.method === "OPTIONS") {
+    return res.status(200).end();
+  }
+
+  next();
+});
 
 app.use(express.json({ limit: "10kb" })); // Limit payload size
 
