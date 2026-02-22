@@ -5,6 +5,18 @@ const { ethers } = require("ethers");
 
 const app = express();
 
+// --- MANUAL CORS HEADERS (Vercel preflight fix) ---
+app.use((req, res, next) => {
+  res.header("Access-Control-Allow-Origin", req.headers.origin || "*");
+  res.header("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS");
+  res.header("Access-Control-Allow-Headers", "X-Requested-With, Content-Type, Authorization, Accept");
+  res.header("Access-Control-Allow-Credentials", "true");
+  if (req.method === "OPTIONS") {
+    return res.sendStatus(200);
+  }
+  next();
+});
+
 // --- SECURITY: CORS Configuration ---
 const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(",") || [
   "http://localhost:3000",
