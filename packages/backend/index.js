@@ -9,7 +9,7 @@ const app = express();
 const allowedOrigins = [
   "http://localhost:3000",
   "https://daovoting.netlify.app",
-  ...(process.env.ALLOWED_ORIGINS?.split(",") || [])
+  ...(process.env.ALLOWED_ORIGINS?.split(",") || []),
 ];
 
 app.use((req, res, next) => {
@@ -17,8 +17,14 @@ app.use((req, res, next) => {
   if (!origin || allowedOrigins.includes(origin)) {
     res.header("Access-Control-Allow-Origin", origin || "*");
   }
-  res.header("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS");
-  res.header("Access-Control-Allow-Headers", "X-Requested-With, Content-Type, Authorization, Accept");
+  res.header(
+    "Access-Control-Allow-Methods",
+    "GET,POST,PUT,PATCH,DELETE,OPTIONS",
+  );
+  res.header(
+    "Access-Control-Allow-Headers",
+    "X-Requested-With, Content-Type, Authorization, Accept",
+  );
   res.header("Access-Control-Allow-Credentials", "true");
   if (req.method === "OPTIONS") {
     return res.sendStatus(200);
@@ -36,22 +42,24 @@ const MAX_REQUESTS = 10;
 function simpleRateLimit(req, res, next) {
   const ip = req.ip || req.connection.remoteAddress;
   const now = Date.now();
-  
+
   if (!requestCounts.has(ip)) {
     requestCounts.set(ip, []);
   }
-  
+
   const requests = requestCounts.get(ip);
   // Remove old requests outside the window
-  const recentRequests = requests.filter(time => now - time < RATE_LIMIT_WINDOW);
-  
+  const recentRequests = requests.filter(
+    (time) => now - time < RATE_LIMIT_WINDOW,
+  );
+
   if (recentRequests.length >= MAX_REQUESTS) {
     return res.status(429).json({
       success: false,
-      error: "Too many requests, please try again later"
+      error: "Too many requests, please try again later",
     });
   }
-  
+
   recentRequests.push(now);
   requestCounts.set(ip, recentRequests);
   next();
@@ -93,7 +101,7 @@ const TOKEN_ABI = ["function balanceOf(address owner) view returns (uint256)"];
 const tokenContract = new ethers.Contract(
   GOVERNANCE_TOKEN_ADDRESS,
   TOKEN_ABI,
-  provider
+  provider,
 );
 
 // --- IN-MEMORY HUMAN REGISTRY (PoP) ---
@@ -137,20 +145,24 @@ async function verifyWorldcoinProof(proof, signal) {
 
   // Try multiple signal formats to identify the issue
   const signalVariations = [
-    signal.toLowerCase(),           // 0xced1b...
-    signal,                         // Original case
-    signal.toLowerCase().slice(2),  // Remove 0x prefix
-    signal.slice(2),               // Remove 0x prefix (original case)
+    signal.toLowerCase(), // 0xced1b...
+    signal, // Original case
+    signal.toLowerCase().slice(2), // Remove 0x prefix
+    signal.slice(2), // Remove 0x prefix (original case)
   ];
 
-  console.log("\n==================== WORLDCOIN VERIFICATION DEBUG ====================");
+  console.log(
+    "\n==================== WORLDCOIN VERIFICATION DEBUG ====================",
+  );
   console.log("Endpoint:", endpoint);
   console.log("App ID:", WORLDCOIN_APP_ID);
   console.log("Action:", WORLDCOIN_ACTION);
   console.log("Verification Level:", proof.verification_level);
   console.log("Signal Variations to Test:");
   signalVariations.forEach((v, i) => console.log(`   ${i + 1}. "${v}"`));
-  console.log("======================================================================\n");
+  console.log(
+    "======================================================================\n",
+  );
 
   const payload = {
     nullifier_hash: proof.nullifier_hash,
@@ -187,17 +199,25 @@ async function verifyWorldcoinProof(proof, signal) {
       console.error("   Detail:", data.detail);
       console.error("   Attribute:", data.attribute);
       console.error("   Full Response:", JSON.stringify(data, null, 2));
-      
+
       // Additional debugging hints
       if (data.code === "invalid_proof") {
         console.error("\nDEBUGGING HINTS:");
         console.error("   1. Check if frontend signal matches backend signal");
-        console.error("   2. Verify action is the same on frontend and backend");
-        console.error("   3. Confirm app_id matches between frontend and backend");
-        console.error("   4. Ensure verification was completed successfully on frontend");
-        console.error(`   5. Frontend should use signal: "${signal.toLowerCase()}"`);
+        console.error(
+          "   2. Verify action is the same on frontend and backend",
+        );
+        console.error(
+          "   3. Confirm app_id matches between frontend and backend",
+        );
+        console.error(
+          "   4. Ensure verification was completed successfully on frontend",
+        );
+        console.error(
+          `   5. Frontend should use signal: "${signal.toLowerCase()}"`,
+        );
       }
-      
+
       return { success: false, error: data.detail || "Verification failed" };
     }
   } catch (error) {
@@ -217,9 +237,13 @@ app.post("/issue-credential", async (req, res) => {
   try {
     const { userAddress, worldcoinProof } = req.body;
 
-    console.log("\n==================== NEW REGISTRATION REQUEST ====================");
+    console.log(
+      "\n==================== NEW REGISTRATION REQUEST ====================",
+    );
     console.log("📥 Wallet:", userAddress);
-    console.log("==================================================================\n");
+    console.log(
+      "==================================================================\n",
+    );
 
     // --- VALIDATION ---
     if (!userAddress || !worldcoinProof) {
@@ -259,19 +283,30 @@ app.post("/issue-credential", async (req, res) => {
     try {
       // --- STEP 1: CHECK UNIQUENESS FIRST ---
       const existing = humanRegistry.get(nullifierHash);
-      if (existing && existing.wallet !== normalizedAddress) {
+
+      // Block only if a DIFFERENT wallet completed registration with this identity
+      if (
+        existing &&
+        existing.status === "complete" &&
+        existing.wallet !== normalizedAddress
+      ) {
         return res.status(403).json({
           success: false,
-          error: "Registration Blocked: Sybil prevention active. Identity already in use.",
+          error:
+            "Registration Blocked: Sybil prevention active. Identity already in use.",
         });
       }
 
-      // If already registered with same wallet, return existing credential
-      if (existing && existing.wallet === normalizedAddress) {
+      // Same wallet already completed — reissue credential
+      if (
+        existing &&
+        existing.wallet === normalizedAddress &&
+        existing.status === "complete"
+      ) {
         console.log("Wallet already registered, reissuing credential");
         const hash = ethers.solidityPackedKeccak256(["address"], [userAddress]);
         const signature = await wallet.signMessage(ethers.getBytes(hash));
-        
+
         return res.json({
           success: true,
           signature,
@@ -280,9 +315,20 @@ app.post("/issue-credential", async (req, res) => {
         });
       }
 
+      // Same wallet with pending/failed registration — allow retry (fall through)
+      if (
+        existing &&
+        existing.wallet === normalizedAddress &&
+        existing.status === "pending"
+      ) {
+        console.log(
+          "Retrying previously failed registration for:",
+          normalizedAddress,
+        );
+      }
       // --- STEP 2: VERIFY HUMAN ---
       console.log(`Verifying humanity for: ${normalizedAddress}`);
-      
+
       // DEV MODE: Skip Worldcoin verification if enabled
       let verificationResult;
       if (DEV_MODE_SKIP_WORLDCOIN) {
@@ -291,7 +337,7 @@ app.post("/issue-credential", async (req, res) => {
       } else {
         verificationResult = await verifyWorldcoinProof(
           worldcoinProof,
-          userAddress // Pass original, function normalizes internally
+          userAddress, // Pass original, function normalizes internally
         );
       }
 
@@ -310,14 +356,17 @@ app.post("/issue-credential", async (req, res) => {
       if (balance < MIN_TOKENS_REQUIRED) {
         return res.status(403).json({
           success: false,
-          error: `Insufficient governance tokens (need ${ethers.formatEther(MIN_TOKENS_REQUIRED)})`,
+          error: `Insufficient governance tokens (need ${ethers.formatEther(
+            MIN_TOKENS_REQUIRED,
+          )})`,
         });
       }
 
-      // --- STEP 4: REGISTER HUMAN ---
+      // --- STEP 4: REGISTER HUMAN (mark as pending) ---
       humanRegistry.set(nullifierHash, {
         wallet: normalizedAddress,
         registeredAt: new Date().toISOString(),
+        status: "pending", // not complete until signature issued
       });
 
       walletToNullifier.set(normalizedAddress, nullifierHash);
@@ -327,6 +376,13 @@ app.post("/issue-credential", async (req, res) => {
       // --- STEP 5: SIGN CREDENTIAL ---
       const hash = ethers.solidityPackedKeccak256(["address"], [userAddress]);
       const signature = await wallet.signMessage(ethers.getBytes(hash));
+
+      // Mark complete only after signature is successfully issued
+      humanRegistry.set(nullifierHash, {
+        wallet: normalizedAddress,
+        registeredAt: new Date().toISOString(),
+        status: "complete",
+      });
 
       console.log("Credential issued successfully\n");
 
@@ -341,7 +397,7 @@ app.post("/issue-credential", async (req, res) => {
     }
   } catch (err) {
     console.error("Issuer error:", err);
-    
+
     // Don't expose internal errors to client
     res.status(500).json({
       success: false,
@@ -355,13 +411,13 @@ app.post("/issue-credential", async (req, res) => {
 // =====================================================
 app.post("/debug-config", (req, res) => {
   const { appId, action, signal } = req.body;
-  
+
   const matches = {
     appId: appId === WORLDCOIN_APP_ID,
     action: action === WORLDCOIN_ACTION,
     signalFormat: /^0x[a-fA-F0-9]{40}$/.test(signal),
   };
-  
+
   res.json({
     backend: {
       appId: WORLDCOIN_APP_ID,
@@ -373,7 +429,7 @@ app.post("/debug-config", (req, res) => {
       signal,
     },
     matches,
-    recommendation: !matches.appId 
+    recommendation: !matches.appId
       ? "App ID mismatch - check your .env file"
       : !matches.action
       ? "Action mismatch - frontend and backend must use same action"
@@ -405,7 +461,9 @@ app.get("/health", async (req, res) => {
     await provider.getBlockNumber();
     res.json({ status: "healthy" });
   } catch (error) {
-    res.status(503).json({ status: "unhealthy", error: "Cannot connect to blockchain" });
+    res
+      .status(503)
+      .json({ status: "unhealthy", error: "Cannot connect to blockchain" });
   }
 });
 
@@ -436,7 +494,7 @@ app.get("/", (req, res) => {
   res.json({
     message: "DAO Voting Backend is Live",
     status: "healthy",
-    issuer: wallet.address
+    issuer: wallet.address,
   });
 });
 
