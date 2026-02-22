@@ -39,6 +39,8 @@ const DIDRegistration = () => {
   const [checkingStatus, setCheckingStatus] = useState(true);
   const [savedSignature, setSavedSignature] = useState(null);
   const [savedCommitment, setSavedCommitment] = useState(null);
+  const [preCheckPassed, setPreCheckPassed] = useState(false);
+  const [preCheckLoading, setPreCheckLoading] = useState(false);
 
   const BACKEND_URL = process.env.REACT_APP_API_URL;
 
@@ -49,7 +51,7 @@ const DIDRegistration = () => {
 
   const normalizedAddress = address?.toLowerCase();
 
-  // Reset verification state when address changes
+  // Reset all state when address changes
   useEffect(() => {
     setPOPVerified(false);
     setWorldcoinProof(null);
@@ -57,6 +59,7 @@ const DIDRegistration = () => {
     setConfirmSecret("");
     setSavedSignature(null);
     setSavedCommitment(null);
+    setPreCheckPassed(false);
   }, [normalizedAddress]);
 
   useEffect(() => {
@@ -99,7 +102,7 @@ const DIDRegistration = () => {
   };
 
   const calculateNewRoot = async () => {
-    console.log("🌳 Calculating new Merkle Root...");
+    console.log("Calculating new Merkle Root...");
     const poseidon = await buildPoseidon();
     const MERKLE_DEPTH = 6;
 
@@ -132,115 +135,127 @@ const DIDRegistration = () => {
     return "0x" + currentLevel[0].toString(16).padStart(64, "0");
   };
 
-  const verifyIdentityWithBackend = async () => {
+  // PRE-CHECK: Verify eligibility before showing Worldcoin button
+  const runPreCheck = async () => {
+    setPreCheckLoading(true);
     try {
-      console.log("🔄 Sending to backend...");
-      console.log("📤 Address (normalized):", normalizedAddress);
-      console.log("📤 Worldcoin Proof:", worldcoinProof);
-
-      const response = await fetch(`${BACKEND_URL}/issue-credential`, {
+      const response = await fetch(`${BACKEND_URL}/pre-check`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          userAddress: normalizedAddress,
-          worldcoinProof: worldcoinProof,
-        }),
+        body: JSON.stringify({ userAddress: normalizedAddress }),
       });
 
-      const data = await response.json();
-
-      console.log("📥 Backend Response:", data);
-
-      if (!data.success) {
-        throw new Error(data.error || "Verification denied by issuer");
+      if (response.status === 404) {
+        toast.error(
+          "Pre-check endpoint not found. Please restart your backend server.",
+          "Backend Error",
+        );
+        return;
       }
 
-      console.log("Backend verification successful!");
-      return data.signature;
-    } catch (error) {
-      console.error("Backend Error:", error);
-      throw error;
+      let data;
+      try {
+        data = await response.json();
+      } catch {
+        toast.error(
+          `Server returned an unexpected response. Check your backend is running.`,
+          "Backend Error",
+        );
+        return;
+      }
+
+      if (!data.success) {
+        toast.error(data.error, "Not Eligible");
+        return;
+      }
+
+      setPreCheckPassed(true);
+      toast.success(
+        "Eligibility confirmed! Please verify with Worldcoin.",
+        "Pre-Check Passed",
+      );
+    } catch (err) {
+      console.error("Pre-check error:", err);
+      toast.error(
+        "Failed to verify eligibility. Please try again.",
+        "Connection Error",
+      );
+    } finally {
+      setPreCheckLoading(false);
     }
   };
 
-  // Worldcoin Success Handler
-  const handleWorldcoinSuccess = (proof) => {
-    console.log("Worldcoin Verification Success:", proof);
-    console.log("📋 Proof Details:");
-    console.log("  - Nullifier:", proof.nullifier_hash);
-    console.log("  - Merkle Root:", proof.merkle_root);
-    console.log("  - Verification Level:", proof.verification_level);
-    console.log("  - Signal Used:", normalizedAddress);
-    console.log("  - Proof:", proof.proof);
-    console.log("  - Proof Generated At:", new Date().toISOString());
+  // --- NEW: This runs WHILE the Worldcoin widget is open ---
+  const verifyProofWithBackend = async (proof) => {
+    console.log("Sending proof to backend for validation...");
 
+    const response = await fetch(`${BACKEND_URL}/issue-credential`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        userAddress: normalizedAddress,
+        worldcoinProof: proof,
+      }),
+    });
+
+    const data = await response.json();
+
+    if (!data.success) {
+      // Throwing an error here makes the Worldcoin widget turn RED instantly!
+      throw new Error(data.error || "Verification denied by DAO");
+    }
+
+    console.log("Backend verification successful! Signature received.");
+
+    // Save the signature NOW, before they even type their secret
+    setSavedSignature(data.signature);
     setWorldcoinProof(proof);
+  };
+
+  // Worldcoin Success Handler (Runs only if backend approves and modal closes)
+  const handleWorldcoinSuccess = () => {
     setPOPVerified(true);
     toast.success(
-      "Identity verified! You can now complete registration.",
-      "Proof of Personhood",
+      "Identity approved by DAO! Create your secret to finish.",
+      "Success",
     );
   };
 
   // Worldcoin Error Handler
   const handleWorldcoinError = (error) => {
     console.error("Worldcoin Error:", error);
-    toast.error(
-      "Worldcoin verification failed. Please try again.",
-      "Verification Error",
-    );
+    // The widget displays the error visually, but we can log it
   };
 
-  // Main Registration Handler
+  // Main Registration Handler (Much simpler!)
   const handleRegister = async () => {
-    if (!popVerified && !savedSignature) {
+    if (!savedSignature) {
       toast.warning(
         "Please verify your identity with Worldcoin first",
         "Missing Verification",
       );
       return;
     }
-
-    if (!secret || !confirmSecret) {
+    if (!secret || secret !== confirmSecret || secret.length < 6) {
       toast.warning(
-        "Please enter your secret in both fields",
-        "Missing Fields",
+        "Please enter a matching secret (min 6 chars)",
+        "Invalid Secret",
       );
-      return;
-    }
-    if (secret !== confirmSecret) {
-      toast.error("Secrets do not match!", "Mismatch");
-      return;
-    }
-    if (secret.length < 6) {
-      toast.warning("Secret must be at least 6 characters", "Weak Secret");
       return;
     }
 
     setLoading(true);
 
     try {
-      let signature = savedSignature;
-      let commitment = savedCommitment;
-
-      // Only get new commitment + signature if we don't have one saved
-      if (!signature || !commitment) {
-        setStatusText("Generating Identity...");
-        commitment = await generateCommitment(secret);
-        setSavedCommitment(commitment);
-
-        setStatusText("Verifying with Issuer (Checking PoP + Stake)...");
-        signature = await verifyIdentityWithBackend();
-        setSavedSignature(signature);
-        console.log("Received Signature:", signature);
-      } else {
-        console.log("♻️ Reusing saved signature for blockchain retry");
-      }
+      setStatusText("Generating Privacy Commitment...");
+      const commitment = await generateCommitment(secret);
+      setSavedCommitment(commitment);
 
       setStatusText("Registering on Blockchain...");
+      // We use the signature we already securely received from handleVerify!
       const { hash } = await writeDID("registerVoterForDAO", [
         commitment,
-        signature,
+        savedSignature,
       ]);
       console.log("Registration Tx:", hash);
 
@@ -252,7 +267,6 @@ const DIDRegistration = () => {
       setStatusText("Syncing Voting System...");
       await new Promise((r) => setTimeout(r, 4000));
       const newRoot = await calculateNewRoot();
-      console.log("🌳 New Root Calculated:", newRoot);
 
       const { hash: syncHash } = await writeDAO("updateVoterSetRoot", [
         newRoot,
@@ -265,10 +279,8 @@ const DIDRegistration = () => {
       );
       downloadSecretBackup(secret, commitment);
 
-      // Clear saved state after success
       setSavedSignature(null);
       setSavedCommitment(null);
-
       window.dispatchEvent(new Event("dao:registrationComplete"));
       localStorage.setItem("dao_registration_complete", "true");
 
@@ -276,27 +288,11 @@ const DIDRegistration = () => {
         checkRegistrationStatus();
       }, 2000);
     } catch (err) {
-      console.error("Process error:", err);
-      let msg = err.message || "Unknown error";
-      if (msg.includes("User rejected")) msg = "Transaction rejected.";
-      if (msg.includes("Worldcoin verification failed")) {
-        msg = "Identity verification failed. Please try again.";
-      }
-
-      // If signature already saved, blockchain failed — don't reset Worldcoin
-      if (!savedSignature) {
-        setPOPVerified(false);
-        setWorldcoinProof(null);
-        toast.error(
-          msg + " — Please re-verify with Worldcoin and try again.",
-          "Registration Failed",
-        );
-      } else {
-        toast.error(
-          "Blockchain transaction failed. Click 'Complete Registration' to retry.",
-          "Transaction Failed",
-        );
-      }
+      console.error("Blockchain error:", err);
+      toast.error(
+        err.message || "Blockchain transaction failed. Please try again.",
+        "Transaction Error",
+      );
     } finally {
       setLoading(false);
       setStatusText("");
@@ -337,7 +333,7 @@ const DIDRegistration = () => {
     return (
       <Card padding="large">
         <div className="did-registration-warning">
-          ⚠️ Please connect your wallet to register for private voting.
+          Please connect your wallet to register for private voting.
         </div>
       </Card>
     );
@@ -382,15 +378,49 @@ const DIDRegistration = () => {
         </div>
 
         <div className="did-registration-form">
-          {/* STEP 1: Worldcoin Verification */}
+          {/* STEP 1: Eligibility Pre-Check */}
           <div className="form-group">
-            <label className="form-label">Step 1: Prove You're Human</label>
-            {!popVerified && !savedSignature ? (
-              <>
+            <label className="form-label">Step 1: Check Eligibility</label>
+            {!preCheckPassed ? (
+              <Button
+                onClick={runPreCheck}
+                fullWidth
+                variant="secondary"
+                loading={preCheckLoading}
+                disabled={preCheckLoading || !normalizedAddress}
+              >
+                {preCheckLoading ? "Checking..." : "🔍 Check Eligibility"}
+              </Button>
+            ) : (
+              <div
+                className="success-badge"
+                style={{
+                  padding: "1rem",
+                  backgroundColor: "#dbeafe",
+                  borderRadius: "8px",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.5rem",
+                }}
+              >
+                <span style={{ fontSize: "1.5rem" }}>✅</span>
+                <span style={{ fontWeight: "600", color: "#1e40af" }}>
+                  Token balance verified — you are eligible to register
+                </span>
+              </div>
+            )}
+          </div>
+
+          {/* STEP 2: Worldcoin Verification */}
+          {preCheckPassed && (
+            <div className="form-group">
+              <label className="form-label">Step 2: Prove You're Human</label>
+              {!popVerified && !savedSignature ? (
                 <IDKitWidget
                   app_id={WORLDCOIN_APP_ID}
                   action={WORLDCOIN_ACTION}
                   signal={normalizedAddress}
+                  handleVerify={verifyProofWithBackend} // Calls backend while widget stays open
                   onSuccess={handleWorldcoinSuccess}
                   onError={handleWorldcoinError}
                   verification_level="device"
@@ -403,39 +433,37 @@ const DIDRegistration = () => {
                       variant="primary"
                       disabled={!normalizedAddress}
                     >
-                      {normalizedAddress
-                        ? "🌍 Verify with Worldcoin"
-                        : "Connect Wallet First"}
+                      🌍 Verify with Worldcoin
                     </Button>
                   )}
                 </IDKitWidget>
-              </>
-            ) : (
-              <div
-                className="success-badge"
-                style={{
-                  padding: "1rem",
-                  backgroundColor: "#d1fae5",
-                  borderRadius: "8px",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "0.5rem",
-                }}
-              >
-                <span style={{ fontSize: "1.5rem" }}>✅</span>
-                <span style={{ fontWeight: "600", color: "#065f46" }}>
-                  Verified Unique Human
-                </span>
-              </div>
-            )}
-          </div>
+              ) : (
+                <div
+                  className="success-badge"
+                  style={{
+                    padding: "1rem",
+                    backgroundColor: "#d1fae5",
+                    borderRadius: "8px",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.5rem",
+                  }}
+                >
+                  <span style={{ fontSize: "1.5rem" }}>✅</span>
+                  <span style={{ fontWeight: "600", color: "#065f46" }}>
+                    DAO Approved! Ready for Blockchain.
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
 
-          {/* STEP 2: Secret Password (Only after PoP) */}
+          {/* STEP 3: Secret Password */}
           {(popVerified || savedSignature) && (
             <>
               <div className="form-group">
                 <label className="form-label">
-                  Step 2: Create Secret Password
+                  Step 3: Create Secret Password
                 </label>
                 <div className="input-wrapper">
                   <input
@@ -444,7 +472,7 @@ const DIDRegistration = () => {
                     value={secret}
                     onChange={(e) => setSecret(e.target.value)}
                     placeholder="Min 6 characters"
-                    disabled={loading || !!savedSignature}
+                    disabled={loading} // Only disabled when blockchain transaction is processing
                   />
                   <button
                     type="button"
@@ -465,7 +493,7 @@ const DIDRegistration = () => {
                     value={confirmSecret}
                     onChange={(e) => setConfirmSecret(e.target.value)}
                     placeholder="Re-enter secret"
-                    disabled={loading || !!savedSignature}
+                    disabled={loading} // Only disabled when blockchain transaction is processing
                   />
                   <button
                     type="button"
@@ -483,7 +511,7 @@ const DIDRegistration = () => {
                 disabled={loading || !secret || !confirmSecret}
                 fullWidth
               >
-                {loading ? statusText : savedSignature ? "Retry Blockchain Transaction" : "Complete Registration"}
+                {loading ? statusText : "Complete Registration"}
               </Button>
             </>
           )}

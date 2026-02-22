@@ -1,6 +1,5 @@
 require("dotenv").config();
 const express = require("express");
-// cors package no longer needed - removed
 const { ethers } = require("ethers");
 
 const app = express();
@@ -17,14 +16,8 @@ app.use((req, res, next) => {
   if (!origin || allowedOrigins.includes(origin)) {
     res.header("Access-Control-Allow-Origin", origin || "*");
   }
-  res.header(
-    "Access-Control-Allow-Methods",
-    "GET,POST,PUT,PATCH,DELETE,OPTIONS",
-  );
-  res.header(
-    "Access-Control-Allow-Headers",
-    "X-Requested-With, Content-Type, Authorization, Accept",
-  );
+  res.header("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS");
+  res.header("Access-Control-Allow-Headers", "X-Requested-With, Content-Type, Authorization, Accept");
   res.header("Access-Control-Allow-Credentials", "true");
   if (req.method === "OPTIONS") {
     return res.sendStatus(200);
@@ -48,10 +41,7 @@ function simpleRateLimit(req, res, next) {
   }
 
   const requests = requestCounts.get(ip);
-  // Remove old requests outside the window
-  const recentRequests = requests.filter(
-    (time) => now - time < RATE_LIMIT_WINDOW,
-  );
+  const recentRequests = requests.filter((time) => now - time < RATE_LIMIT_WINDOW);
 
   if (recentRequests.length >= MAX_REQUESTS) {
     return res.status(429).json({
@@ -66,6 +56,7 @@ function simpleRateLimit(req, res, next) {
 }
 
 app.use("/issue-credential", simpleRateLimit);
+app.use("/pre-check", simpleRateLimit);
 
 // --- CONFIGURATION ---
 const PORT = process.env.PORT || 3001;
@@ -73,10 +64,8 @@ const ISSUER_PRIVATE_KEY = process.env.ISSUER_PRIVATE_KEY;
 const RPC_URL = process.env.RPC_URL;
 const WORLDCOIN_APP_ID = process.env.WORLDCOIN_APP_ID;
 const WORLDCOIN_ACTION = process.env.WORLDCOIN_ACTION || "dao_vote";
-const WORLDCOIN_TIMEOUT = 30000; // 30 second timeout (Worldcoin can be slow)
+const WORLDCOIN_TIMEOUT = 30000;
 
-// DEVELOPMENT MODE - Set to 'true' to bypass Worldcoin verification for testing
-// NEVER USE IN PRODUCTION - This skips proof verification entirely
 const DEV_MODE_SKIP_WORLDCOIN = process.env.DEV_MODE_SKIP_WORLDCOIN === "true";
 
 if (DEV_MODE_SKIP_WORLDCOIN) {
@@ -98,17 +87,19 @@ const wallet = new ethers.Wallet(ISSUER_PRIVATE_KEY, provider);
 const GOVERNANCE_TOKEN_ADDRESS = process.env.GOVERNANCE_TOKEN_ADDRESS;
 const MIN_TOKENS_REQUIRED = ethers.parseEther("1");
 const TOKEN_ABI = ["function balanceOf(address owner) view returns (uint256)"];
-const tokenContract = new ethers.Contract(
-  GOVERNANCE_TOKEN_ADDRESS,
-  TOKEN_ABI,
-  provider,
-);
+const tokenContract = new ethers.Contract(GOVERNANCE_TOKEN_ADDRESS, TOKEN_ABI, provider);
+
+// --- DID REGISTRY CONTRACT (to check on-chain registration) ---
+const DID_REGISTRY_ADDRESS = process.env.DID_REGISTRY_ADDRESS;
+const DID_REGISTRY_ABI = [
+  "function hasRegisteredForVoting(address) view returns (bool)",
+];
+const didRegistryContract = new ethers.Contract(DID_REGISTRY_ADDRESS, DID_REGISTRY_ABI, provider);
 
 // --- IN-MEMORY HUMAN REGISTRY (PoP) ---
-// TODO: Replace with persistent database (Redis/PostgreSQL) for production
 const humanRegistry = new Map();
 const walletToNullifier = new Map();
-const registrationLocks = new Map(); // Prevent race conditions
+const registrationLocks = new Map();
 
 console.log("------------------------------------------------");
 console.log("🌍 Proof-of-Personhood Identity Issuer Started");
@@ -138,31 +129,26 @@ function isValidWorldcoinProof(proof) {
 }
 
 // =====================================================
-// Worldcoin Verification with Enhanced Debugging
+// Worldcoin Verification
 // =====================================================
 async function verifyWorldcoinProof(proof, signal) {
   const endpoint = `https://developer.worldcoin.org/api/v2/verify/${WORLDCOIN_APP_ID.trim()}`;
 
-  // Try multiple signal formats to identify the issue
   const signalVariations = [
-    signal.toLowerCase(), // 0xced1b...
-    signal, // Original case
-    signal.toLowerCase().slice(2), // Remove 0x prefix
-    signal.slice(2), // Remove 0x prefix (original case)
+    signal.toLowerCase(),
+    signal,
+    signal.toLowerCase().slice(2),
+    signal.slice(2),
   ];
 
-  console.log(
-    "\n==================== WORLDCOIN VERIFICATION DEBUG ====================",
-  );
+  console.log("\n==================== WORLDCOIN VERIFICATION DEBUG ====================");
   console.log("Endpoint:", endpoint);
   console.log("App ID:", WORLDCOIN_APP_ID);
   console.log("Action:", WORLDCOIN_ACTION);
   console.log("Verification Level:", proof.verification_level);
   console.log("Signal Variations to Test:");
   signalVariations.forEach((v, i) => console.log(`   ${i + 1}. "${v}"`));
-  console.log(
-    "======================================================================\n",
-  );
+  console.log("======================================================================\n");
 
   const payload = {
     nullifier_hash: proof.nullifier_hash,
@@ -170,10 +156,10 @@ async function verifyWorldcoinProof(proof, signal) {
     proof: proof.proof,
     verification_level: proof.verification_level,
     action: WORLDCOIN_ACTION,
-    signal: signal.toLowerCase(), // Start with lowercase
+    signal: signal.toLowerCase(),
   };
 
-  console.log(" Sending Payload:", JSON.stringify(payload, null, 2));
+  console.log("Sending Payload:", JSON.stringify(payload, null, 2));
 
   try {
     const controller = new AbortController();
@@ -197,25 +183,15 @@ async function verifyWorldcoinProof(proof, signal) {
       console.error("   Status Code:", response.status);
       console.error("   Code:", data.code);
       console.error("   Detail:", data.detail);
-      console.error("   Attribute:", data.attribute);
       console.error("   Full Response:", JSON.stringify(data, null, 2));
 
-      // Additional debugging hints
       if (data.code === "invalid_proof") {
         console.error("\nDEBUGGING HINTS:");
         console.error("   1. Check if frontend signal matches backend signal");
-        console.error(
-          "   2. Verify action is the same on frontend and backend",
-        );
-        console.error(
-          "   3. Confirm app_id matches between frontend and backend",
-        );
-        console.error(
-          "   4. Ensure verification was completed successfully on frontend",
-        );
-        console.error(
-          `   5. Frontend should use signal: "${signal.toLowerCase()}"`,
-        );
+        console.error("   2. Verify action is the same on frontend and backend");
+        console.error("   3. Confirm app_id matches between frontend and backend");
+        console.error("   4. Ensure verification was completed successfully on frontend");
+        console.error(`   5. Frontend should use signal: "${signal.toLowerCase()}"`);
       }
 
       return { success: false, error: data.detail || "Verification failed" };
@@ -231,19 +207,83 @@ async function verifyWorldcoinProof(proof, signal) {
 }
 
 // =====================================================
+// PRE-CHECK ENDPOINT: Run ALL checks before Worldcoin
+// =====================================================
+app.post("/pre-check", async (req, res) => {
+  try {
+    const { userAddress } = req.body;
+
+    if (!userAddress || !isValidEthereumAddress(userAddress)) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid Ethereum address",
+      });
+    }
+
+    console.log(`\n🔍 Pre-check for: ${userAddress}`);
+
+    // CHECK 1: Already registered on-chain?
+    try {
+      const alreadyRegistered = await didRegistryContract.hasRegisteredForVoting(userAddress);
+      if (alreadyRegistered) {
+        return res.status(403).json({
+          success: false,
+          error: "This wallet is already registered for voting.",
+        });
+      }
+    } catch (err) {
+      console.error("DID registry check failed:", err.message);
+      // Non-fatal — continue if contract call fails
+    }
+
+    // CHECK 2: Already registered in backend memory?
+    const existingNullifier = walletToNullifier.get(userAddress.toLowerCase());
+    if (existingNullifier) {
+      const existing = humanRegistry.get(existingNullifier);
+      if (existing && existing.status === "complete") {
+        return res.status(403).json({
+          success: false,
+          error: "This wallet has already completed registration.",
+        });
+      }
+    }
+
+    // CHECK 3: Token balance
+    const balance = await tokenContract.balanceOf(userAddress);
+    console.log(`Token Balance: ${ethers.formatEther(balance)}`);
+
+    if (balance < MIN_TOKENS_REQUIRED) {
+      return res.status(403).json({
+        success: false,
+        error: `Insufficient governance tokens. You need at least ${ethers.formatEther(MIN_TOKENS_REQUIRED)} tokens to register.`,
+      });
+    }
+
+    console.log(`✅ Pre-check passed for: ${userAddress}`);
+
+    res.json({
+      success: true,
+      message: "All checks passed. You may proceed with Worldcoin verification.",
+    });
+  } catch (err) {
+    console.error("Pre-check error:", err);
+    res.status(500).json({
+      success: false,
+      error: "Internal server error during pre-check",
+    });
+  }
+});
+
+// =====================================================
 // MAIN ENDPOINT: ISSUE CREDENTIAL
 // =====================================================
 app.post("/issue-credential", async (req, res) => {
   try {
     const { userAddress, worldcoinProof } = req.body;
 
-    console.log(
-      "\n==================== NEW REGISTRATION REQUEST ====================",
-    );
+    console.log("\n==================== NEW REGISTRATION REQUEST ====================");
     console.log("📥 Wallet:", userAddress);
-    console.log(
-      "==================================================================\n",
-    );
+    console.log("==================================================================\n");
 
     // --- VALIDATION ---
     if (!userAddress || !worldcoinProof) {
@@ -281,28 +321,19 @@ app.post("/issue-credential", async (req, res) => {
     registrationLocks.set(nullifierHash, true);
 
     try {
-      // --- STEP 1: CHECK UNIQUENESS FIRST ---
+      // --- STEP 1: CHECK UNIQUENESS ---
       const existing = humanRegistry.get(nullifierHash);
 
-      // Block only if a DIFFERENT wallet completed registration with this identity
-      if (
-        existing &&
-        existing.status === "complete" &&
-        existing.wallet !== normalizedAddress
-      ) {
+      // Block if a DIFFERENT wallet completed registration with this identity
+      if (existing && existing.status === "complete" && existing.wallet !== normalizedAddress) {
         return res.status(403).json({
           success: false,
-          error:
-            "Registration Blocked: Sybil prevention active. Identity already in use.",
+          error: "Registration Blocked: Sybil prevention active. Identity already in use.",
         });
       }
 
       // Same wallet already completed — reissue credential
-      if (
-        existing &&
-        existing.wallet === normalizedAddress &&
-        existing.status === "complete"
-      ) {
+      if (existing && existing.wallet === normalizedAddress && existing.status === "complete") {
         console.log("Wallet already registered, reissuing credential");
         const hash = ethers.solidityPackedKeccak256(["address"], [userAddress]);
         const signature = await wallet.signMessage(ethers.getBytes(hash));
@@ -315,30 +346,20 @@ app.post("/issue-credential", async (req, res) => {
         });
       }
 
-      // Same wallet with pending/failed registration — allow retry (fall through)
-      if (
-        existing &&
-        existing.wallet === normalizedAddress &&
-        existing.status === "pending"
-      ) {
-        console.log(
-          "Retrying previously failed registration for:",
-          normalizedAddress,
-        );
+      // Same wallet with pending/failed registration — allow retry
+      if (existing && existing.wallet === normalizedAddress && existing.status === "pending") {
+        console.log("Retrying previously failed registration for:", normalizedAddress);
       }
+
       // --- STEP 2: VERIFY HUMAN ---
       console.log(`Verifying humanity for: ${normalizedAddress}`);
 
-      // DEV MODE: Skip Worldcoin verification if enabled
       let verificationResult;
       if (DEV_MODE_SKIP_WORLDCOIN) {
         console.warn("SKIPPING Worldcoin verification (DEV MODE)");
         verificationResult = { success: true };
       } else {
-        verificationResult = await verifyWorldcoinProof(
-          worldcoinProof,
-          userAddress, // Pass original, function normalizes internally
-        );
+        verificationResult = await verifyWorldcoinProof(worldcoinProof, userAddress);
       }
 
       if (!verificationResult.success) {
@@ -348,17 +369,15 @@ app.post("/issue-credential", async (req, res) => {
         });
       }
 
-      // --- STEP 3: TOKEN GATE ---
-      console.log("Checking token balance...");
+      // --- STEP 3: TOKEN GATE (re-verify at issue time) ---
+      console.log("Re-checking token balance...");
       const balance = await tokenContract.balanceOf(userAddress);
       console.log(`Token Balance: ${ethers.formatEther(balance)}`);
 
       if (balance < MIN_TOKENS_REQUIRED) {
         return res.status(403).json({
           success: false,
-          error: `Insufficient governance tokens (need ${ethers.formatEther(
-            MIN_TOKENS_REQUIRED,
-          )})`,
+          error: `Insufficient governance tokens (need ${ethers.formatEther(MIN_TOKENS_REQUIRED)})`,
         });
       }
 
@@ -366,12 +385,12 @@ app.post("/issue-credential", async (req, res) => {
       humanRegistry.set(nullifierHash, {
         wallet: normalizedAddress,
         registeredAt: new Date().toISOString(),
-        status: "pending", // not complete until signature issued
+        status: "pending",
       });
 
       walletToNullifier.set(normalizedAddress, nullifierHash);
 
-      console.log(" Human registered successfully");
+      console.log("Human registered successfully");
 
       // --- STEP 5: SIGN CREDENTIAL ---
       const hash = ethers.solidityPackedKeccak256(["address"], [userAddress]);
@@ -392,13 +411,10 @@ app.post("/issue-credential", async (req, res) => {
         nullifier_hash: nullifierHash,
       });
     } finally {
-      // Always release lock
       registrationLocks.delete(nullifierHash);
     }
   } catch (err) {
     console.error("Issuer error:", err);
-
-    // Don't expose internal errors to client
     res.status(500).json({
       success: false,
       error: "Internal server error",
@@ -407,7 +423,7 @@ app.post("/issue-credential", async (req, res) => {
 });
 
 // =====================================================
-// DEBUG ENDPOINT - Check Configuration Match
+// DEBUG ENDPOINT
 // =====================================================
 app.post("/debug-config", (req, res) => {
   const { appId, action, signal } = req.body;
@@ -419,15 +435,8 @@ app.post("/debug-config", (req, res) => {
   };
 
   res.json({
-    backend: {
-      appId: WORLDCOIN_APP_ID,
-      action: WORLDCOIN_ACTION,
-    },
-    frontend: {
-      appId,
-      action,
-      signal,
-    },
+    backend: { appId: WORLDCOIN_APP_ID, action: WORLDCOIN_ACTION },
+    frontend: { appId, action, signal },
     matches,
     recommendation: !matches.appId
       ? "App ID mismatch - check your .env file"
@@ -457,13 +466,10 @@ app.get("/status", (req, res) => {
 // =====================================================
 app.get("/health", async (req, res) => {
   try {
-    // Check if we can connect to blockchain
     await provider.getBlockNumber();
     res.json({ status: "healthy" });
   } catch (error) {
-    res
-      .status(503)
-      .json({ status: "unhealthy", error: "Cannot connect to blockchain" });
+    res.status(503).json({ status: "unhealthy", error: "Cannot connect to blockchain" });
   }
 });
 
@@ -489,7 +495,6 @@ process.on("SIGTERM", () => {
   });
 });
 
-// This fixes the "Cannot GET /" error by giving the home page a response
 app.get("/", (req, res) => {
   res.json({
     message: "DAO Voting Backend is Live",
