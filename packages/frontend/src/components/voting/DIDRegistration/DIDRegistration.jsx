@@ -38,7 +38,7 @@ const DIDRegistration = () => {
   const [statusText, setStatusText] = useState("");
   const [checkingStatus, setCheckingStatus] = useState(true);
 
-  const BACKEND_URL = "http://localhost:3001";
+  const BACKEND_URL = process.env.REACT_APP_API_URL;;
 
   // Production Worldcoin Configuration
   // Get these from: https://developer.worldcoin.org/
