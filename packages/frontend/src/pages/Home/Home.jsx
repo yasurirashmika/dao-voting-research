@@ -9,6 +9,8 @@ import { useContract } from '../../hooks/useContract';
 import { useDeployment } from '../../context/DeploymentContext';
 import DAOVotingABI from '../../abis/DAOVoting.json';
 import PrivateDAOVotingABI from '../../abis/PrivateDAOVoting.json';
+import { formatEther } from 'ethers';
+import { formatLargeNumber } from '../../utils/formatters';
 import './Home.css';
 
 const Home = () => {
@@ -51,9 +53,25 @@ const Home = () => {
     fetchVoterCount();
   }, [mode, publicContract, privateContract, readPublicVoting, readPrivateVoting]); // Dependencies updated
 
+  const safeFormat = (val) => {
+    try {
+      if (!val) return 0;
+      
+      // If Private Mode: Just return the normal number
+      if (mode === 'private') {
+        return Number(val);
+      }
+      
+      // If Baseline Mode: Strip the 18 decimals from the governance tokens
+      return Number(formatEther(val.toLocaleString('fullwide', {useGrouping: false})));
+    } catch (e) {
+      return Number(val) || 0;
+    }
+  };
+
   // Calculate total votes cast across all proposals
   const totalVotesCast = proposals.reduce((sum, p) => {
-    return sum + (Number(p.yesVotes) || 0) + (Number(p.noVotes) || 0);
+    return sum + safeFormat(p.yesVotes) + safeFormat(p.noVotes);
   }, 0);
 
   // Calculate real stats from blockchain data
@@ -74,8 +92,9 @@ const Home = () => {
       loading: loadingVoters
     },
     { 
+      // Apply formatting to the final output
       label: 'Total Votes Cast', 
-      value: proposalsLoading ? '...' : totalVotesCast.toLocaleString(),
+      value: proposalsLoading ? '...' : formatLargeNumber(totalVotesCast),
       loading: proposalsLoading
     }
   ];

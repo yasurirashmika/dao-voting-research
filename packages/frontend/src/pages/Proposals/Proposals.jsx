@@ -192,19 +192,19 @@ const ProposalCard = ({ proposal }) => {
         </p>
 
         <div className="vote-stats">
-          <div className="vote-stat vote-for">
-            <span className="vote-label">Yes</span>
-            <span className="vote-value">
-              {formatLargeNumber(proposal.yesVotes || 0)}
-            </span>
-          </div>
-          <div className="vote-stat vote-against">
-            <span className="vote-label">No</span>
-            <span className="vote-value">
-              {formatLargeNumber(proposal.noVotes || 0)}
-            </span>
-          </div>
-        </div>
+              <div className="vote-stat vote-for">
+                <span className="vote-label">Yes</span>
+                <span className="vote-value">
+                  {formatLargeNumber(formattedYes)}
+                </span>
+              </div>
+              <div className="vote-stat vote-against">
+                <span className="vote-label">No</span>
+                <span className="vote-value">
+                  {formatLargeNumber(formattedNo)}
+                </span>
+              </div>
+            </div>
 
         <div className="progress-bar">
           <div
