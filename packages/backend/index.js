@@ -1,13 +1,22 @@
 require("dotenv").config();
 const express = require("express");
-const cors = require("cors");
+// cors package no longer needed - removed
 const { ethers } = require("ethers");
 
 const app = express();
 
-// --- MANUAL CORS HEADERS (Vercel preflight fix) ---
+// --- CORS HEADERS (works for both local and Vercel) ---
+const allowedOrigins = [
+  "http://localhost:3000",
+  "https://daovoting.netlify.app",
+  ...(process.env.ALLOWED_ORIGINS?.split(",") || [])
+];
+
 app.use((req, res, next) => {
-  res.header("Access-Control-Allow-Origin", req.headers.origin || "*");
+  const origin = req.headers.origin;
+  if (!origin || allowedOrigins.includes(origin)) {
+    res.header("Access-Control-Allow-Origin", origin || "*");
+  }
   res.header("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS");
   res.header("Access-Control-Allow-Headers", "X-Requested-With, Content-Type, Authorization, Accept");
   res.header("Access-Control-Allow-Credentials", "true");
@@ -17,31 +26,7 @@ app.use((req, res, next) => {
   next();
 });
 
-// --- SECURITY: CORS Configuration ---
-const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(",") || [
-  "http://localhost:3000",
-  "https://daovoting.netlify.app"
-];
-
-const corsOptions = {
-  origin: function (origin, callback) {
-    if (!origin) return callback(null, true);
-    if (allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      callback(new Error("Not allowed by CORS"));
-    }
-  },
-  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-  allowedHeaders: ["X-Requested-With", "Content-Type", "Authorization", "Accept"],
-  credentials: true,
-  optionsSuccessStatus: 200
-};
-
-app.use(cors(corsOptions));
-app.options("/{*path}", cors(corsOptions));
-
-app.use(express.json({ limit: "10kb" })); // Limit payload size
+app.use(express.json({ limit: "10kb" }));
 
 // --- SIMPLE RATE LIMITING (In-Memory) ---
 const requestCounts = new Map();
@@ -455,11 +440,12 @@ app.get("/", (req, res) => {
   });
 });
 
-// --- VERCEL EXPORT ---
-// IMPORTANT: Vercel needs this to run your app as a serverless function
 module.exports = app;
 
-const server = app.listen(PORT, () => {
-  console.log(`Server running at http://localhost:${PORT}`);
-  console.log(`📊 Status endpoint: http://localhost:${PORT}/status\n`);
-});
+// Only listen locally, not on Vercel
+if (process.env.NODE_ENV !== "production") {
+  const server = app.listen(PORT, () => {
+    console.log(`Server running at http://localhost:${PORT}`);
+    console.log(`📊 Status endpoint: http://localhost:${PORT}/status\n`);
+  });
+}
