@@ -1,6 +1,7 @@
 require("dotenv").config();
 const express = require("express");
 const { ethers } = require("ethers");
+const { kv } = require("@vercel/kv"); // NEW: Vercel KV Database
 
 const app = express();
 
@@ -112,9 +113,7 @@ const didRegistryContract = new ethers.Contract(
   provider,
 );
 
-// --- IN-MEMORY HUMAN REGISTRY (PoP) ---
-const humanRegistry = new Map();
-const walletToNullifier = new Map();
+// --- IN-MEMORY LOCKS (Database handles the rest) ---
 const registrationLocks = new Map();
 
 console.log("------------------------------------------------");
@@ -237,9 +236,10 @@ app.post("/pre-check", async (req, res) => {
       console.error("DID registry check failed:", err.message);
     }
 
-    const existingNullifier = walletToNullifier.get(userAddress.toLowerCase());
+    // NEW: Check Permanent Vercel KV Database
+    const existingNullifier = await kv.get(`wallet:${userAddress.toLowerCase()}`);
     if (existingNullifier) {
-      const existing = humanRegistry.get(existingNullifier);
+      const existing = await kv.get(`nullifier:${existingNullifier}`);
       if (existing && existing.status === "complete") {
         console.log(
           `[PRE-CHECK] Failed: Wallet already marked complete in memory.`,
@@ -334,8 +334,8 @@ app.post("/issue-credential", async (req, res) => {
     registrationLocks.set(nullifierHash, true);
 
     try {
-      // --- STEP 1: CHECK UNIQUENESS & HANDLE WALLET SWITCHING ---
-      const existing = humanRegistry.get(nullifierHash);
+      // --- STEP 1: CHECK KV DATABASE FOR UNIQUENESS ---
+      const existing = await kv.get(`nullifier:${nullifierHash}`);
 
       if (existing) {
         console.log(`[MEMORY] Identity IS known to backend.`);
@@ -396,12 +396,12 @@ app.post("/issue-credential", async (req, res) => {
           });
         }
 
-        console.log(`[UPDATING MEMORY] Updating records for wallet...`);
+        console.log(`[UPDATING DATABASE] Updating records for wallet...`);
         if (existing.wallet !== normalizedAddress) {
-          walletToNullifier.delete(existing.wallet);
-          walletToNullifier.set(normalizedAddress, nullifierHash);
+          await kv.del(`wallet:${existing.wallet}`);
+          await kv.set(`wallet:${normalizedAddress}`, nullifierHash);
         }
-        humanRegistry.set(nullifierHash, {
+        await kv.set(`nullifier:${nullifierHash}`, {
           wallet: normalizedAddress,
           status: "complete",
         });
@@ -460,12 +460,12 @@ app.post("/issue-credential", async (req, res) => {
         });
       }
 
-      console.log(`[SAVING] Saving new human to memory...`);
-      humanRegistry.set(nullifierHash, {
+      console.log(`[SAVING] Saving new human to permanent Vercel KV Database...`);
+      await kv.set(`nullifier:${nullifierHash}`, {
         wallet: normalizedAddress,
         status: "complete",
       });
-      walletToNullifier.set(normalizedAddress, nullifierHash);
+      await kv.set(`wallet:${normalizedAddress}`, nullifierHash);
 
       console.log(`[SIGNING] Generating signature...`);
       const hash = ethers.solidityPackedKeccak256(["address"], [userAddress]);
@@ -504,13 +504,10 @@ app.post("/debug-config", (req, res) => {
   });
 });
 
-// =====================================================
-// STATUS & HEALTH
-// =====================================================
 app.get("/status", (req, res) => {
   res.json({
     status: "online",
-    registeredHumans: humanRegistry.size,
+    database: "Vercel KV Connected",
     issuerAddress: wallet.address,
     worldcoinApp: WORLDCOIN_APP_ID,
     uptime: process.uptime(),

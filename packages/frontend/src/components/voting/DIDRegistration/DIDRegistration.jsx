@@ -273,11 +273,12 @@ const DIDRegistration = () => {
       ]);
       console.log("Root Synced:", syncHash);
 
+      downloadSecretBackup(secret, commitment);
+
       toast.success(
         "Registration Complete! Save your secret file immediately.",
         "Success!",
       );
-      downloadSecretBackup(secret, commitment);
 
       setSavedSignature(null);
       setSavedCommitment(null);
