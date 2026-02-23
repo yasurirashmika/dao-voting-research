@@ -7,6 +7,7 @@ import Button from "../../components/common/Button/Button";
 import Input from "../../components/common/Input/Input";
 import Loader from "../../components/common/Loader/Loader";
 import { formatEther } from "ethers";
+import { useDeployment } from "../../context/DeploymentContext";
 import {
   formatAddress,
   formatDate,
@@ -20,6 +21,7 @@ import { PROPOSAL_STATE } from "../../utils/constants";
 import "./Proposals.css";
 
 const Proposals = () => {
+  const { mode } = useDeployment(); // ADD THIS LINE
   const { proposals, loading, error, fetchProposals } = useProposals();
   const [searchTerm, setSearchTerm] = useState("");
   const [filterState, setFilterState] = useState("all");
@@ -28,12 +30,12 @@ const Proposals = () => {
   const debouncedSearch = useDebounce(searchTerm, 500);
 
   const filterOptions = [
-  { value: "all", label: "All Proposals" },
-  { value: PROPOSAL_STATE.ACTIVE, label: "Active" },
-  { value: PROPOSAL_STATE.PASSED, label: "Passed" },
-  { value: PROPOSAL_STATE.REJECTED, label: "Rejected" },
-  { value: PROPOSAL_STATE.EXECUTED, label: "Executed" },
-];
+    { value: "all", label: "All Proposals" },
+    { value: PROPOSAL_STATE.ACTIVE, label: "Active" },
+    { value: PROPOSAL_STATE.PASSED, label: "Passed" },
+    { value: PROPOSAL_STATE.REJECTED, label: "Rejected" },
+    { value: PROPOSAL_STATE.EXECUTED, label: "Executed" },
+  ];
 
   // Filter and sort proposals
   const filteredProposals = proposals
@@ -146,7 +148,7 @@ const Proposals = () => {
           </Card>
         ) : (
           filteredProposals.map((proposal) => (
-            <ProposalCard key={proposal.id} proposal={proposal} />
+            <ProposalCard key={proposal.id} proposal={proposal} mode={mode} />
           ))
         )}
       </div>
@@ -155,14 +157,25 @@ const Proposals = () => {
 };
 
 // Proposal Card Component
-// Proposal Card Component
-const ProposalCard = ({ proposal }) => {
-  // FIX: Safely convert massive numbers to pure strings without scientific notation or BigInt
-  const safeFormat = (val) => Number(formatEther((val || 0).toLocaleString('fullwide', {useGrouping: false})));
+const ProposalCard = ({ proposal, mode }) => {
+  const safeFormat = (val) => {
+    if (!val) return 0;
 
+    // Safely convert to string, preventing scientific notation (e.g., "1e21")
+    const valString =
+      typeof val === "bigint"
+        ? val.toString()
+        : Number(val).toLocaleString("fullwide", { useGrouping: false });
+
+    if (mode === "private") {
+      return Number(valString);
+    } else {
+      return Number(formatEther(valString));
+    }
+  };
   const formattedYes = safeFormat(proposal.yesVotes);
   const formattedNo = safeFormat(proposal.noVotes);
-  
+
   const totalVotes = formattedYes + formattedNo;
   const yesPercentage = totalVotes > 0 ? (formattedYes / totalVotes) * 100 : 0;
   const noPercentage = totalVotes > 0 ? (formattedNo / totalVotes) * 100 : 0;
@@ -192,19 +205,17 @@ const ProposalCard = ({ proposal }) => {
         </p>
 
         <div className="vote-stats">
-              <div className="vote-stat vote-for">
-                <span className="vote-label">Yes</span>
-                <span className="vote-value">
-                  {formatLargeNumber(formattedYes)}
-                </span>
-              </div>
-              <div className="vote-stat vote-against">
-                <span className="vote-label">No</span>
-                <span className="vote-value">
-                  {formatLargeNumber(formattedNo)}
-                </span>
-              </div>
-            </div>
+          <div className="vote-stat vote-for">
+            <span className="vote-label">Yes</span>
+            <span className="vote-value">
+              {formatLargeNumber(formattedYes)}
+            </span>
+          </div>
+          <div className="vote-stat vote-against">
+            <span className="vote-label">No</span>
+            <span className="vote-value">{formatLargeNumber(formattedNo)}</span>
+          </div>
+        </div>
 
         <div className="progress-bar">
           <div

@@ -38,10 +38,12 @@ const ProposalDetails = () => {
   const toast = useToast();
 
   // Get refreshProposals
-  const { getProposal, castVote, hasVoted, isContractReady, refreshProposals } = useProposals();
+  const { getProposal, castVote, hasVoted, isContractReady, refreshProposals } =
+    useProposals();
 
   const contractName = mode === "private" ? "PrivateDAOVoting" : "DAOVoting";
-  const contractAbi = mode === "private" ? PrivateDAOVotingABI.abi : DAOVotingABI.abi;
+  const contractAbi =
+    mode === "private" ? PrivateDAOVotingABI.abi : DAOVotingABI.abi;
   const { write, read, contract } = useContract(contractName, contractAbi);
 
   const [proposal, setProposal] = useState(null);
@@ -80,39 +82,54 @@ const ProposalDetails = () => {
     if (!id || !isContractReady) return;
 
     if (!proposal) setLoading(true);
-    
+
     try {
       const data = await getProposal(id);
       if (!data) return;
 
-     // FIX: Safely convert massive numbers to pure strings without scientific notation or BigInt
-      const safeFormat = (val) => Number(formatEther((val || 0).toLocaleString('fullwide', {useGrouping: false})));
+      const safeFormat = (val, isTokenWeight = false) => {
+        if (!val) return 0;
+
+        // Safely convert to string, preventing scientific notation
+        const valString =
+          typeof val === "bigint"
+            ? val.toString()
+            : Number(val).toLocaleString("fullwide", { useGrouping: false });
+
+        // If private mode and it's a vote count, keep it as a normal number
+        if (mode === "private" && !isTokenWeight) {
+          return Number(valString);
+        }
+        // Otherwise (baseline mode or token weights), format as Ether
+        return Number(formatEther(valString));
+      };
 
       const formattedData = {
         ...data,
-        yesVotes: safeFormat(data.yesVotes),
-        noVotes: safeFormat(data.noVotes),
-        totalVotingWeight: safeFormat(data.totalVotingWeight),
-        minTokensRequired: data.minTokensRequired ? safeFormat(data.minTokensRequired) : 0
+        yesVotes: safeFormat(data.yesVotes, false),
+        noVotes: safeFormat(data.noVotes, false),
+        totalVotingWeight: safeFormat(data.totalVotingWeight, true),
+        minTokensRequired: data.minTokensRequired
+          ? safeFormat(data.minTokensRequired, true)
+          : 0,
       };
 
       setProposal(formattedData);
 
       if (address && isConnected) {
-        
         // --- Private Mode: Check Browser Storage ---
         if (mode === "private") {
           const storageKey = `zkp_vote_${address.toLowerCase()}_${id}`;
           const storedVote = localStorage.getItem(storageKey);
-          
+
           if (storedVote) {
             const parsedVote = JSON.parse(storedVote);
-            setUserVote({ 
-              hasVoted: true, 
-              support: parsedVote.support 
+            setUserVote({
+              hasVoted: true,
+              support: parsedVote.support,
             });
           }
-        } 
+        }
         // --- Public Mode: Check Blockchain ---
         else {
           const voted = await hasVoted(id, address);
@@ -148,40 +165,49 @@ const ProposalDetails = () => {
   // ZK SUCCESS HANDLER (Saves to Local Storage)
   const handleZKVoteSuccess = async (voteChoice) => {
     console.log("ZK Vote Success Detected!");
-    
+
     const isSupport = voteChoice === "yes";
 
     // Save receipt to browser
     if (address && id) {
       const storageKey = `zkp_vote_${address.toLowerCase()}_${id}`;
-      localStorage.setItem(storageKey, JSON.stringify({
-        hasVoted: true,
-        support: isSupport,
-        timestamp: Date.now()
-      }));
+      localStorage.setItem(
+        storageKey,
+        JSON.stringify({
+          hasVoted: true,
+          support: isSupport,
+          timestamp: Date.now(),
+        }),
+      );
     }
 
     // Update UI immediately
-    setUserVote({ 
-        hasVoted: true, 
-        support: isSupport 
+    setUserVote({
+      hasVoted: true,
+      support: isSupport,
     });
 
     // Refresh data
     setTimeout(async () => {
-        console.log("🔄 Refreshing proposal data...");
-        refreshProposals();
-        await loadProposalData();
+      console.log("🔄 Refreshing proposal data...");
+      refreshProposals();
+      await loadProposalData();
     }, 2000);
   };
 
   const handleVoteClick = (support) => {
     if (!isConnected) {
-      toast.warning("Please connect your wallet to vote.", "Wallet Not Connected");
+      toast.warning(
+        "Please connect your wallet to vote.",
+        "Wallet Not Connected",
+      );
       return;
     }
     if (mode === "baseline" && !isRegistered) {
-      toast.error("You must be a registered voter to participate.", "Not Registered");
+      toast.error(
+        "You must be a registered voter to participate.",
+        "Not Registered",
+      );
       return;
     }
     setSelectedVote(support);
@@ -194,13 +220,12 @@ const ProposalDetails = () => {
       await castVote(proposal.id, selectedVote);
       setShowVoteModal(false);
       setVoteReason("");
-      
+
       setUserVote({ hasVoted: true, support: selectedVote });
       toast.success("Your vote has been recorded.", "Vote Cast Successfully!");
-      
+
       refreshProposals();
       await loadProposalData();
-      
     } catch (error) {
       const message = parseError(error);
       toast.error(message, "Vote Failed");
@@ -230,7 +255,10 @@ const ProposalDetails = () => {
     setActionLoading(true);
     try {
       await write("finalizeProposal", [proposal.id]);
-      toast.success("The final results have been calculated.", "Proposal Finalized!");
+      toast.success(
+        "The final results have been calculated.",
+        "Proposal Finalized!",
+      );
       refreshProposals();
       await loadProposalData();
     } catch (error) {
@@ -271,7 +299,10 @@ const ProposalDetails = () => {
   if (loading)
     return (
       <div className="proposal-loading">
-        <Loader size="large" text={!contract ? "Connecting..." : "Loading..."} />
+        <Loader
+          size="large"
+          text={!contract ? "Connecting..." : "Loading..."}
+        />
       </div>
     );
 
@@ -336,17 +367,24 @@ const ProposalDetails = () => {
 
                 {/* PERSISTED VOTE STATE */}
                 {userVote.hasVoted ? (
-                  <div className="voted-notice" style={{
-                      backgroundColor: userVote.support ? 'rgba(76, 175, 80, 0.1)' : 'rgba(244, 67, 54, 0.1)',
-                      border: `1px solid ${userVote.support ? '#4CAF50' : '#F44336'}`,
-                      color: userVote.support ? '#2E7D32' : '#C62828',
-                      padding: '20px',
-                      borderRadius: '8px',
-                      textAlign: 'center',
-                      marginTop: '15px',
-                      fontWeight: 'bold',
-                      fontSize: '1.1rem'
-                  }}>
+                  <div
+                    className="voted-notice"
+                    style={{
+                      backgroundColor: userVote.support
+                        ? "rgba(76, 175, 80, 0.1)"
+                        : "rgba(244, 67, 54, 0.1)",
+                      border: `1px solid ${
+                        userVote.support ? "#4CAF50" : "#F44336"
+                      }`,
+                      color: userVote.support ? "#2E7D32" : "#C62828",
+                      padding: "20px",
+                      borderRadius: "8px",
+                      textAlign: "center",
+                      marginTop: "15px",
+                      fontWeight: "bold",
+                      fontSize: "1.1rem",
+                    }}
+                  >
                     {userVote.support ? "👍" : "👎"} You voted{" "}
                     {userVote.support ? "YES" : "NO"}
                   </div>
@@ -360,10 +398,13 @@ const ProposalDetails = () => {
                     )}
 
                     {mode === "private" ? (
-                      <div className="zk-voting-container" style={{ marginTop: '20px' }}>
-                        <ZKVotingModule 
-                            preselectedProposalId={proposal.id} 
-                            onVoteSuccess={handleZKVoteSuccess} 
+                      <div
+                        className="zk-voting-container"
+                        style={{ marginTop: "20px" }}
+                      >
+                        <ZKVotingModule
+                          preselectedProposalId={proposal.id}
+                          onVoteSuccess={handleZKVoteSuccess}
                         />
                       </div>
                     ) : (
@@ -597,10 +638,10 @@ const ProposalDetails = () => {
             onChange={(e) => setVoteReason(e.target.value)}
             placeholder="Share why you're voting this way..."
           />
-          <div style={{ marginTop: '15px' }}>
-             <Alert type="warning" title="⚠️ Important">
-                Your vote is final and will cost gas fees.
-             </Alert>
+          <div style={{ marginTop: "15px" }}>
+            <Alert type="warning" title="⚠️ Important">
+              Your vote is final and will cost gas fees.
+            </Alert>
           </div>
         </div>
       </Modal>
