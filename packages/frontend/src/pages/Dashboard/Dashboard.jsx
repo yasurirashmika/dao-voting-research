@@ -33,7 +33,7 @@ const Dashboard = () => {
 
     // A. Count Proposals Created
     const userProposals = proposals.filter(
-      (p) => p.proposer.toLowerCase() === address?.toLowerCase()
+      (p) => p.proposer.toLowerCase() === address?.toLowerCase(),
     );
 
     // B. Count Votes Cast
@@ -42,13 +42,15 @@ const Dashboard = () => {
     if (mode === "private") {
       // --- Private Mode: Count Local Storage Receipts ---
       myVoteCount = proposals.filter((p) =>
-        localStorage.getItem(`zkp_vote_${address.toLowerCase()}_${p.id}`)
+        localStorage.getItem(
+          `zkp_vote_${address.toLowerCase()}_${String(p.id)}`,
+        ),
       ).length;
     } else {
       // --- Public Mode: Check Blockchain for each proposal ---
       try {
         const checks = await Promise.all(
-          proposals.map((p) => hasVoted(p.id, address))
+          proposals.map((p) => hasVoted(p.id, address)),
         );
 
         myVoteCount = checks.filter((res) => {
