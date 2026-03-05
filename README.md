@@ -1,6 +1,6 @@
 # DAO Voting: A Privacy-Preserving and Sybil-Resistant Mechanism Using ZKPs and DIDs
 
-This repository contains the technical implementation for a thesis on a secure, anonymous, and Sybil-resistant DAO voting system for the course CSC4199. Developed between March 2025 and March 2026, the project is structured as a monorepo containing a `dao_voting` smart contract package and a `frontend` web application.
+This repository contains the technical implementation of the research (2025–2026) on a secure, anonymous, and Sybil-resistant DAO voting system for decentralized organizations on blockchain. The project is structured as a monorepo containing a dao_voting smart contract package and a frontend web application.
 
 It leverages **Zero-Knowledge Proofs (ZKPs)** to ensure voter privacy and **Decentralized Identifiers (DIDs)** alongside **Proof of Personhood (PoP)** to prevent Sybil attacks, ensuring a strict one-person-one-vote policy on the Ethereum blockchain.
 
